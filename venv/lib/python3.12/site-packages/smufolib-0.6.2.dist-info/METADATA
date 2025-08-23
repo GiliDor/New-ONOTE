@@ -1,0 +1,108 @@
+Metadata-Version: 2.4
+Name: smufolib
+Version: 0.6.2
+Summary: FontParts-based library for SMuFL font scripting
+Author-email: Knut Nergaard <knut.nergaard@gmail.com>
+License: 
+        Copyright (c) 2022 Knut Nergaard
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+        
+        
+Project-URL: Homepage, https://github.com/knutnergaard/SMufoLib
+Keywords: music notation,font design,SMuFL,UFO,FontParts
+Classifier: Development Status :: 4 - Beta
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.10
+Description-Content-Type: text/x-rst
+License-File: LICENSE
+Requires-Dist: fontParts
+Requires-Dist: tqdm
+Dynamic: license-file
+
+|PyPI| |versions| |license| |docs| |CI| |coverage|
+
+===============================
+SMufoLib: Where SMuFL meets UFO
+===============================
+
+.. _intro:
+
+SMufoLib is a lightweight Python library for working with fonts that follow the
+`Standard Music Font Layout <https://w3c.github.io/smufl/latest/>`_ (SMuFL). It builds
+on the reference implementation of the `FontParts
+<https://fontparts.robotools.dev/en/stable/index.html>`_ API and operates directly on the
+`Unified Font Object <https://unifiedfontobject.org>`_ (UFO) format. SMufoLib enhances
+these foundations with SMuFL-aware tools for music font design, scripting and metadata
+management -- all from the command line, without requiring a GUI font editor.
+
+.. _documentation:
+
+Documentation
+=============
+
+SMufoLib's documentation is available at `smufolib.readthedocs.io
+<https://smufolib.readthedocs.io/en/latest/index.html>`_.
+
+.. _installation:
+
+Installation
+============
+
+SMufoLib requires `Python <http://www.python.org/download/>`__ 3.10 or later. It is
+listed in the `Python Package Index <https://pypi.org/project/smufolib>`_ (PyPI) and can
+be installed with `pip <https://pip.pypa.io/>`__:
+
+.. code-block:: console
+
+   $ python -m pip install smufolib
+
+
+.. |PyPI| image:: https://img.shields.io/pypi/v/smufolib
+   :alt: PyPI - Version
+   :target: https://pypi.org/project/smufolib/
+
+.. |versions| image:: https://img.shields.io/pypi/pyversions/smufolib
+   :alt: PyPI - Python Version
+   :target: https://www.python.org
+
+.. |license| image:: https://img.shields.io/pypi/l/smufolib
+   :alt: PyPI - License
+   :target: https://opensource.org/license/mit
+
+.. |docs| image:: https://img.shields.io/readthedocs/smufolib
+   :alt: Read the Docs
+   :target: https://smufolib.readthedocs.io/en/latest/
+
+.. |CI| image:: https://img.shields.io/github/actions/workflow/status/knutnergaard/smufolib/ci.yml?event=push&label=CI
+   :alt: GitHub Actions Workflow Status
+   :target: https://github.com/knutnergaard/smufolib/actions
+
+.. |coverage| image:: https://img.shields.io/codecov/c/github/knutnergaard/smufolib?labelColor=grey&color=%23FF69B4
+   :alt: Codecov
+   :target: https://app.codecov.io/github/knutnergaard/smufolib
+
+
