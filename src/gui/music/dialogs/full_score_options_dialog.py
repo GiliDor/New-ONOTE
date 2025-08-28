@@ -220,7 +220,12 @@ class FullScoreOptionsDialog(QDialog):
         
     def setup_font_tab(self):
         """Set up the Font tab with font selection options"""
-        layout = QHBoxLayout(self.font_tab)
+        layout = QVBoxLayout(self.font_tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        # Body container
+        body = QHBoxLayout()
         
         # Left side - Categories list
         left_side = QVBoxLayout()
@@ -324,9 +329,24 @@ class FullScoreOptionsDialog(QDialog):
         # Add spacing
         right_side.addStretch()
         
-        # Add left and right layouts to main layout
-        layout.addLayout(left_side, 1)
-        layout.addLayout(right_side, 2)
+        # Add left and right layouts to body
+        body.addLayout(left_side, 1)
+        body.addLayout(right_side, 2)
+        layout.addLayout(body)
+
+        # Bottom section with Set/Reset Defaults buttons
+        bottom_section = QHBoxLayout()
+        bottom_section.addStretch()
+        self.fonts_set_defaults_button = QPushButton("Set as Defaults")
+        self.fonts_set_defaults_button.setMinimumWidth(150)
+        self.fonts_set_defaults_button.clicked.connect(self.set_as_defaults)
+        bottom_section.addWidget(self.fonts_set_defaults_button)
+        self.fonts_reset_defaults_button = QPushButton("Reset to Defaults")
+        self.fonts_reset_defaults_button.setMinimumWidth(150)
+        self.fonts_reset_defaults_button.clicked.connect(self.reset_to_defaults)
+        bottom_section.addWidget(self.fonts_reset_defaults_button)
+        bottom_section.addStretch()
+        layout.addLayout(bottom_section)
         
         self.font_name_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('font_name', value))
         self.style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('font_style', value))
@@ -462,6 +482,20 @@ class FullScoreOptionsDialog(QDialog):
         doc_info.setStyleSheet("background: #d1ecf1; border: 1px solid #bee5eb; border-radius: 4px; padding: 8px; color: #0c5460; font-style: italic;")
         doc_info.setWordWrap(True)
         scroll_layout.addWidget(doc_info)
+
+        # Bottom section with Set/Reset Defaults buttons for Layout
+        bottom_section = QHBoxLayout()
+        bottom_section.addStretch()
+        self.layout_set_defaults_button = QPushButton("Set as Defaults")
+        self.layout_set_defaults_button.setMinimumWidth(150)
+        self.layout_set_defaults_button.clicked.connect(self.set_as_defaults)
+        bottom_section.addWidget(self.layout_set_defaults_button)
+        self.layout_reset_defaults_button = QPushButton("Reset to Defaults")
+        self.layout_reset_defaults_button.setMinimumWidth(150)
+        self.layout_reset_defaults_button.clicked.connect(self.reset_to_defaults)
+        bottom_section.addWidget(self.layout_reset_defaults_button)
+        bottom_section.addStretch()
+        scroll_layout.addLayout(bottom_section)
         
         scroll_layout.addStretch()
         scroll.setWidget(scroll_widget)
@@ -2036,6 +2070,31 @@ class FullScoreOptionsDialog(QDialog):
         barline_color = getattr(self, 'barline_numbers_color_value', '#666666')
         print(f"SET_AS_DEFAULTS: Saving barline_numbers_font_color = {barline_color}")
         settings.setValue("notation/barline_numbers_font_color", barline_color)
+
+        # Also persist Fonts tab defaults
+        try:
+            if hasattr(self, 'font_name_combo'):
+                settings.setValue("fonts/default_font_name", self.font_name_combo.currentText())
+            if hasattr(self, 'style_combo'):
+                settings.setValue("fonts/default_font_style", self.style_combo.currentText())
+            if hasattr(self, 'size_spin'):
+                settings.setValue("fonts/default_font_size", self.size_spin.value())
+        except Exception:
+            pass
+
+        # Also persist Layout tab defaults (application-wide)
+        try:
+            if hasattr(self, 'notation_size_spin'):
+                settings.setValue("layout/default_notation_size", float(self.notation_size_spin.value()))
+            if hasattr(self, 'measures_system_spin'):
+                settings.setValue("notation/max_measures_per_system", int(self.measures_system_spin.value()))
+                settings.setValue("layout/default_measures_per_system", int(self.measures_system_spin.value()))
+            if hasattr(self, 'justify_last_system'):
+                settings.setValue("layout/justify_last_system", bool(self.justify_last_system.isChecked()))
+            if hasattr(self, 'hide_empty_staves'):
+                settings.setValue("layout/hide_empty_staves", bool(self.hide_empty_staves.isChecked()))
+        except Exception:
+            pass
         
         # Force settings to be written to disk
         settings.sync()
@@ -2384,7 +2443,7 @@ class FullScoreOptionsDialog(QDialog):
             print("FULL_SCORE_OPTIONS: Loaded notation settings from document and QSettings")
             
         except Exception as e:
-            print(f"FULL_SCORE_OPTIONS: Error loading settings: {e}")
+            print(f"FULL_SCORE_OPTIONS: Error loading settings: {e}") 
     
     def on_measure_numbers_frequency_changed(self, text):
         """Show/hide custom interval controls based on frequency selection"""

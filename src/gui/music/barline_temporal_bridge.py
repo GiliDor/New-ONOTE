@@ -44,7 +44,9 @@ class BarlineTemporalBridge(QObject):
         
         # Layout constants (justified positioning system)
         self.SYSTEM_BARLINE_X = 100.0     # Barline 0 (initial system barline)
-        self.LEFTMOST_NOTE_X = 225.0      # CRITICAL FIX: Reduced from 265.0 to 225.0 for smaller padding from time signature
+        # Reduce post-time-signature pad to maximize notation space. This is the unified
+        # leftmost position for notes across all systems (clef/key/time + minimal pad)
+        self.LEFTMOST_NOTE_X = 210.0
         
         # CRITICAL FIX: Calculate staff end position dynamically instead of hardcoding 1136px
         # The staff end should be calculated from page width and margins
@@ -250,6 +252,32 @@ class BarlineTemporalBridge(QObject):
         print(f"\n=== BARLINE CREATION ===")
         print(f"Click position: {x_position}, type: {barline_type}")
 
+        # SPECIAL CASE: Graphical dashed barline does NOT create a measure
+        if str(barline_type).lower() == "dashed":
+            try:
+                # Ensure storage exists on document
+                if not hasattr(self.document, 'graphical_dashed_barlines'):
+                    self.document.graphical_dashed_barlines = []
+                # Minimal dashed barline structure used by StaffView selection logic
+                class GraphicalDashedBarline:
+                    def __init__(self, x):
+                        self.x_position = float(x)
+                        self.barline_type = 'dashed'
+                        self.selected = False
+                        self.is_graphical_dashed = True
+                    def contains_x_position(self, x):
+                        return abs(self.x_position - float(x)) < 5.0
+                dashed = GraphicalDashedBarline(x_position)
+                self.document.graphical_dashed_barlines.append(dashed)
+                print(f"BRIDGE: Added graphical dashed barline at x={x_position}; no measure created")
+                # Notify view to repaint if available
+                if hasattr(self.document, 'staff_view') and self.document.staff_view:
+                    self.document.staff_view.update()
+                return dashed
+            except Exception as e:
+                print(f"BRIDGE: Error creating graphical dashed barline: {e}")
+                return None
+
         # Always reload layout preferences to get latest measures per system
         self._load_layout_preferences()
         
@@ -275,15 +303,8 @@ class BarlineTemporalBridge(QObject):
         """
         print("BRIDGE: Using MeasureManager for barline creation (ONOTE index inheritance model)")
         
-        # STEP 0: Check measures per system constraint BEFORE creating new barlines
+        # STEP 0: System limit no longer blocks creation; wrapping handled by renderer
         current_measures = self._get_current_measures()
-        if current_measures:
-            current_count = len(current_measures)
-            if current_count >= self.measures_per_system:
-                print(f"CONSTRAINT: Cannot create more barlines - already at maximum {self.measures_per_system} measures per system")
-                print(f"CONSTRAINT: Current: {current_count} measures, Max: {self.measures_per_system}")
-                # TODO: Implement system wrapping/pagination here in future versions
-                return None
         
         # STEP 1: Handle initial state - create first measure if none exist
         if not current_measures:
@@ -310,7 +331,14 @@ class BarlineTemporalBridge(QObject):
         
         print(f"BRIDGE: Found {len(validated_measures)} valid measures for position finding")
         
-        target_measure = self._find_measure_containing_position(x_position, validated_measures)
+        # Allow clicks anywhere on staff: left of first measure -> split first; right of last -> append
+        first_measure_start = self._get_measure_start_x(validated_measures[0])
+        last_end = getattr(validated_measures[-1], 'end_x', first_measure_start)
+        if x_position < first_measure_start:
+            target_measure = validated_measures[0]
+            print(f"BRIDGE: Click left of first measure; targeting measure #1 for split")
+        else:
+            target_measure = self._find_measure_containing_position(x_position, validated_measures)
         
         if not target_measure:
             print(f"BRIDGE: No existing measure contains position {x_position} - creating new measure at end")
@@ -489,6 +517,18 @@ class BarlineTemporalBridge(QObject):
         
         # Sort measures by measure number to ensure consistent ordering
         sorted_measures = sorted(measures, key=lambda m: getattr(m, 'measure_number', 0))
+
+        # Defensive fix: if any supplied end_x would be non-monotonic, ignore and fall back to grid
+        def is_monotonic(values):
+            prev = float('-inf')
+            for v in values:
+                if v < prev:
+                    return False
+                prev = v
+            return True
+        existing_positions = [getattr(m, 'end_x', 0.0) for m in sorted_measures]
+        if not is_monotonic(existing_positions):
+            print(f"BRIDGE: Detected non-monotonic end_x sequence {existing_positions} → enforcing justified grid")
         
         # Apply justified positions to ALL measures with EQUAL NOTATION SPACE
         for i, measure in enumerate(sorted_measures):
@@ -547,13 +587,7 @@ class BarlineTemporalBridge(QObject):
         current_measures = self._get_current_measures()
         print(f"BRIDGE: Found {len(current_measures)} valid measures")
         
-        # STEP 2: Check measures per system constraint
-        if current_measures:
-            current_count = len(current_measures)
-            if current_count >= self.measures_per_system:
-                print(f"CONSTRAINT: Cannot create more barlines - already at maximum {self.measures_per_system} measures per system")
-                print(f"CONSTRAINT: Current: {current_count} measures, Max: {self.measures_per_system}")
-                return None
+        # STEP 2: System limit no longer blocks creation; wrapping handled by renderer
         
         # STEP 3: Handle initial state - create first measure if none exist
         if not current_measures:
@@ -583,12 +617,16 @@ class BarlineTemporalBridge(QObject):
             else:
                 print(f"BRIDGE: ✗ Position {x_position} NOT in measure #{measure_num} (x={measure_start} to {measure_end})")
         
-        # STEP 5: Handle position beyond existing measures
+        # STEP 5: Handle position beyond existing measures, and clamp left-of-first to first
         if not target_measure:
             if sorted_measures:
+                first_start = self._get_measure_start_x(sorted_measures[0])
                 rightmost_measure = sorted_measures[-1]
                 rightmost_end = getattr(rightmost_measure, 'end_x', 0)
-                if x_position >= rightmost_end:
+                if x_position < first_start:
+                    target_measure = sorted_measures[0]
+                    print(f"BRIDGE: Click left of first measure; targeting measure #1 for split")
+                elif x_position >= rightmost_end:
                     print(f"BRIDGE: Position {x_position} is beyond rightmost measure (end={rightmost_end})")
                     print(f"BRIDGE: Creating new measure at end")
                     
@@ -605,7 +643,7 @@ class BarlineTemporalBridge(QObject):
                     self.document.measures[new_measure_number] = new_measure
                     print(f"BRIDGE: Created new measure #{new_measure_number} at position {x_position}")
                     
-                    # Apply justified positioning
+                    # Apply justified positioning across all systems
                     self._ensure_all_measures_justified()
                     
                     # Force updates
@@ -781,6 +819,32 @@ class BarlineTemporalBridge(QObject):
             # CRITICAL FIX: Sort measures by measure_number to ensure consistent ordering
             valid_measures.sort(key=lambda m: getattr(m, 'measure_number', 0))
             
+            # DEFENSIVE CORRECTION: Ensure end_x positions are strictly non-decreasing.
+            # If not, enforce justified positions immediately to repair state before rendering.
+            try:
+                end_positions = [float(getattr(m, 'end_x', 0.0)) for m in valid_measures]
+                non_monotonic = False
+                prev_pos = float('-inf')
+                for pos in end_positions:
+                    if pos < prev_pos:
+                        non_monotonic = True
+                        break
+                    prev_pos = pos
+                if non_monotonic:
+                    print(f"BRIDGE: Detected non-monotonic measure positions {end_positions} — enforcing justified grid")
+                    justified_positions = self._calculate_justified_positions(len(valid_measures))
+                    for i, measure in enumerate(valid_measures):
+                        old_end = getattr(measure, 'end_x', 0.0)
+                        new_end = justified_positions[i] if i < len(justified_positions) else old_end
+                        measure.end_x = new_end
+                        # Update start/width coherently
+                        start_x = self.LEFTMOST_NOTE_X if i == 0 else justified_positions[i - 1]
+                        measure.x_position = start_x
+                        measure.width = max(0.0, new_end - start_x)
+                        print(f"BRIDGE: Repaired measure #{getattr(measure, 'measure_number', i+1)} end_x {old_end} → {new_end}")
+            except Exception as e:
+                print(f"BRIDGE: Error during monotonic repair in _get_current_measures: {e}")
+
             # Check for duplicate measure numbers
             measure_numbers = [getattr(m, 'measure_number', 0) for m in valid_measures]
             if len(measure_numbers) != len(set(measure_numbers)):
@@ -966,22 +1030,26 @@ class BarlineTemporalBridge(QObject):
         if measures_in_system <= 0:
             return []
         
-        # Available notation space for this system
-        total_notation_space = end_barline_x - self.LEFTMOST_NOTE_X
-        
-        # Each measure gets equal notation space per Rule 1
-        notation_space_per_measure = total_notation_space / measures_in_system
+        # Available notation space for this system (full width from leftmost to right margin)
+        leftmost_x = self.calculate_leftmost_note_position()
+        total_notation_space = end_barline_x - leftmost_x
+
+        # IMPORTANT: Do not stretch incomplete final systems to the full width.
+        # Use unit width based on max measures per system, so a freshly wrapped line
+        # grows one-measure at a time as measures are added.
+        max_per_system = max(1, int(getattr(self, 'measures_per_system', measures_in_system)))
+        notation_space_per_measure = total_notation_space / max_per_system
         
         print(f"SYSTEM_{system_index + 1}: Equal space per measure: {notation_space_per_measure}px")
         
         system_positions = []
         for i in range(measures_in_system):
-            # RULE 1: Each barline positioned at equal intervals within this system
-            barline_position = self.LEFTMOST_NOTE_X + (i + 1) * notation_space_per_measure
+            # RULE 1: Each barline positioned at unit intervals; final bar does NOT fill entire line
+            barline_position = leftmost_x + (i + 1) * notation_space_per_measure
             system_positions.append(barline_position)
             
             # Debug: Verify equal spacing implementation
-            measure_start = self.LEFTMOST_NOTE_X if i == 0 else system_positions[i-1]
+            measure_start = leftmost_x if i == 0 else system_positions[i-1]
             measure_notation_space = barline_position - measure_start
             print(f"SYSTEM_{system_index + 1}: Measure {i+1} barline at {barline_position:.1f}px - notation space: {measure_notation_space:.1f}px")
         
@@ -1445,11 +1513,12 @@ class BarlineTemporalBridge(QObject):
 
     def enter_edit_mode(self):
         """
-        ENHANCED: When entering Edit mode from score setup mode, create the first initial measure 
-        automatically with proper justified positioning.
+        ENHANCED: When entering Edit mode from score setup mode, create an initial batch of
+        measures that fills the first system (max measures per system) with equal widths,
+        ending in a final barline position. Subsequent additions will wrap and extend.
         """
         print("\n=== ENTERING EDIT MODE ===")
-        print("Creating initial measure with barline 1 at staff end")
+        print("Creating initial batch of measures filling first system")
 
         # Always reload layout preferences to get latest measures per system
         self._load_layout_preferences()
@@ -1458,39 +1527,30 @@ class BarlineTemporalBridge(QObject):
         if hasattr(self.document, 'measures'):
             self.document.measures = {}
         
-        # Get the staff end position (where barline 1 will be placed)
+        # Determine the end position for the first system and create equal-width measures
         staff_end_x = self.get_current_end_barline_x()
+        mps = max(1, int(getattr(self, 'measures_per_system', 4)))
+        print(f"EDIT_MODE: Initial system end at x={staff_end_x}; measures per system={mps}")
+
+        # Calculate equal barline positions for the first system
+        system_positions = self._calculate_system_justified_positions(mps, staff_end_x, 0)
         
-        # Create measure #1 with proper boundaries
-        # - Starts at leftmost note position (after clef, key, time signatures)
-        # - Ends at staff end position (where barline 1 will be)
-        # - Has measure number 1 (first measure)
-        measure_1 = self._create_measure_object(
-            measure_number=1,
-            x_position=self.LEFTMOST_NOTE_X,  # Start after clef/key/time
-            end_x=staff_end_x,                # End at staff end (barline 1 position)
-            barline_type='single'             # Barline 1 is a single barline
-        )
-        
-        # Initialize document measures collection
+        # Initialize collection
         if not hasattr(self.document, 'measures'):
             self.document.measures = {}
-        
-        # Store measure 1 in the document
-        self.document.measures[1] = measure_1
-        
-        # Calculate the effective notation space for this initial measure
-        notation_space = staff_end_x - self.LEFTMOST_NOTE_X
-        
-        print(f"EDIT_MODE: Created initial measure #1")
-        print(f"EDIT_MODE: - Measure start: {self.LEFTMOST_NOTE_X}px (leftmost note position)")
-        print(f"EDIT_MODE: - Measure end: {staff_end_x}px (barline 1 position)")
-        print(f"EDIT_MODE: - Notation space: {notation_space}px")
-        print(f"EDIT_MODE: - Barline type: single")
-        
-        # This measure now establishes the baseline for justified positioning
-        # When additional barlines are created, the total notation space will be
-        # divided equally among all measures, ensuring consistent spacing
+
+        # Create measures 1..mps with equal widths across the first system
+        prev_end = self.LEFTMOST_NOTE_X
+        for i, end_x in enumerate(system_positions, start=1):
+            measure = self._create_measure_object(
+                measure_number=i,
+                x_position=prev_end,
+                end_x=end_x,
+                barline_type='single'
+            )
+            self.document.measures[i] = measure
+            prev_end = end_x
+            print(f"EDIT_MODE: Created initial measure #{i}: start={measure.x_position}, end={measure.end_x}")
         
         # CRITICAL FIX: Force layout refresh to enable dynamic resizing
         print("EDIT_MODE: Forcing layout refresh to enable dynamic resizing")
@@ -1503,7 +1563,7 @@ class BarlineTemporalBridge(QObject):
         self.temporal_structure_changed.emit()
         self.measure_layout_changed.emit()
         
-        print("EDIT_MODE: Initial measure creation complete")
+        print("EDIT_MODE: Initial batch creation complete")
         print("EDIT_MODE: Ready for user to create additional measures by clicking on staff")
         print("EDIT_MODE: Dynamic resizing is now enabled")
         print("=== EDIT MODE ENTRY COMPLETE ===\n")

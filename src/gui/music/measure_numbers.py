@@ -146,17 +146,15 @@ class MeasureNumberRenderer:
                 x = measure_x + self.settings.horizontal_offset
                 print(f"MEASURE_NUMBERS: Measure {measure_number} positioned after barline at x={measure_x}, final_x: {x}")
         elif self.settings.position == MeasureNumberPosition.CENTER:
-            # CRITICAL FIX: Position at the center of the measure's effective notation area
-            # measure_x is the start of the measure, measure_width is the width of the measure
-            # Center = start + (width / 2)
+            # Position relative to the nearest barline center:
+            # We model the barline as infinitely thin and place the number centered between
+            # the start and end barlines of this measure, then apply the user offset.
             center_x = measure_x + (measure_width / 2)
             x = center_x + self.settings.horizontal_offset
             print(f"MEASURE_NUMBERS: Measure {measure_number} positioned at CENTER: x={measure_x} + width/2={measure_width/2} + offset={self.settings.horizontal_offset} = {x}")
         elif self.settings.position == MeasureNumberPosition.END:
-            # CRITICAL FIX: Position at the end of the measure (before the next barline)
-            # For END position, we want to position just before the measure ends
-            # Use 90% of the measure width to ensure it's visible
-            end_x = measure_x + (measure_width * 0.9)
+            # Position just before the ending barline, honoring user offset entirely
+            end_x = measure_x + measure_width
             x = end_x + self.settings.horizontal_offset
             print(f"MEASURE_NUMBERS: Measure {measure_number} positioned at END: x={measure_x} + width*0.9={measure_width*0.9} + offset={self.settings.horizontal_offset} = {x}")
         else:
@@ -396,9 +394,19 @@ class MeasureNumberManager:
                 # CRITICAL FIX: Calculate measure start position from LIVE document state
                 # This ensures measure numbers respond immediately to layout changes
                 if measure_number == 1:
-                    # First measure starts at the system barline (barline 0), not the notation space
-                    # The system barline is at x=100.0 (from the temporal bridge constants)
-                    measure_start_x = 100.0  # System barline position (barline 0)
+                    # First measure should start at the leftmost notation x (after clef/key/time)
+                    # Prefer the temporal bridge's dynamic value; fall back safely if unavailable
+                    leftmost_x = None
+                    try:
+                        if self.document and hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                            tb = self.document.temporal_bridge
+                            if hasattr(tb, 'calculate_leftmost_note_position'):
+                                leftmost_x = float(tb.calculate_leftmost_note_position())
+                            elif hasattr(tb, 'LEFTMOST_NOTE_X'):
+                                leftmost_x = float(getattr(tb, 'LEFTMOST_NOTE_X', 100.0))
+                    except Exception:
+                        leftmost_x = None
+                    measure_start_x = leftmost_x if isinstance(leftmost_x, (int, float)) else 100.0
                 else:
                     # Find the previous measure's end position from LIVE document
                     prev_measure = None

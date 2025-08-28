@@ -180,7 +180,8 @@ class PreferencesDialog(QDialog):
         self.apply_button = QPushButton("Apply")
         self.apply_button.clicked.connect(self.apply_settings)
         button_box.addButton(self.apply_button, QDialogButtonBox.ButtonRole.ApplyRole)
-        self.apply_button.setEnabled(False)
+        # Keep Apply enabled across all tabs; we'll still gate saves in apply_settings
+        self.apply_button.setEnabled(True)
         
         # Close button - closes dialog
         close_button = QPushButton("Close")
@@ -420,9 +421,17 @@ class PreferencesDialog(QDialog):
         self.settings.setValue("layout/default_bottom_margin", self.default_bottom_margin.value())
         self.settings.setValue("layout/default_left_margin", self.default_left_margin.value())
         self.settings.setValue("layout/default_right_margin", self.default_right_margin.value())
+        # Also persist default zoom percentage selected in Page Layout tab
+        try:
+            if hasattr(self, 'default_zoom_spin') and self.default_zoom_spin is not None:
+                self.settings.setValue("general/default_zoom", f"{self.default_zoom_spin.value()}%")
+        except Exception:
+            pass
         self.settings.setValue("layout/default_staff_spacing", self.default_staff_spacing.value())
         self.settings.setValue("layout/default_system_spacing", self.default_system_spacing.value())
-        self.settings.setValue("layout/default_measures_per_system", self.default_measures_per_system.value())
+        # Canonicalize Measures/System: prefer Page Layout tab spinner and mirror to notation key later
+        canonical_mps = self.default_measures_per_system.value()
+        self.settings.setValue("layout/default_measures_per_system", canonical_mps)
         self.settings.setValue("layout/default_notation_size", self.default_notation_size.value())
         self.settings.setValue("layout/show_staff_names", self.show_staff_names.isChecked())
         self.settings.setValue("layout/show_page_numbers", self.show_page_numbers.isChecked())
@@ -518,8 +527,13 @@ class PreferencesDialog(QDialog):
         self.settings.setValue("notation/measure_numbers_horizontal_offset", self.measure_numbers_horizontal_offset.value())
         
         # Barline control settings
-        self.settings.setValue("notation/max_measures_per_system", self.max_measures_per_system.value())
-        self.settings.setValue("layout/default_measures_per_system", self.max_measures_per_system.value())  # Also save to layout key for compatibility
+        # Keep Notation in sync with Page Layout canonical value
+        try:
+            mps_value = canonical_mps
+        except NameError:
+            mps_value = self.default_measures_per_system.value() if hasattr(self, 'default_measures_per_system') else self.max_measures_per_system.value()
+        self.settings.setValue("notation/max_measures_per_system", mps_value)
+        # Do not overwrite layout/default_measures_per_system here
         self.settings.setValue("notation/barline_numbering", self.barline_numbering.isChecked())
         self.settings.setValue("notation/barline_number_font_size", self.barline_number_font_size.value())
         
@@ -535,6 +549,11 @@ class PreferencesDialog(QDialog):
         self._dirty = False
         if hasattr(self, 'apply_button'):
             self.apply_button.setEnabled(False)
+        # Ensure values are written to persistent storage immediately
+        try:
+            self.settings.sync()
+        except Exception:
+            pass
 
     def apply_settings(self):
         """Apply settings without closing the dialog - ONLY saves to QSettings for new documents"""
@@ -687,13 +706,34 @@ class PreferencesDialog(QDialog):
         ])
         self.default_page_size.setCurrentText("A4 (210 × 297 mm)")
         self.default_page_size.setMinimumWidth(160)
+        self.default_page_size.currentTextChanged.connect(self._mark_dirty)
         page_layout.addRow("Page Size:", self.default_page_size)
+
+        # Default Zoom (%) for new documents (also available on General tab)
+        from PyQt6.QtWidgets import QSpinBox
+        self.default_zoom_spin = QSpinBox()
+        self.default_zoom_spin.setRange(25, 400)
+        self.default_zoom_spin.setSuffix("%")
+        # Initialize from Preferences; fallback to 100%
+        try:
+            dz_value = self.settings.value("general/default_zoom", "100%")
+            if isinstance(dz_value, str) and dz_value.endswith('%'):
+                dz_int = int(float(dz_value.strip('%')))
+            else:
+                dz_int = int(float(dz_value))
+        except Exception:
+            dz_int = 100
+        self.default_zoom_spin.setValue(dz_int)
+        # Mark dialog dirty on change
+        self.default_zoom_spin.valueChanged.connect(self._mark_dirty)
+        page_layout.addRow("Default Zoom (%):", self.default_zoom_spin)
         
         # Page orientation
         self.default_orientation = QComboBox()
         self.default_orientation.addItems(["Portrait", "Landscape"])
         self.default_orientation.setCurrentText("Portrait")
         self.default_orientation.setMinimumWidth(160)
+        self.default_orientation.currentTextChanged.connect(self._mark_dirty)
         page_layout.addRow("Orientation:", self.default_orientation)
         
         left_column.addWidget(page_group)
@@ -709,6 +749,7 @@ class PreferencesDialog(QDialog):
         self.default_top_margin.setSuffix(" mm")
         self.default_top_margin.setMinimumWidth(80)
         margins_layout.addRow("Top:", self.default_top_margin)
+        self.default_top_margin.valueChanged.connect(self._mark_dirty)
         
         self.default_bottom_margin = QDoubleSpinBox()
         self.default_bottom_margin.setRange(0.0, 100.0)
@@ -716,6 +757,7 @@ class PreferencesDialog(QDialog):
         self.default_bottom_margin.setSuffix(" mm")
         self.default_bottom_margin.setMinimumWidth(80)
         margins_layout.addRow("Bottom:", self.default_bottom_margin)
+        self.default_bottom_margin.valueChanged.connect(self._mark_dirty)
         
         self.default_left_margin = QDoubleSpinBox()
         self.default_left_margin.setRange(0.0, 100.0)
@@ -723,6 +765,7 @@ class PreferencesDialog(QDialog):
         self.default_left_margin.setSuffix(" mm")
         self.default_left_margin.setMinimumWidth(80)
         margins_layout.addRow("Left:", self.default_left_margin)
+        self.default_left_margin.valueChanged.connect(self._mark_dirty)
         
         self.default_right_margin = QDoubleSpinBox()
         self.default_right_margin.setRange(0.0, 100.0)
@@ -730,6 +773,7 @@ class PreferencesDialog(QDialog):
         self.default_right_margin.setSuffix(" mm")
         self.default_right_margin.setMinimumWidth(80)
         margins_layout.addRow("Right:", self.default_right_margin)
+        self.default_right_margin.valueChanged.connect(self._mark_dirty)
         
         left_column.addWidget(margins_group)
         
@@ -745,6 +789,7 @@ class PreferencesDialog(QDialog):
         self.default_staff_spacing.setSuffix(" px")
         self.default_staff_spacing.setMinimumWidth(120)
         score_layout_layout.addRow("Staff Spacing:", self.default_staff_spacing)
+        self.default_staff_spacing.valueChanged.connect(self._mark_dirty)
         
         # System spacing
         self.default_system_spacing = QSpinBox()
@@ -753,6 +798,7 @@ class PreferencesDialog(QDialog):
         self.default_system_spacing.setSuffix(" px")
         self.default_system_spacing.setMinimumWidth(120)
         score_layout_layout.addRow("System Spacing:", self.default_system_spacing)
+        self.default_system_spacing.valueChanged.connect(self._mark_dirty)
         
         # Measures per system
         self.default_measures_per_system = QSpinBox()
@@ -760,6 +806,7 @@ class PreferencesDialog(QDialog):
         self.default_measures_per_system.setValue(4)
         self.default_measures_per_system.setMinimumWidth(120)
         score_layout_layout.addRow("Measures/System:", self.default_measures_per_system)
+        self.default_measures_per_system.valueChanged.connect(self._mark_dirty)
         
         # Notation size
         self.default_notation_size = QDoubleSpinBox()
@@ -769,6 +816,7 @@ class PreferencesDialog(QDialog):
         self.default_notation_size.setSuffix("x")
         self.default_notation_size.setMinimumWidth(120)
         score_layout_layout.addRow("Notation Scale:", self.default_notation_size)
+        self.default_notation_size.valueChanged.connect(self._mark_dirty)
         
         left_column.addWidget(score_layout_group)
         
@@ -786,18 +834,21 @@ class PreferencesDialog(QDialog):
         self.auto_justify.setChecked(True)
         self.auto_justify.setToolTip("Automatically justify measures across the system width")
         layout_settings_layout.addWidget(self.auto_justify)
+        self.auto_justify.toggled.connect(self._mark_dirty)
         
         # Dynamic width checkbox
         self.dynamic_width = QCheckBox("Dynamic measure width")
         self.dynamic_width.setChecked(True)
         self.dynamic_width.setToolTip("Allow measures to adjust width based on content")
         layout_settings_layout.addWidget(self.dynamic_width)
+        self.dynamic_width.toggled.connect(self._mark_dirty)
         
         # Force break checkbox
         self.force_break = QCheckBox("Force system break")
         self.force_break.setChecked(False)
         self.force_break.setToolTip("Force a system break at this point")
         layout_settings_layout.addWidget(self.force_break)
+        self.force_break.toggled.connect(self._mark_dirty)
         
         # Custom width checkbox and spin box
         custom_width_layout = QHBoxLayout()
@@ -817,6 +868,8 @@ class PreferencesDialog(QDialog):
         
         # Connect custom width checkbox to enable/disable spin box
         self.custom_width_enabled.toggled.connect(self.custom_width_value.setEnabled)
+        self.custom_width_enabled.toggled.connect(self._mark_dirty)
+        self.custom_width_value.valueChanged.connect(self._mark_dirty)
         
         layout_settings_layout.addLayout(custom_width_layout)
         
@@ -825,6 +878,7 @@ class PreferencesDialog(QDialog):
         self.truncate_empty.setChecked(False)
         self.truncate_empty.setToolTip("Remove empty measures that appear after the final barline")
         layout_settings_layout.addWidget(self.truncate_empty)
+        self.truncate_empty.toggled.connect(self._mark_dirty)
         
         right_column.addWidget(layout_settings_group)
         

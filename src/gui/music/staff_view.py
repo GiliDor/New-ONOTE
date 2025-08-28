@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                            QButtonGroup, QRadioButton)
 from PyQt6.QtCore import Qt, QRectF, QPointF, QRect, QPoint, QTimer, QObject, QEvent
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont, QPainterPath, QBrush, QFontMetrics, QKeyEvent
+from PyQt6.QtWidgets import QPinchGesture
 from PyQt6.QtCore import pyqtSignal
 from .staff_types import StaffType, StaffBase, SingleStaff, GrandStaff, SectionGroup, ScoreLayout
 from .score_document import ScoreDocument
@@ -391,6 +392,8 @@ class StaffView(QWidget):
         self.gesture_start_pos = None
         self.gesture_start_zoom = 1.0
         self.is_gesturing = False
+        # Selection visualization mode: use color change in renderer, not overlay
+        self.show_selection_overlay = False
         
         # Initialize the renderer
         from .score_renderer import ScoreRenderer
@@ -411,7 +414,25 @@ class StaffView(QWidget):
             from .score_document import ScoreDocument
             self.document = ScoreDocument()
             print("STAFFVIEW: Created minimal ScoreDocument")
+            # Apply default zoom (80%) from Preferences if available
+            try:
+                from PyQt6.QtCore import QSettings
+                default_zoom = QSettings("ONOTE", "Preferences").value("general/default_zoom", "100%")
+                # Accept formats like "80%" or numeric strings
+                if isinstance(default_zoom, str) and default_zoom.endswith('%'):
+                    self.zoom_factor = max(0.25, min(float(default_zoom.strip('%'))/100.0, 4.0))
+                else:
+                    self.zoom_factor = max(0.25, min(float(default_zoom)/100.0, 4.0))
+            except Exception:
+                # Fallback to 0.8 as requested default
+                self.zoom_factor = 0.8
         
+        # Grab pinch gesture (Qt gesture framework) in addition to native gesture path
+        try:
+            self.grabGesture(Qt.GestureType.PinchGesture)
+        except Exception:
+            pass
+
         # Enable mouse tracking for gesture support
         self.setMouseTracking(True)
         
@@ -436,6 +457,26 @@ class StaffView(QWidget):
         # Set the document in the renderer
         if self.renderer:
             self.renderer.set_document(document)
+            # Enforce preferred orientation on first attach to renderer
+            try:
+                from PyQt6.QtCore import QSettings
+                preferred_orientation = str(QSettings("ONOTE", "Preferences").value("layout/default_orientation", "Portrait"))
+                preferred_orientation = 'Landscape' if preferred_orientation.lower().startswith('land') else 'Portrait'
+                layout = getattr(self.document, 'layout', None)
+                # Determine current orientation from renderer
+                rw = getattr(self.renderer, 'page_width', 0)
+                rh = getattr(self.renderer, 'page_height', 0)
+                current_orientation = 'Landscape' if rw > rh else 'Portrait'
+                if preferred_orientation != current_orientation:
+                    # Swap to match preference
+                    self.renderer.set_page_size(rh, rw)
+                    if layout is not None:
+                        try:
+                            layout.page_width, layout.page_height = layout.page_height, layout.page_width
+                        except Exception:
+                            pass
+            except Exception:
+                pass
         # CRITICAL FIX: Update temporal bridge with new document
         if self.temporal_bridge:
             self.temporal_bridge.document = document
@@ -467,6 +508,14 @@ class StaffView(QWidget):
         
         main_layout.addWidget(self.toolbar)
         self.setLayout(main_layout)
+        
+        # Ensure the widget size matches page size times zoom so scrollbars can appear
+        try:
+            base_w = getattr(self.renderer, 'page_width', 800)
+            base_h = getattr(self.renderer, 'page_height', 600)
+            self.resize(int(base_w * self.zoom_factor), int(base_h * self.zoom_factor))
+        except Exception:
+            pass
         
     def on_staff_changed(self, settings):
         """Handle staff settings changes"""
@@ -857,20 +906,49 @@ class StaffView(QWidget):
                 # CRITICAL FIX: Force layout refresh to make score responsive immediately
                 print("STAFFVIEW: Forcing layout refresh after entering edit mode")
                 
-                # Update renderer's page size to current window width
+                # Keep renderer page size from preferences; do not change on entering edit mode
                 if hasattr(self, 'renderer') and self.renderer:
-                    current_width = self.width()
-                    print(f"STAFFVIEW: Updating renderer page width to {current_width}")
-                    self.renderer.set_page_size(current_width, self.renderer.page_height)
+                    print("STAFFVIEW: Keeping renderer page size from preferences on enter_edit_mode")
                 
                 # Force temporal bridge to recalculate layout
                 if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
                     print("STAFFVIEW: Forcing temporal bridge layout refresh")
                     self.temporal_bridge._force_layout_refresh()
+
+                    # New: Immediately refresh measure number settings and repaint so positions are correct without user click
+                    if hasattr(self.renderer, 'measure_number_manager') and self.renderer.measure_number_manager:
+                        try:
+                            self.renderer.measure_number_manager.refresh_settings()
+                            print("STAFFVIEW: Refreshed measure number settings on enter_edit_mode")
+                        except Exception as e:
+                            print(f"STAFFVIEW: Error refreshing measure number settings: {e}")
+
+                    # Ensure measures are justified before the first paint so numbers get correct widths
+                    try:
+                        if hasattr(self.temporal_bridge, '_ensure_all_measures_justified'):
+                            self.temporal_bridge._ensure_all_measures_justified()
+                            print("STAFFVIEW: Ensured all measures justified before initial paint")
+                    except Exception as e:
+                        print(f"STAFFVIEW: Error ensuring measures justified: {e}")
+
+                # Trigger immediate geometry update and repaint so measure numbers position correctly
+                try:
+                    if hasattr(self, 'updateGeometry'):
+                        self.updateGeometry()
+                except Exception:
+                    pass
+                self.update()
                 
                 # Force view update
                 print("STAFFVIEW: Forcing UI update in edit mode")
                 self.update()
+
+                # Schedule a deferred repaint after the event loop to catch any late layout changes
+                try:
+                    from PyQt6.QtCore import QTimer
+                    QTimer.singleShot(0, self.update)
+                except Exception:
+                    pass
                 
             except Exception as e:
                 print(f"STAFFVIEW: Error calling temporal bridge enter_edit_mode: {e}")
@@ -878,13 +956,12 @@ class StaffView(QWidget):
             print("STAFFVIEW: No temporal bridge available for enter_edit_mode")
         
         # --- NEW: Ensure dynamic layout is immediately responsive in edit mode ---
-        # 1. Update renderer page size to current widget size
+        # Do not override renderer logical page size with widget size; keep preferences
         if hasattr(self, 'renderer') and self.renderer:
             try:
-                self.renderer.set_page_size(self.width(), self.height())
-                print(f"STAFFVIEW: Set renderer page size to {self.width()}x{self.height()} after entering edit mode")
+                print("STAFFVIEW: Preserving renderer page size after entering edit mode")
             except Exception as e:
-                print(f"STAFFVIEW: Error setting renderer page size: {e}")
+                print(f"STAFFVIEW: Error while preserving renderer page size: {e}")
         # 2. Force layout refresh in temporal bridge
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge and hasattr(self.temporal_bridge, '_force_layout_refresh'):
             try:
@@ -1363,8 +1440,9 @@ class StaffView(QWidget):
         if hasattr(self, 'element_selection'):
             self.element_selection.render_all_selections(painter)
         
-        # Draw orange highlighting for selected barlines
-        self.draw_selected_barlines(painter)
+        # Draw selection overlay only if explicitly enabled (default False)
+        if getattr(self, 'show_selection_overlay', False):
+            self.draw_selected_barlines(painter)
         
         # If a staff is selected in setup mode, highlight it
         if is_in_setup and self.selected_staff:
@@ -1430,13 +1508,22 @@ class StaffView(QWidget):
             'bottom': int(20 * MM_TO_PIXELS)
         })
         
-        # Pass logical (unscaled) page size and margins to renderer
-        self.renderer.set_page_size(base_page_width, base_page_height)
+        # Keep renderer logical page size from preferences; do not reset per paint
         self.renderer.set_margins(base_margins)
         mode = 'setup' if is_in_setup else 'edit'
         self.renderer.render_score(painter, page_rect, mode)
         
         painter.restore()
+        
+        # Update widget size to content so scrollbars know the canvas extents
+        try:
+            content_w = int(base_page_width * self.zoom_factor)
+            content_h = int(base_page_height * self.zoom_factor)
+            if self.width() != content_w or self.height() != content_h:
+                self.resize(content_w, content_h)
+                self.updateGeometry()
+        except Exception:
+            pass
     
     def _render_page_across_mode(self, painter, viewport_rect, is_in_setup):
         """Render multiple pages side by side"""
@@ -1482,7 +1569,7 @@ class StaffView(QWidget):
                 'top': int(20 * MM_TO_PIXELS),
                 'bottom': int(20 * MM_TO_PIXELS)
             })
-            self.renderer.set_page_size(base_page_width, base_page_height)
+            # Keep renderer logical page size from preferences; do not reset per paint
             self.renderer.set_margins(base_margins)
             mode = 'setup' if is_in_setup else 'edit'
             self.renderer.render_score(painter, page_rect, mode)
@@ -1525,7 +1612,7 @@ class StaffView(QWidget):
             'top': int(20 * MM_TO_PIXELS),
             'bottom': int(20 * MM_TO_PIXELS)
         })
-        self.renderer.set_page_size(base_page_width, base_page_height)
+        # Keep renderer logical page size from preferences; do not reset per paint
         self.renderer.set_margins(base_margins)
         mode = 'setup' if is_in_setup else 'edit'
         self.renderer.render_score(painter, page_rect, mode)
@@ -1559,8 +1646,7 @@ class StaffView(QWidget):
         # Set clipping region to page boundaries
         painter.setClipRect(page_rect)
         
-        # Pass logical (unscaled) page size and margins to renderer
-        self.renderer.set_page_size(page_rect.width(), page_rect.height())
+        # Pass margins; keep renderer page size already set from preferences
         self.renderer.set_margins(base_margins)
         mode = 'setup' if is_in_setup else 'edit'
         self.renderer.render_score(painter, page_rect, mode)
@@ -2924,20 +3010,9 @@ class StaffView(QWidget):
         try:
             print(f"STAFFVIEW_RESIZE_DEBUG: StaffView resizeEvent called - size: {self.width()}x{self.height()}")
             super().resizeEvent(event)
-            
-            # Update renderer page size to match new widget size
+            # Do not mutate logical page size on viewport resize; keep document/renderer page size from Preferences
             if hasattr(self, 'renderer') and self.renderer:
-                try:
-                    new_width = int(self.width() / self.zoom_factor)
-                    new_height = int(self.height() / self.zoom_factor)
-                    old_width = self.renderer.page_width
-                    old_height = self.renderer.page_height
-                    
-                    # Use the renderer's enhanced set_page_size method which will trigger layout refresh
-                    self.renderer.set_page_size(new_width, new_height)
-                    print(f"STAFFVIEW_RESIZE: Updated renderer page size from {old_width}x{old_height} to {new_width}x{new_height}")
-                except Exception as e:
-                    print(f"STAFFVIEW_RESIZE_ERROR: Error updating renderer page size: {e}")
+                self.update()
             else:
                 print(f"STAFFVIEW_RESIZE_DEBUG: No renderer available")
             
@@ -4158,20 +4233,9 @@ class StaffView(QWidget):
         try:
             print(f"STAFFVIEW_RESIZE_DEBUG: StaffView resizeEvent called - size: {self.width()}x{self.height()}")
             super().resizeEvent(event)
-            
-            # Update renderer page size to match new widget size
+            # Do not mutate logical page size on viewport resize; keep document/renderer page size from Preferences
             if hasattr(self, 'renderer') and self.renderer:
-                try:
-                    new_width = int(self.width() / self.zoom_factor)
-                    new_height = int(self.height() / self.zoom_factor)
-                    old_width = self.renderer.page_width
-                    old_height = self.renderer.page_height
-                    
-                    # Use the renderer's enhanced set_page_size method which will trigger layout refresh
-                    self.renderer.set_page_size(new_width, new_height)
-                    print(f"STAFFVIEW_RESIZE: Updated renderer page size from {old_width}x{old_height} to {new_width}x{new_height}")
-                except Exception as e:
-                    print(f"STAFFVIEW_RESIZE_ERROR: Error updating renderer page size: {e}")
+                self.update()
             else:
                 print(f"STAFFVIEW_RESIZE_DEBUG: No renderer available")
             
@@ -5371,20 +5435,9 @@ class StaffView(QWidget):
         try:
             print(f"STAFFVIEW_RESIZE_DEBUG: StaffView resizeEvent called - size: {self.width()}x{self.height()}")
             super().resizeEvent(event)
-            
-            # Update renderer page size to match new widget size
+            # Do not mutate logical page size on viewport resize; keep document/renderer page size from Preferences
             if hasattr(self, 'renderer') and self.renderer:
-                try:
-                    new_width = int(self.width() / self.zoom_factor)
-                    new_height = int(self.height() / self.zoom_factor)
-                    old_width = self.renderer.page_width
-                    old_height = self.renderer.page_height
-                    
-                    # Use the renderer's enhanced set_page_size method which will trigger layout refresh
-                    self.renderer.set_page_size(new_width, new_height)
-                    print(f"STAFFVIEW_RESIZE: Updated renderer page size from {old_width}x{old_height} to {new_width}x{new_height}")
-                except Exception as e:
-                    print(f"STAFFVIEW_RESIZE_ERROR: Error updating renderer page size: {e}")
+                self.update()
             else:
                 print(f"STAFFVIEW_RESIZE_DEBUG: No renderer available")
             
@@ -5606,6 +5659,24 @@ class StaffView(QWidget):
     def event(self, event):
         """Handle touch and native gesture events for pinch/zoom gestures"""
         try:
+            # Handle Qt gesture framework (pinch)
+            if event.type() == QEvent.Type.Gesture:
+                pinch = event.gesture(Qt.GestureType.PinchGesture)
+                if isinstance(pinch, QPinchGesture):
+                    change_flags = pinch.changeFlags()
+                    if change_flags & QPinchGesture.ChangeFlag.ScaleFactorChanged:
+                        factor = pinch.scaleFactor()
+                        # Normalize factor and clamp
+                        if factor > 0:
+                            new_zoom = max(0.25, min(4.0, self.zoom_factor * factor))
+                            if abs(new_zoom - self.zoom_factor) > 0.001:
+                                self.zoom_factor = new_zoom
+                                print(f"GESTURE: Qt pinch scale factor={factor:.3f}, new_zoom={new_zoom:.3f}")
+                                # Notify geometry change for scroll area
+                                self.updateGeometry()
+                                self.update()
+                    event.accept()
+                    return True
             # Handle touch events (already present)
             if event.type() == event.Type.TouchBegin:
                 return self.touchBeginEvent(event)
@@ -5614,10 +5685,15 @@ class StaffView(QWidget):
             elif event.type() == event.Type.TouchEnd:
                 return self.touchEndEvent(event)
             # Handle Mac trackpad pinch gesture (QNativeGestureEvent)
-            elif event.type() == 179:  # QEvent.NativeGesture
+            elif getattr(event, 'type', lambda: None)() == 179:  # QEvent.NativeGesture (fallback)
                 # Qt 6: QNativeGestureEvent subtype
                 gesture_type = getattr(event, 'gestureType', None)
-                if gesture_type is not None and int(gesture_type) == 2:  # Qt::ZoomNativeGesture
+                zoom_enum = 2
+                try:
+                    zoom_enum = int(getattr(Qt, 'NativeGestureType').Zoom)
+                except Exception:
+                    pass
+                if gesture_type is not None and int(gesture_type) == zoom_enum:
                     # event.value() is the scale delta (positive for zoom in, negative for zoom out)
                     scale_delta = getattr(event, 'value', lambda: 0.0)()
                     if abs(scale_delta) > 0.001:
@@ -5633,6 +5709,21 @@ class StaffView(QWidget):
         except Exception as e:
             print(f"GESTURE: Error in event handling: {e}")
             return super().event(event)
+
+    def wheelEvent(self, event):
+        """Ctrl/Cmd + wheel to zoom."""
+        try:
+            modifiers = QApplication.keyboardModifiers()
+            if modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
+                delta_steps = event.angleDelta().y() / 120.0
+                if abs(delta_steps) > 0:
+                    factor = 1.0 + 0.1 * delta_steps
+                    self._zoom_at_point(factor, QPointF(event.position().x(), event.position().y()))
+                    event.accept()
+                    return
+        except Exception as e:
+            print(f"GESTURE: wheelEvent error: {e}")
+        super().wheelEvent(event)
             
     def touchBeginEvent(self, event):
         """Handle touch begin for pinch gesture detection"""

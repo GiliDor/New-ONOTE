@@ -320,6 +320,47 @@ class MainWindow(QMainWindow):
             # Create initial score document
             self.score_document = ScoreDocument()
             self.staff_view.set_document(self.score_document)
+            # Ensure initial page layout from Preferences is applied immediately
+            try:
+                layout = self.score_document.layout
+                # Enforce preferred orientation (Portrait by default) on first render
+                try:
+                    from PyQt6.QtCore import QSettings
+                    preferred_orientation = str(QSettings("ONOTE", "Preferences").value("layout/default_orientation", "Portrait"))
+                    # Normalize
+                    preferred_orientation = 'Landscape' if preferred_orientation.lower().startswith('land') else 'Portrait'
+                    # Swap if needed
+                    if preferred_orientation == 'Portrait' and getattr(layout, 'page_width', 0) > getattr(layout, 'page_height', 1):
+                        w, h = layout.page_width, layout.page_height
+                        layout.page_width, layout.page_height = h, w
+                    elif preferred_orientation == 'Landscape' and getattr(layout, 'page_width', 1) < getattr(layout, 'page_height', 0):
+                        w, h = layout.page_width, layout.page_height
+                        layout.page_width, layout.page_height = h, w
+                except Exception:
+                    pass
+                # Recompute staff positions based on margins/top margin
+                if hasattr(layout, '_update_positions'):
+                    layout._update_positions()
+                if hasattr(self.staff_view, 'renderer') and self.staff_view.renderer:
+                    # Force renderer to use document page size and margins now
+                    self.staff_view.renderer.set_page_size(getattr(layout, 'page_width', self.staff_view.renderer.page_width),
+                                                          getattr(layout, 'page_height', self.staff_view.renderer.page_height))
+                    self.staff_view.renderer.set_margins({
+                        'left': getattr(layout, 'left_margin', self.staff_view.renderer.margins.get('left', 0)),
+                        'right': getattr(layout, 'right_margin', self.staff_view.renderer.margins.get('right', 0)),
+                        'top': getattr(layout, 'top_margin', self.staff_view.renderer.margins.get('top', 0)),
+                        'bottom': getattr(layout, 'bottom_margin', self.staff_view.renderer.margins.get('bottom', 0))
+                    })
+                # Ask temporal bridge to refresh layout once at startup
+                if hasattr(self.staff_view, 'temporal_bridge') and self.staff_view.temporal_bridge:
+                    try:
+                        self.staff_view.temporal_bridge._force_layout_refresh()
+                    except Exception:
+                        pass
+                self.staff_view.update()
+            except Exception as _e:
+                # Non-fatal: initial layout application best-effort
+                pass
             
             # CRITICAL FIX: Automatically switch to edit mode after document initialization
             # This ensures users see the proper end bar and measure system immediately
@@ -1279,17 +1320,12 @@ class MainWindow(QMainWindow):
             return
         
         from src.gui.music.dialogs.zoom_presets_dialog import ZoomPresetsDialog
-        
         # Get current zoom from staff view
         current_zoom = getattr(self.staff_view, 'zoom_factor', 1.0)
-        
-        # Create and show the dialog
+        # Create dialog and connect signal so Apply and Preset buttons work
         dialog = ZoomPresetsDialog(self, current_zoom)
         dialog.zoom_changed.connect(self.apply_zoom_from_presets)
-        
-        # Position dialog at top-right corner
-        from src.gui.music.main_window import WindowManager
-        WindowManager.show_dialog('zoom_presets', ZoomPresetsDialog, self, current_zoom)
+        dialog.show()
         
     def apply_zoom_from_presets(self, zoom_factor):
         """Apply zoom from the presets dialog"""
@@ -1859,25 +1895,13 @@ class MainWindow(QMainWindow):
             
             # Check if we have a staff view and temporal bridge
             if (hasattr(self, 'staff_view') and self.staff_view and 
-                hasattr(self.staff_view, 'temporal_bridge') and self.staff_view.temporal_bridge):
+                hasattr(self, 'staff_view') and hasattr(self.staff_view, 'temporal_bridge') and self.staff_view.temporal_bridge):
                 
                 print(f"RESIZE_DEBUG: Found staff_view and temporal_bridge")
                 
-                # Update renderer page width to match new window size
+                # Do not mutate renderer logical page width on window resize; keep preferences
                 if hasattr(self.staff_view, 'renderer') and self.staff_view.renderer:
-                    new_width = self.width()
-                    old_width = self.staff_view.renderer.page_width
-                    self.staff_view.renderer.page_width = new_width
-                    print(f"RESIZE: Updated renderer page width from {old_width} to {new_width}")
-                    
-                    # The renderer's set_page_size method will now automatically trigger layout refresh
-                    # But we can also force it explicitly for extra reliability
-                    if hasattr(self.staff_view.temporal_bridge, '_force_layout_refresh'):
-                        print(f"RESIZE: Forcing explicit layout refresh for window resize to {self.width()}x{self.height()}")
-                        try:
-                            self.staff_view.temporal_bridge._force_layout_refresh()
-                        except Exception as e:
-                            print(f"RESIZE_ERROR: Error in _force_layout_refresh: {e}")
+                    print("RESIZE: Preserving renderer page width from preferences on window resize")
                 
                 # Force staff view update
                 try:
@@ -2059,9 +2083,17 @@ class MainWindow(QMainWindow):
 
     def create_staff_view(self):
         """Create the main staff view widget"""
+        from PyQt6.QtWidgets import QScrollArea
         self.staff_view = StaffView(self.document)
         self.staff_view.main_window = self  # Add reference for barline functionality
-        self.setCentralWidget(self.staff_view) 
+        # Wrap StaffView in a scroll area to provide scroll thumbs
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(False)  # Keep content size based on page/zoom
+        # Show scroll thumbs so the user sees scrolling affordance
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.scroll_area.setWidget(self.staff_view)
+        self.setCentralWidget(self.scroll_area)
 
     def test_layout_refresh(self):
         """Test method to manually trigger layout refresh"""
