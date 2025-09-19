@@ -90,10 +90,13 @@ class DocumentWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
         
-        # Staff view (left side)
+        # Staff view (left side) wrapped in a scroll area for scrollbars
         self.staff_view = StaffView()
         self.staff_view.set_document(self.document)
-        splitter.addWidget(self.staff_view)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(self.staff_view)
+        splitter.addWidget(scroll_area)
         
         # Form widget (right side)
         self.form_widget = FormWidget(self)

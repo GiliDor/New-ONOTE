@@ -1510,6 +1510,9 @@ class StaffView(QWidget):
         
         # Keep renderer logical page size from preferences; do not reset per paint
         self.renderer.set_margins(base_margins)
+        # Pass current page index for pagination-aware rendering
+        if hasattr(self.renderer, 'current_page'):
+            self.renderer.current_page = 0
         mode = 'setup' if is_in_setup else 'edit'
         self.renderer.render_score(painter, page_rect, mode)
         
@@ -1518,7 +1521,9 @@ class StaffView(QWidget):
         # Update widget size to content so scrollbars know the canvas extents
         try:
             content_w = int(base_page_width * self.zoom_factor)
-            content_h = int(base_page_height * self.zoom_factor)
+            # Height should accommodate all pages when page-down mode is active
+            total_pages = self._calculate_total_pages()
+            content_h = int(base_page_height * self.zoom_factor * max(1, total_pages))
             if self.width() != content_w or self.height() != content_h:
                 self.resize(content_w, content_h)
                 self.updateGeometry()
@@ -1571,58 +1576,62 @@ class StaffView(QWidget):
             })
             # Keep renderer logical page size from preferences; do not reset per paint
             self.renderer.set_margins(base_margins)
+            if hasattr(self.renderer, 'current_page'):
+                self.renderer.current_page = page_index
             mode = 'setup' if is_in_setup else 'edit'
             self.renderer.render_score(painter, page_rect, mode)
             painter.restore()
     
     def _render_page_down_mode(self, painter, viewport_rect, is_in_setup):
-        """Render single page at a time with moveable positioning"""
+        """Render pages stacked vertically so scrolling reveals additional pages"""
         print("PAGE_RENDER: Rendering in page down mode")
-        
-        # Get current page number
-        current_page = getattr(self, 'current_page', 0)
-        
-        # Use renderer/document page size instead of hardcoded A4
-        MM_TO_PIXELS = 3.78  # Standard conversion at 96 DPI
+
+        # Ensure total_pages is up to date
+        self.total_pages = max(1, self._calculate_total_pages())
+        if self.current_page >= self.total_pages:
+            self.current_page = self.total_pages - 1
+
+        # Page metrics
+        MM_TO_PIXELS = 3.78  # 96 DPI
         base_page_width = getattr(self.renderer, 'page_width', int(210 * MM_TO_PIXELS))
         base_page_height = getattr(self.renderer, 'page_height', int(297 * MM_TO_PIXELS))
-        
-        # Center the page in the viewport by default
-        default_page_x = (viewport_rect.width() - int(base_page_width * self.zoom_factor)) // 2
-        default_page_y = (viewport_rect.height() - int(base_page_height * self.zoom_factor)) // 2
-        
-        # Apply user-defined offset
-        page_x = default_page_x + int(self.page_offset_x * self.zoom_factor)
-        page_y = default_page_y + int(self.page_offset_y * self.zoom_factor)
-        
-        painter.save()
-        painter.translate(page_x, page_y)
-        painter.scale(self.zoom_factor, self.zoom_factor)
-        
-        page_rect = QRect(0, 0, base_page_width, base_page_height)
-        painter.fillRect(page_rect, QColor(255, 255, 255))
-        painter.setPen(QPen(QColor(200, 200, 200), 1))
-        painter.drawRect(page_rect)
-        painter.setClipRect(page_rect)
-        
-        # Use current renderer margins if available
-        base_margins = getattr(self.renderer, 'margins', {
-            'left': int(25 * MM_TO_PIXELS),
-            'right': int(25 * MM_TO_PIXELS),
-            'top': int(20 * MM_TO_PIXELS),
-            'bottom': int(20 * MM_TO_PIXELS)
-        })
-        # Keep renderer logical page size from preferences; do not reset per paint
-        self.renderer.set_margins(base_margins)
-        mode = 'setup' if is_in_setup else 'edit'
-        self.renderer.render_score(painter, page_rect, mode)
-        
-        # Draw page number
-        painter.setPen(QColor(100, 100, 100))
-        painter.setFont(QFont("Arial", int(10 * self.zoom_factor)))
-        painter.drawText(page_rect, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, 
-                       f"Page {current_page + 1}")
-        painter.restore()
+        page_margin = 20  # gap between stacked pages (logical px)
+
+        # Center horizontally; top of first page vertically
+        page_x = (viewport_rect.width() - int(base_page_width * self.zoom_factor)) // 2
+        start_y = int(self.page_offset_y * self.zoom_factor)
+
+        # Render each page stacked vertically
+        for page_index in range(self.total_pages):
+            painter.save()
+            offset_y = start_y + int(page_index * (base_page_height + page_margin) * self.zoom_factor)
+            painter.translate(page_x, offset_y)
+            painter.scale(self.zoom_factor, self.zoom_factor)
+
+            page_rect = QRect(0, 0, base_page_width, base_page_height)
+            painter.fillRect(page_rect, QColor(255, 255, 255))
+            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            painter.drawRect(page_rect)
+            painter.setClipRect(page_rect)
+
+            # Margins and renderer page index
+            base_margins = getattr(self.renderer, 'margins', {
+                'left': int(25 * MM_TO_PIXELS),
+                'right': int(25 * MM_TO_PIXELS),
+                'top': int(20 * MM_TO_PIXELS),
+                'bottom': int(20 * MM_TO_PIXELS)
+            })
+            self.renderer.set_margins(base_margins)
+            if hasattr(self.renderer, 'current_page'):
+                self.renderer.current_page = page_index
+            mode = 'setup' if is_in_setup else 'edit'
+            self.renderer.render_score(painter, page_rect, mode)
+
+            # Footer page number
+            painter.setPen(QColor(100, 100, 100))
+            painter.setFont(QFont("Arial", 10))
+            painter.drawText(page_rect, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, f"Page {page_index + 1}")
+            painter.restore()
     
     def _render_single_page(self, painter, page_rect, page_num, is_in_setup):
         """Render content for a single page with proper A4 dimensions and margins and unified zoom"""
@@ -1654,20 +1663,41 @@ class StaffView(QWidget):
         painter.restore()
     
     def _calculate_total_pages(self):
-        """Calculate total number of pages needed"""
-        # This is a simplified calculation - in a full implementation,
-        # this would use the MeasureManager to calculate proper pagination
+        """Calculate total number of pages from current preferences and layout"""
         if not self.document or not hasattr(self.document, 'measures'):
             return 1
-        
-        # Get measure count
-        measure_count = len(self.document.measures) if isinstance(self.document.measures, dict) else 0
-        
-        # Calculate pages based on measures per page
-        measures_per_page = 16  # Default: 4 measures per system, 4 systems per page
-        pages_needed = max(1, (measure_count + measures_per_page - 1) // measures_per_page)
-        
-        return pages_needed
+
+        # Count measures
+        if isinstance(self.document.measures, dict):
+            measure_count = len([k for k in self.document.measures.keys() if isinstance(k, int)])
+        else:
+            measure_count = len(self.document.measures) if self.document.measures else 0
+
+        # Measures per system
+        from PyQt6.QtCore import QSettings
+        try:
+            mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+        except Exception:
+            mps = 4
+        mps = max(1, min(32, mps))
+
+        # Systems per page from vertical spacing and margins
+        try:
+            spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+        except Exception:
+            spacing = 80
+        try:
+            top_margin = float(getattr(self.renderer, 'margins', {}).get('top', 0))
+            bottom_margin = float(getattr(self.renderer, 'margins', {}).get('bottom', 120))
+            page_h = int(getattr(self.renderer, 'page_height', 1123))
+            avail_h = int(page_h - top_margin - bottom_margin)
+        except Exception:
+            avail_h = 900
+        systems_per_page = max(1, avail_h // max(1, spacing))
+
+        total_systems = (measure_count + mps - 1) // mps if measure_count > 0 else 1
+        total_pages = max(1, (total_systems + systems_per_page - 1) // systems_per_page)
+        return total_pages
     
     def draw_selected_barlines(self, painter):
         """Draw orange highlighting for selected barlines"""
@@ -1945,6 +1975,41 @@ class StaffView(QWidget):
         """Handle key press events"""
         print(f"KEYPRESS: Received key event: {event.key()}, focus: {self.hasFocus()}, keyboard grabbed: {getattr(self, '_keyboard_grabbed', False)}")
         
+        # Arrow-key navigation for scrolling when embedded in a scroll area
+        try:
+            if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
+                from PyQt6.QtWidgets import QAbstractScrollArea
+                # Find an ancestor scroll area if present
+                parent = self.parent()
+                scroll_area = None
+                while parent is not None and scroll_area is None:
+                    if hasattr(parent, 'verticalScrollBar') and hasattr(parent, 'horizontalScrollBar'):
+                        scroll_area = parent
+                        break
+                    parent = parent.parent()
+                if scroll_area is not None:
+                    vbar = scroll_area.verticalScrollBar()
+                    hbar = scroll_area.horizontalScrollBar()
+                    step = int(40 * self.zoom_factor)
+                    if event.key() == Qt.Key.Key_Up and vbar is not None:
+                        vbar.setValue(vbar.value() - step)
+                        event.accept()
+                        return
+                    if event.key() == Qt.Key.Key_Down and vbar is not None:
+                        vbar.setValue(vbar.value() + step)
+                        event.accept()
+                        return
+                    if event.key() == Qt.Key.Key_Left and hbar is not None:
+                        hbar.setValue(hbar.value() - step)
+                        event.accept()
+                        return
+                    if event.key() == Qt.Key.Key_Right and hbar is not None:
+                        hbar.setValue(hbar.value() + step)
+                        event.accept()
+                        return
+        except Exception:
+            pass
+
         # Test score creation shortcut (Ctrl+Shift+T)
         if (event.key() == Qt.Key.Key_T and 
             event.modifiers() & Qt.KeyboardModifier.ControlModifier and
@@ -2235,10 +2300,33 @@ class StaffView(QWidget):
         if isinstance(measures, dict):
             measures = measures.values()
         
+        # Filter measures to the clicked system to avoid cross-line interference
+        try:
+            from PyQt6.QtCore import QSettings
+            mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+            mps = max(1, min(32, mps))
+            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+        except Exception:
+            mps = 4
+            spacing_pref = 80
+        # Determine top of first staff
+        base_top_y = None
+        if hasattr(self.document, 'layout') and hasattr(self.document.layout, 'ungrouped_staves') and self.document.layout.ungrouped_staves:
+            base_top_y = float(self.document.layout.ungrouped_staves[0].y_position)
+        # Guess system index from y
+        sys_idx_guess = 0
+        if base_top_y is not None:
+            sys_idx_guess = max(0, int((y - base_top_y) // spacing_pref))
+        start_num = sys_idx_guess * mps + 1
+        end_num = start_num + mps
+
         for measure in measures:
             if hasattr(measure, 'end_x'):
+                mnum = getattr(measure, 'measure_number', 0)
+                if not (start_num <= int(mnum) <= end_num):
+                    continue
                 distance = abs(measure.end_x - x)
-                print(f"BARLINE_SELECTION: Measure {getattr(measure, 'measure_number', 'unknown')} at x={measure.end_x}, distance={distance}")
+                print(f"BARLINE_SELECTION: Measure {mnum} at x={measure.end_x}, distance={distance} (sys {sys_idx_guess})")
                 if distance < min_distance:
                     min_distance = distance
                     closest_measure = measure

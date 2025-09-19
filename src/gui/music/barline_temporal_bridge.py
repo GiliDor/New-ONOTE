@@ -1053,6 +1053,21 @@ class BarlineTemporalBridge(QObject):
             measure_notation_space = barline_position - measure_start
             print(f"SYSTEM_{system_index + 1}: Measure {i+1} barline at {barline_position:.1f}px - notation space: {measure_notation_space:.1f}px")
         
+        # Tag measures that belong to this system with system_index if already created
+        try:
+            if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict):
+                ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+                max_per_system = max(1, int(getattr(self, 'measures_per_system', measures_in_system)))
+                start_idx = system_index * max_per_system
+                end_idx = start_idx + measures_in_system
+                slice_keys = ordered[start_idx:end_idx]
+                for key in slice_keys:
+                    m = self.document.measures.get(key)
+                    if m is not None:
+                        setattr(m, 'system_index', system_index)
+        except Exception:
+            pass
+        
         return system_positions
     
     def _apply_justified_positioning(self, justified_positions: List[float]):
@@ -1548,6 +1563,11 @@ class BarlineTemporalBridge(QObject):
                 end_x=end_x,
                 barline_type='single'
             )
+            # Assign system index for renderer pagination/wrapping
+            try:
+                measure.system_index = 0
+            except Exception:
+                pass
             self.document.measures[i] = measure
             prev_end = end_x
             print(f"EDIT_MODE: Created initial measure #{i}: start={measure.x_position}, end={measure.end_x}")

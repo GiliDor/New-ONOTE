@@ -1,0 +1,1840 @@
+"""
+Score renderer module for drawing musical notation elements.
+This module contains classes for rendering music notation elements
+in a standardized way based on established music engraving practices.
+"""
+
+from PyQt6.QtWidgets import QWidget, QDialog, QVBoxLayout, QLabel, QDialogButtonBox
+from PyQt6.QtGui import (
+    QPainter,
+    QPen,
+    QColor,
+    QFont,
+    QFontMetrics,
+    QPainterPath,
+    QTransform,
+    QPalette,
+    QFontInfo,
+    QBrush,
+)
+from PyQt6.QtCore import Qt, QRectF, QPointF, QRect, QLineF
+import copy
+import math
+
+from .constants import CLEF_WIDTH, CLEF_HEIGHT, SYMBOLS
+
+from .notation_constants import (
+    STAFF_LINE_COUNT,
+    STAFF_LINE_SPACING,
+    STAFF_LINE_THICKNESS,
+    STAFF_HEIGHT,
+    DEFAULT_PAGE_MARGINS,
+    CLEF_POSITIONS,
+    BARLINE_CONSTANTS,
+    TIME_SIGNATURE_CONSTANTS,
+    KEY_SIGNATURE_CONSTANTS,
+    SYMBOL_MAP,
+    FONT_SIZES,
+    MUSIC_FONTS,
+    BRACE_CONSTANTS,
+    BRACKET_CONSTANTS,
+    CLEF_CONSTANTS,
+)
+from .staff_types import StaffBase, SingleStaff, GrandStaff, SectionGroup, ScoreLayout
+
+
+class ScoreRenderer:
+    """
+    Handles rendering of score elements according to standardized practices.
+
+    This class is responsible for drawing all musical notation elements
+    including staves, clefs, key signatures, time signatures, etc.
+    """
+
+    def __init__(self, document=None, document_manager=None):
+        """Initialize the renderer with an optional document."""
+        # Explicitly import constants at initialization time to ensure freshest values
+        from .notation_constants import (
+            STAFF_LINE_COUNT,
+            STAFF_LINE_SPACING,
+            STAFF_LINE_THICKNESS,
+            STAFF_HEIGHT,
+            DEFAULT_PAGE_MARGINS,
+            CLEF_POSITIONS,
+            BARLINE_CONSTANTS,
+            TIME_SIGNATURE_CONSTANTS,
+            KEY_SIGNATURE_CONSTANTS,
+            SYMBOL_MAP,
+            FONT_SIZES,
+            MUSIC_FONTS,
+            BRACE_CONSTANTS,
+            BRACKET_CONSTANTS,
+            CLEF_CONSTANTS,
+        )
+
+        # CRITICAL FIX: Use the same constants as staff_view.py for consistency
+        # Staff lines are actually drawn with 8px spacing, not 10px
+        self.STAFF_LINE_COUNT = 5
+        self.STAFF_LINE_SPACING = 8  # Match staff_view.py
+        self.STAFF_LINE_THICKNESS = STAFF_LINE_THICKNESS
+        self.STAFF_HEIGHT = 32  # (5-1) * 8 = 32, match staff_view.py
+        self.DEFAULT_PAGE_MARGINS = DEFAULT_PAGE_MARGINS.copy()
+        self.CLEF_POSITIONS = self._copy_nested_dict(CLEF_POSITIONS)
+        self.BARLINE_CONSTANTS = self._copy_nested_dict(BARLINE_CONSTANTS)
+        self.TIME_SIGNATURE_CONSTANTS = TIME_SIGNATURE_CONSTANTS.copy()
+        self.KEY_SIGNATURE_CONSTANTS = KEY_SIGNATURE_CONSTANTS.copy()
+        self.SYMBOL_MAP = SYMBOL_MAP.copy()
+
+        # Ensure brace symbol is correctly defined
+        if "brace" not in self.SYMBOL_MAP or self.SYMBOL_MAP["brace"] != "":
+            self.SYMBOL_MAP["brace"] = ""  # SMuFL code point for brace
+            
+        # Ensure percussion clef symbol is correctly defined
+        if "percussionClef" not in self.SYMBOL_MAP:
+            self.SYMBOL_MAP["percussionClef"] = ""  # SMuFL code point for percussion clef
+
+        self.FONT_SIZES = FONT_SIZES.copy()
+        self.MUSIC_FONTS = MUSIC_FONTS.copy()
+
+        # Ensure we have a fallback for bravura
+        if "bravura" not in self.MUSIC_FONTS:
+            self.MUSIC_FONTS["bravura"] = "Bravura"
+
+        self.BRACE_CONSTANTS = BRACE_CONSTANTS.copy()
+        self.BRACKET_CONSTANTS = BRACKET_CONSTANTS.copy()
+        self.CLEF_CONSTANTS = self._copy_nested_dict(CLEF_CONSTANTS)
+
+        self.document = document
+        self.document_manager = document_manager
+        
+        # A4 page dimensions: 210 x 297 mm
+        A4_WIDTH_MM = 210
+        A4_HEIGHT_MM = 297
+        MM_TO_PIXELS = 3.78  # Standard conversion at 96 DPI
+        
+        # Set default A4 page dimensions in pixels
+        self.page_width = int(A4_WIDTH_MM * MM_TO_PIXELS)   # ≈ 794 pixels
+        self.page_height = int(A4_HEIGHT_MM * MM_TO_PIXELS)  # ≈ 1123 pixels
+        
+        # A4 standard margins: 25mm left/right, 20mm top/bottom
+        A4_MARGIN_LEFT_MM = 25
+        A4_MARGIN_RIGHT_MM = 25
+        A4_MARGIN_TOP_MM = 20
+        A4_MARGIN_BOTTOM_MM = 20
+        
+        # Set A4 margins in pixels
+        self.margins = {
+            'left': int(A4_MARGIN_LEFT_MM * MM_TO_PIXELS),    # ≈ 95 pixels
+            'right': int(A4_MARGIN_RIGHT_MM * MM_TO_PIXELS),  # ≈ 95 pixels
+            'top': int(A4_MARGIN_TOP_MM * MM_TO_PIXELS),      # ≈ 76 pixels
+            'bottom': int(A4_MARGIN_BOTTOM_MM * MM_TO_PIXELS) # ≈ 76 pixels
+        }
+        
+        # View mode settings
+        self.view_mode = "page_down"  # Default view mode
+        self.page_across_mode = False
+        self.page_down_mode = True
+        self.continuous_mode = False
+        
+        self._setup_fonts()
+        
+        # Initialize system-specific staff offsets
+        self.first_system_offset = 0
+        self.continuation_system_offset = 0
+        # Staff spacing for systems in multi-system rendering
+        self.staff_spacing = 120  # Default vertical spacing between systems
+        
+        # Initialize configurable notation settings with defaults
+        # These can be overridden by preferences
+        self.staff_name_font_size = 10
+        self.staff_name_vertical_offset = -8
+        self.staff_name_horizontal_offset = -50
+        self.section_name_font_size = 12
+        self.section_name_vertical_offset = -25
+        self.section_name_horizontal_offset = -60
+        self.clef_font_size = 32
+        self.clef_vertical_offset = 0
+        self.clef_horizontal_offset = 0
+        self.time_sig_font_size = 24
+        self.time_sig_vertical_offset = 0
+        self.time_sig_horizontal_offset = 40
+        self.time_sig_spacing = 18
+        self.key_sig_font_size = 14
+        self.key_sig_vertical_offset = 0
+        self.key_sig_horizontal_offset = 75
+        self.key_sig_accidental_spacing = 12
+        self.directions_font_size = 11
+        self.directions_vertical_offset = 30
+        
+        # Load settings from preferences
+        self.load_notation_settings()
+        
+        # Initialize measure number manager
+        self.measure_number_manager = None
+        self._initialize_measure_number_manager()
+
+        # Pagination context (set by StaffView)
+        self.current_page = 0
+
+        # Add or update these attributes in __init__
+        self.staff_name_font_color = '#000000'
+        self.section_name_font_color = '#000000'
+        self.clef_font_color = '#000000'
+        self.time_sig_font_color = '#000000'
+        self.key_sig_font_color = '#000000'
+        self.staff_name_font_size = 10
+        self.staff_name_vertical = 0
+        self.staff_name_horizontal = 0
+        self.section_name_font_size = 10
+        self.section_name_vertical = 0
+        self.section_name_horizontal = 0
+        self.clef_font_size = 10
+        self.clef_vertical = 0
+        self.clef_horizontal = 0
+        self.time_sig_font_size = 10
+        self.time_sig_vertical = 0
+        self.time_sig_horizontal = 0
+        self.time_sig_spacing = 8
+        self.key_sig_font_size = 10
+        self.key_sig_vertical = 0
+        self.key_sig_horizontal = 0
+        self.key_sig_accidental_spacing = 8
+        self.directions_font_size = 10
+        self.directions_vertical = 0
+        self.directions_horizontal = 0
+
+    def _copy_nested_dict(self, d):
+        """Create a deep copy of a nested dictionary"""
+        if not isinstance(d, dict):
+            return d
+        result = {}
+        for k, v in d.items():
+            if isinstance(v, dict):
+                result[k] = self._copy_nested_dict(v)
+            else:
+                result[k] = v
+        return result
+
+    def _setup_fonts(self):
+        """Set up the required fonts for music notation."""
+        self.music_font = QFont(self.MUSIC_FONTS["default"])
+        self.text_font = QFont(self.MUSIC_FONTS["text"])
+        
+        # CRITICAL FIX: Initialize Bravura font for SMuFL glyphs (end bars, etc.)
+        from PyQt6.QtGui import QFontDatabase
+        font_id = QFontDatabase.addApplicationFont("fonts/Bravura.otf")
+        if font_id != -1:
+            font_families = QFontDatabase.applicationFontFamilies(font_id)
+            if font_families:
+                self.bravura_font = QFont(font_families[0])
+                print(f"RENDERER: Successfully loaded Bravura font: {font_families[0]}")
+            else:
+                print("RENDERER: Warning - Bravura font loaded but no families found")
+                self.bravura_font = None
+        else:
+            print("RENDERER: Warning - Could not load Bravura font from fonts/Bravura.otf")
+            self.bravura_font = None
+
+    def set_page_across_mode(self, enabled: bool):
+        """Set page across view mode"""
+        self.page_across_mode = enabled
+        self.page_down_mode = not enabled and not self.continuous_mode
+        self.view_mode = "page_across" if enabled else ("continuous" if self.continuous_mode else "page_down")
+        print(f"RENDERER: Set page across mode to {enabled}, view mode: {self.view_mode}")
+        
+    def set_page_down_mode(self, enabled: bool):
+        """Set page down view mode"""
+        self.page_down_mode = enabled
+        self.page_across_mode = not enabled and not self.continuous_mode  
+        self.view_mode = "page_down" if enabled else ("continuous" if self.continuous_mode else "page_across")
+        print(f"RENDERER: Set page down mode to {enabled}, view mode: {self.view_mode}")
+        
+    def set_continuous_mode(self, enabled: bool):
+        """Set continuous view mode"""
+        self.continuous_mode = enabled
+        self.page_across_mode = not enabled
+        self.page_down_mode = not enabled
+        self.view_mode = "continuous" if enabled else "page_down"
+        print(f"RENDERER: Set continuous mode to {enabled}, view mode: {self.view_mode}")
+        
+    def get_view_mode(self) -> str:
+        """Get the current view mode"""
+        return self.view_mode
+
+    def set_document(self, document):
+        """Set the document to be rendered."""
+        self.document = document
+        
+        # CRITICAL FIX: Refresh measure number manager when document changes
+        # This ensures saved scores get the correct measure number settings
+        if hasattr(self, 'measure_number_manager') and self.measure_number_manager:
+            self.measure_number_manager.document = document
+            self.measure_number_manager.refresh_settings()
+            print(f"RENDERER: Refreshed measure number settings for new document")
+
+        # Apply document page layout to renderer immediately
+        try:
+            if hasattr(self.document, 'layout') and self.document.layout:
+                layout = self.document.layout
+                # Update page size if present
+                if hasattr(layout, 'page_width') and hasattr(layout, 'page_height'):
+                    self.set_page_size(int(layout.page_width), int(layout.page_height))
+                # Update margins
+                margins = {}
+                if hasattr(layout, 'left_margin'): margins['left'] = int(layout.left_margin)
+                if hasattr(layout, 'right_margin'): margins['right'] = int(layout.right_margin)
+                if hasattr(layout, 'top_margin'): margins['top'] = int(layout.top_margin)
+                if hasattr(layout, 'bottom_margin'): margins['bottom'] = int(layout.bottom_margin)
+                if margins:
+                    self.set_margins(margins)
+                print(f"RENDERER: Applied document layout to renderer (size {getattr(layout,'page_width',self.page_width)}x{getattr(layout,'page_height',self.page_height)}, margins={self.margins})")
+        except Exception as e:
+            print(f"RENDERER: Error applying document layout: {e}")
+
+    def set_page_size(self, width, height):
+        """Set the page size for rendering with dynamic layout refresh."""
+        old_width = self.page_width
+        old_height = self.page_height
+        
+        self.page_width = width
+        self.page_height = height
+        
+        # If page width changed significantly, trigger layout refresh
+        if abs(old_width - width) > 1.0:  # More than 1px change
+            print(f"RENDERER: Page width changed from {old_width} to {width} - triggering layout refresh")
+            
+            # Trigger layout refresh if we have a document with temporal bridge
+            if (hasattr(self, 'document') and self.document and 
+                hasattr(self.document, 'staff_view') and self.document.staff_view and
+                hasattr(self.document.staff_view, 'temporal_bridge') and self.document.staff_view.temporal_bridge):
+                
+                try:
+                    self.document.staff_view.temporal_bridge._force_layout_refresh()
+                    print(f"RENDERER: Triggered layout refresh for page width change")
+                except Exception as e:
+                    print(f"RENDERER: Error triggering layout refresh: {e}")
+            
+            # Force document update if available
+            if hasattr(self, 'document') and self.document:
+                try:
+                    self.document.update()
+                    print(f"RENDERER: Forced document update for page width change")
+                except Exception as e:
+                    print(f"RENDERER: Error updating document: {e}")
+        
+        print(f"RENDERER: Updated page size to {width}x{height}")
+
+    def set_margins(self, margins):
+        """Set the page margins and trigger layout refresh if changed."""
+        try:
+            old_margins = self.margins.copy()
+        except Exception:
+            old_margins = {}
+        
+        self.margins.update(margins)
+        
+        # If margins changed, trigger layout/content refresh similar to page size
+        try:
+            if old_margins != self.margins and hasattr(self, 'document') and self.document:
+                # Trigger layout refresh via temporal bridge if available
+                if (hasattr(self.document, 'staff_view') and self.document.staff_view and
+                    hasattr(self.document.staff_view, 'temporal_bridge') and self.document.staff_view.temporal_bridge):
+                    try:
+                        self.document.staff_view.temporal_bridge._force_layout_refresh()
+                        print("RENDERER: Triggered layout refresh for margin change")
+                    except Exception as e:
+                        print(f"RENDERER: Error triggering layout refresh on margin change: {e}")
+                
+                # Request document/view update
+                try:
+                    if hasattr(self.document, 'update'):
+                        self.document.update()
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"RENDERER: set_margins error: {e}")
+        
+    def load_notation_settings(self):
+        """Load notation settings with document precedence over preferences."""
+        from PyQt6.QtCore import QSettings
+        
+        print(f"RENDERER: load_notation_settings() called, document: {self.document}")
+        
+        # Initialize QSettings for preferences
+        settings = QSettings("ONOTE", "Preferences")
+        
+        # Get document settings if available
+        document_settings = {}
+        if self.document and hasattr(self.document, 'settings'):
+            document_settings = self.document.settings
+            print(f"RENDERER: Found document settings: {list(document_settings.keys())}")
+        
+        # Helper function to get setting with precedence: document -> preferences -> default
+        def get_setting_with_precedence(key, default_value):
+            # First check document settings
+            if key in document_settings:
+                value = document_settings[key]
+                print(f"RENDERER: Using document setting {key} = {value}")
+                return value
+            
+            # Then check preferences
+            pref_value = settings.value(key, default_value)
+            print(f"RENDERER: Using preference setting {key} = {pref_value} (default: {default_value})")
+            return pref_value
+        
+        # Load settings with precedence
+        self.staff_name_font_size = int(get_setting_with_precedence("notation/staff_name_font_size", 10))
+        self.staff_name_vertical_offset = int(get_setting_with_precedence("notation/staff_name_vertical", -8))
+        self.staff_name_horizontal_offset = int(get_setting_with_precedence("notation/staff_name_horizontal", -50))
+        self.staff_name_font_color = get_setting_with_precedence("notation/staff_name_font_color", "#000000")
+        
+        self.section_name_font_size = int(get_setting_with_precedence("notation/section_name_font_size", 12))
+        self.section_name_vertical_offset = int(get_setting_with_precedence("notation/section_name_vertical", -10))
+        self.section_name_horizontal_offset = int(get_setting_with_precedence("notation/section_name_horizontal", -60))
+        self.section_name_font_color = get_setting_with_precedence("notation/section_name_font_color", "#000000")
+        
+        self.clef_font_size = int(get_setting_with_precedence("notation/clef_font_size", 32))
+        self.clef_vertical_offset = int(get_setting_with_precedence("notation/clef_vertical", 0))
+        self.clef_horizontal_offset = int(get_setting_with_precedence("notation/clef_horizontal", 0))
+        self.clef_font_color = get_setting_with_precedence("notation/clef_font_color", "#000000")
+        
+        self.time_sig_font_size = int(get_setting_with_precedence("notation/time_sig_font_size", 24))
+        self.time_sig_vertical_offset = int(get_setting_with_precedence("notation/time_sig_vertical", 0))
+        self.time_sig_horizontal_offset = int(get_setting_with_precedence("notation/time_sig_horizontal", 40))
+        self.time_sig_spacing = int(get_setting_with_precedence("notation/time_sig_spacing", 18))
+        self.time_sig_font_color = get_setting_with_precedence("notation/time_sig_font_color", "#000000")
+        
+        self.key_sig_font_size = int(get_setting_with_precedence("notation/key_sig_font_size", 14))
+        self.key_sig_vertical_offset = int(get_setting_with_precedence("notation/key_sig_vertical", 0))
+        self.key_sig_horizontal_offset = int(get_setting_with_precedence("notation/key_sig_horizontal", 75))
+        self.key_sig_accidental_spacing = int(get_setting_with_precedence("notation/key_sig_accidental_spacing", 12))
+        self.key_sig_font_color = get_setting_with_precedence("notation/key_sig_font_color", "#000000")
+        
+        self.directions_font_size = int(get_setting_with_precedence("notation/directions_font_size", 11))
+        self.directions_vertical_offset = int(get_setting_with_precedence("notation/directions_vertical", 30))
+        
+        self.measure_numbers_font_size = int(get_setting_with_precedence("notation/measure_numbers_font_size", 8))
+        self.measure_numbers_font_color = get_setting_with_precedence("notation/measure_numbers_font_color", "#000000")
+        
+        self.barline_number_font_size = int(get_setting_with_precedence("notation/barline_number_font_size", 7))
+        self.barline_number_font_color = get_setting_with_precedence("notation/barline_numbers_font_color", "#000000")
+        
+        print(f"RENDERER: Loaded notation settings - staff_name_color: {self.staff_name_font_color}, section_name_color: {self.section_name_font_color}, clef_color: {self.clef_font_color}, time_sig_color: {self.time_sig_font_color}, key_sig_color: {self.key_sig_font_color}")
+        print(f"RENDERER: Color settings loaded - clef: {self.clef_font_color}, time_sig: {self.time_sig_font_color}, key_sig: {self.key_sig_font_color}")
+        print(f"RENDERER: Document settings available: {list(document_settings.keys()) if document_settings else 'None'}")
+        
+        # CRITICAL DEBUG: Check if we actually have the right colors
+        if hasattr(self, 'staff_name_font_color'):
+            print(f"RENDERER DEBUG: staff_name_font_color attribute exists: {self.staff_name_font_color}")
+        if hasattr(self, 'section_name_font_color'):
+            print(f"RENDERER DEBUG: section_name_font_color attribute exists: {self.section_name_font_color}")
+        
+        # Initialize measure number manager if available
+        self._initialize_measure_number_manager()
+
+    def _initialize_measure_number_manager(self):
+        """Initialize the measure number manager with default settings."""
+        try:
+            from .measure_numbers import MeasureNumberManager
+            # CRITICAL FIX: Pass the document parameter for proper settings precedence
+            self.measure_number_manager = MeasureNumberManager(self.document)
+            print(f"RENDERER: Initialized measure number manager with document: {self.document}")
+            print(f"RENDERER: Settings loaded: {self.measure_number_manager.get_settings()}")
+            
+            # CRITICAL FIX: Force refresh settings to ensure we get the latest values
+            # This is especially important for saved scores
+            self.measure_number_manager.refresh_settings()
+            print(f"RENDERER: Settings after refresh: {self.measure_number_manager.get_settings()}")
+        except ImportError as e:
+            print(f"RENDERER: Warning: Could not import MeasureNumberManager: {e}")
+            self.measure_number_manager = None
+        except Exception as e:
+            print(f"RENDERER: Warning: Could not initialize measure number manager: {e}")
+            self.measure_number_manager = None
+
+    def render_score(self, painter, viewport_rect=None, mode="edit"):
+        """Render the entire score with all its elements."""
+        try:
+            if not self.document or not hasattr(self.document, "layout"):
+                return
+
+            # Guard set to avoid drawing headers (clef/key/time, names) twice per staff/system within a single frame
+            self._rendered_system_headers = set()
+
+            # Ensure measure numbers reflect the latest settings immediately
+            if hasattr(self, 'measure_number_manager') and self.measure_number_manager:
+                try:
+                    self.measure_number_manager.refresh_settings()
+                except Exception:
+                    pass
+
+            # NEW: Clear selectable elements at start of rendering
+            if hasattr(self.document, 'staff_view') and hasattr(self.document.staff_view, 'element_selection'):
+                self.document.staff_view.element_selection.clear_all_elements()
+
+            # Calculate dynamic staff offsets based on the staff name lengths
+            self._calculate_dynamic_staff_offsets(painter)
+
+            # Resolve mode and viewport safely
+            current_mode = 'setup' if (hasattr(self.document.layout, 'is_setup_mode') and self.document.layout.is_setup_mode) else 'edit'
+            safe_viewport = QRect(0, 0, self.page_width, self.page_height)
+
+            # Draw background based on mode
+            if current_mode == 'setup':
+                print("RENDERER: Drawing setup mode pink background")
+                painter.fillRect(safe_viewport, QColor("#fff0f0"))
+            else:
+                print("RENDERER: Drawing edit mode white background")
+                painter.fillRect(safe_viewport, QColor("#ffffff"))
+
+            print("\nRENDERER: Beginning score rendering")
+            
+            # Draw all ungrouped staves and sections in the correct order
+            # This relies on the ScoreLayout._update_positions method to set correct positions
+            
+            # First determine if we even have sections to render
+            has_sections = hasattr(self.document.layout, 'sections') and self.document.layout.sections
+            
+            if has_sections:
+                # Debug original section order before sorting
+                print(f"\nRENDERER: Original section order from document:")
+                for idx, section in enumerate(self.document.layout.sections):
+                    print(f"  {idx}. Section: {section.name}, Order: {getattr(section, 'display_order_index', 0)}")
+                    
+                # CRITICAL FIX: Sort sections based on their display_order_index before rendering them
+                # This ensures sections appear in the same order as in the setup dialog
+                sorted_sections = sorted(self.document.layout.sections, 
+                                         key=lambda s: getattr(s, 'display_order_index', 0))
+                    
+                # Debug section order after sorting
+                print(f"\nRENDERER: Sections AFTER SORTING for rendering:")
+                for idx, section in enumerate(sorted_sections):
+                    print(f"  {idx}. Section: {section.name}, Order: {getattr(section, 'display_order_index', 0)}")
+                    # Print the staves in this section
+                    for i, staff in enumerate(section.staves):
+                        print(f"    Staff {i}: {staff.instrument_name}, y_position={staff.y_position}")
+            else:
+                print("\nRENDERER: No sections found in document, only rendering ungrouped staves")
+                sorted_sections = []
+            
+            # Debug ungrouped staves
+            print(f"\nRENDERER: Ungrouped staves:")
+            for idx, staff in enumerate(self.document.layout.ungrouped_staves):
+                print(f"  {idx}. Staff: {staff.instrument_name}, y_position={staff.y_position}")
+                
+            # Draw all elements in their final positions
+            # For correct rendering order, we need to render elements in order of ascending y_position
+            
+            # Create a combined list of all elements (ungrouped staves and sections)
+            combined_elements = []
+            
+            # Add ungrouped staves
+            for staff in self.document.layout.ungrouped_staves:
+                combined_elements.append({
+                    'type': 'staff',
+                    'element': staff,
+                    'y_pos': staff.y_position,
+                    'name': staff.instrument_name
+                })
+            
+            # Add sections
+            for section in sorted_sections:
+                # Skip empty sections
+                if not section.staves:
+                    print(f"RENDERER: Skipping empty section {section.name}")
+                    continue
+                    
+                combined_elements.append({
+                    'type': 'section',
+                    'element': section,
+                    'y_pos': section.bracket_y_start if hasattr(section, 'bracket_y_start') else getattr(section.staves[0], 'y_position', 0),
+                    'name': section.name
+                })
+            
+            # Sort all elements by their y_position for proper rendering order
+            combined_elements.sort(key=lambda e: e['y_pos'])
+            
+            # Debug the rendering order based on y positions
+            print(f"\nRENDERER: Final rendering order based on y_position:")
+            for idx, elem in enumerate(combined_elements):
+                print(f"  {idx}. {elem['type'].capitalize()}: {elem['name']}, y_pos={elem['y_pos']}")
+            
+            # Now render all elements in y_position order
+            for elem in combined_elements:
+                if elem['type'] == 'staff':
+                    self._render_staff(painter, elem['element'])
+                else:
+                    self._render_section(painter, elem['element'])
+
+            # --- CRITICAL: Draw barline 0 and barline 1 (and their numbers) ---
+            self._render_connecting_barlines(painter)
+            # Render green barline numbers at the top group if enabled in Preferences
+            try:
+                from PyQt6.QtCore import QSettings
+                show_barlines = bool(QSettings("ONOTE", "Preferences").value("notation/show_barline_numbers", True))
+            except Exception:
+                show_barlines = True
+            if show_barlines:
+                try:
+                    # Draw barline numbers per system so they distribute across wrapped lines
+                    if hasattr(self.document, 'measures') and self.document.measures:
+                        if isinstance(self.document.measures, dict):
+                            measures_all = [self.document.measures[k] for k in sorted([k for k in self.document.measures.keys() if isinstance(k, int)])]
+                        else:
+                            measures_all = list(self.document.measures)
+                        from PyQt6.QtCore import QSettings
+                        mps_local = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                        mps_local = max(1, min(32, mps_local))
+                        total_systems = (len(measures_all) + mps_local - 1) // mps_local
+                        # Page gating (page-down mode only)
+                        if getattr(self, 'page_down_mode', True):
+                            try:
+                                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                            except Exception:
+                                spacing_pref = 80
+                            try:
+                                top_margin_px = float(self.margins.get('top', 0))
+                                bottom_margin_px = float(self.margins.get('bottom', 120))
+                                available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+                            except Exception:
+                                available_height = int(max(0, self.page_height - 220))
+                            systems_per_page = max(1, available_height // max(1, spacing_pref))
+                            current_page_int = int(getattr(self, 'current_page', 0))
+                            page_start_idx = current_page_int * systems_per_page
+                            page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                        else:
+                            page_start_idx = 0
+                            page_end_idx = total_systems
+                        for sys_idx in range(page_start_idx, page_end_idx):
+                            start = sys_idx * mps_local
+                            end = min(len(measures_all), start + mps_local)
+                            eps = 0.5
+                            drawn = set()
+                            for m in measures_all[start:end]:
+                                if hasattr(m, 'end_x'):
+                                    x = float(getattr(m, 'end_x', 0.0))
+                                    if not any(abs(x - dx) < eps for dx in drawn):
+                                        self._render_barline_numbers(painter, m, x, [])
+                                        drawn.add(x)
+                except Exception as e:
+                    print(f"RENDERER: Barline numbers render error: {e}")
+
+            # NEW: Render measure numbers after barlines/layout repair so positions are correct
+            try:
+                if self.measure_number_manager and not (hasattr(self.document, 'layout') and self.document.layout.is_setup_mode):
+                    # Group measures by wrapped system so numbers render on each line, not stacked on the first
+                    measures = []
+                    if hasattr(self.document, 'measures') and self.document.measures:
+                        if isinstance(self.document.measures, dict):
+                            measures = [self.document.measures[k] for k in sorted([k for k in self.document.measures.keys() if isinstance(k, int)])]
+                        else:
+                            measures = list(self.document.measures)
+                    # Determine measures per system
+                    from PyQt6.QtCore import QSettings
+                    mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                    mps = max(1, min(32, mps))
+                    total = len(measures)
+                    total_systems = (total + mps - 1) // mps
+                    # Page gating (page-down mode only)
+                    if getattr(self, 'page_down_mode', True):
+                        try:
+                            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                        except Exception:
+                            spacing_pref = 80
+                        try:
+                            top_margin_px = float(self.margins.get('top', 0))
+                            bottom_margin_px = float(self.margins.get('bottom', 120))
+                            available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+                        except Exception:
+                            available_height = int(max(0, self.page_height - 220))
+                        systems_per_page = max(1, available_height // max(1, spacing_pref))
+                        current_page_int = int(getattr(self, 'current_page', 0))
+                        page_start_idx = current_page_int * systems_per_page
+                        page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                    else:
+                        try:
+                            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                        except Exception:
+                            spacing_pref = 80
+                        page_start_idx = 0
+                        page_end_idx = total_systems
+                    # Render per system using top staff y and page-local vertical shift
+                    # Top staff y
+                    top_y = 0.0
+                    if self.document and hasattr(self.document.layout, 'ungrouped_staves') and self.document.layout.ungrouped_staves:
+                        top_y = float(self.document.layout.ungrouped_staves[0].y_position)
+                    for sys_idx in range(page_start_idx, page_end_idx):
+                        start = sys_idx * mps
+                        end = min(total, start + mps)
+                        sys_measures = measures[start:end]
+                        local_idx = sys_idx - page_start_idx
+                        system_y = top_y + local_idx * spacing_pref
+                        self.measure_number_manager.render_for_staff(painter, 'ScoreTop', sys_measures, system_y, start + 1)
+            except Exception as e:
+                print(f"RENDERER: Error in post-barlines measure number pass: {e}")
+
+            print("RENDERER: Score rendering completed successfully")
+            
+        except Exception as e:
+            print(f"Error rendering score: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _calculate_dynamic_staff_offsets(self, painter):
+        """Calculate separate dynamic offsets for first system and continuation systems"""
+        try:
+            # Minimum offset to ensure sufficient space for rendering
+            # This is essentially the minimum space for clef, key, and time signature
+            min_offset = 5  # Reduced to allow tighter layout
+            part_name_padding_left = 1  # Space between left page edge and start of part name
+            part_name_padding_right = 20  # Space between part name and barline 0
+            
+            # Check if document is ready and has staves
+            if not self.document or not hasattr(self.document, "layout"):
+                # Use safe defaults
+                self.first_system_offset = min_offset
+                self.continuation_system_offset = min_offset
+                return
+
+            # Collect all instrument names and abbreviations
+            longest_name = ""
+            longest_name_width = 0
+            longest_abbr = ""
+            longest_abbr_width = 0
+
+            # Collect section names
+            longest_section_name = ""
+            longest_section_name_width = 0
+
+            # Save current font settings
+            original_font = painter.font()
+
+            # Set font for measuring instrument names
+            name_font_size = 10
+            if "instrumentName" in FONT_SIZES:
+                name_font_size = FONT_SIZES["instrumentName"]
+
+            try:
+                name_font = QFont(MUSIC_FONTS["text"], name_font_size)
+            except Exception as e:
+                # Fallback to a generic font if specific fonts not available
+                name_font = QFont("Arial", name_font_size)
+                print(f"Error loading font: {e}")
+
+            painter.setFont(name_font)
+
+            # Measure all staves' instrument names and abbreviations
+            staves_to_check = []
+
+            # Get ungrouped staves
+            if hasattr(self.document.layout, "ungrouped_staves"):
+                staves_to_check.extend(self.document.layout.ungrouped_staves)
+
+            # Get staves from sections and also measure section names
+            sections_to_check = []
+            if hasattr(self.document.layout, "sections"):
+                for section in self.document.layout.sections:
+                    sections_to_check.append(section)
+                    if hasattr(section, "staves"):
+                        staves_to_check.extend(section.staves)
+
+            # Set font for measuring section names (slightly larger than instrument names)
+            section_font_size = 12
+            if "sectionName" in FONT_SIZES:
+                section_font_size = FONT_SIZES["sectionName"]
+
+            try:
+                section_font = QFont(MUSIC_FONTS["text"], section_font_size)
+                painter.setFont(section_font)
+
+                # Measure all section names
+                for section in sections_to_check:
+                    if hasattr(section, "name") and section.name:
+                        section_name_width = painter.fontMetrics().horizontalAdvance(section.name)
+                        if section_name_width > longest_section_name_width:
+                            longest_section_name = section.name
+                            longest_section_name_width = section_name_width
+            except Exception as e:
+                print(f"Error measuring section names: {e}")
+
+            # Switch back to instrument name font for measuring instrument names
+            painter.setFont(name_font)
+
+            # Check each staff for name and abbreviation
+            for staff in staves_to_check:
+                if hasattr(staff, "instrument_name") and staff.instrument_name:
+                    name_width = painter.fontMetrics().horizontalAdvance(staff.instrument_name)
+                    if name_width > longest_name_width:
+                        longest_name = staff.instrument_name
+                        longest_name_width = name_width
+
+                if hasattr(staff, "instrument_abbr") and staff.instrument_abbr:
+                    abbr_width = painter.fontMetrics().horizontalAdvance(staff.instrument_abbr)
+                    if abbr_width > longest_abbr_width:
+                        longest_abbr = staff.instrument_abbr
+                        longest_abbr_width = abbr_width
+
+            # Calculate space needed for names plus padding
+            first_system_name_space = longest_name_width + part_name_padding_left + part_name_padding_right
+            continuation_system_name_space = longest_abbr_width + part_name_padding_left + part_name_padding_right
+            
+            # For sections, we need slightly more space
+            section_name_space = longest_section_name_width + part_name_padding_left + part_name_padding_right
+            
+            # Calculate the maximum space needed but override for testing
+            # Temporarily force a small value to test left margin
+            max_name_space = first_system_name_space
+            # Override with a fixed small value 
+            max_name_space = 50
+            
+            # Store values for use in rendering
+            self.name_offset = max_name_space
+            self.abbr_offset = max(continuation_system_name_space, min_offset + 20)
+            
+            # Now set the barline 0 position based on the calculated offsets
+            # This ensures there's enough space for the names
+            self.barline_0_offset = self.name_offset
+            
+            # For staff content, we use the same offset as barline 0
+            # This ensures everything aligns properly
+            self.first_system_offset = self.barline_0_offset
+            # Continuation systems start at the same left offset as the first system
+            self.continuation_system_offset = self.barline_0_offset
+
+            # Debug info with additional details
+            print(
+                f"Dynamic offsets: Name space: {self.name_offset}px, Barline 0: {self.barline_0_offset}px (longest name: '{longest_name}' {longest_name_width}px, longest section: '{longest_section_name}' {longest_section_name_width}px)"
+            )
+
+            # Restore original font
+            painter.setFont(original_font)
+                
+        except Exception as e:
+            print(f"Error calculating dynamic offsets: {e}")
+            # Use reduced defaults
+            self.first_system_offset = min_offset
+            self.continuation_system_offset = min_offset
+            self.name_offset = min_offset + 50
+            self.abbr_offset = min_offset + 20
+            self.barline_0_offset = min_offset + 50
+
+    def _render_section(self, painter, section):
+        """Render a section group including all of its staves and a bracket.
+        
+        This method relies on the positions already being correctly set by _update_positions
+        in the ScoreLayout class. It respects the proper display order of the sections.
+        """
+        # Skip empty sections
+        if not section.staves:
+            print(f"RENDERER: Skipping empty section {section.name}")
+            return
+            
+        # Debug the section rendering
+        print(f"RENDERER: Rendering section {section.name} with {len(section.staves)} staves")
+        print(f"  Section display_order_index: {getattr(section, 'display_order_index', 0)}")
+        print(f"  Section bracket: y_start={section.bracket_y_start}, y_end={section.bracket_y_end}")
+        
+        # Verify bracket positions are valid
+        has_valid_bracket = (
+            hasattr(section, 'bracket_y_start') and
+            hasattr(section, 'bracket_y_end') and
+            section.bracket_y_end > section.bracket_y_start
+        )
+        
+        if not has_valid_bracket:
+            print(f"RENDERER WARNING: Section {section.name} has invalid bracket positions! Start={getattr(section, 'bracket_y_start', 'N/A')}, End={getattr(section, 'bracket_y_end', 'N/A')}")
+        
+        # Render all staves in this section
+        # Important: Use the pre-calculated positions from ScoreLayout._update_positions
+        for staff in section.staves:
+            if isinstance(staff, GrandStaff):
+                self._render_grand_staff(painter, staff)
+            else:
+                # Single staff
+                self._render_single_staff(painter, staff)
+                
+        # After all staves are rendered, draw a bracket and section name
+        if has_valid_bracket:
+            self._render_section_bracket(painter, section)
+        else:
+            print(f"RENDERER ERROR: Skipping bracket rendering for section {section.name} due to invalid positions")
+            
+        # Draw section name at its calculated y_position
+        if hasattr(section, "section_name_y"):
+            # Set up proper text font for section names using configurable settings
+            section_font = QFont(self.MUSIC_FONTS["text"], self.section_name_font_size)
+            section_font.setBold(True)  # Make section names bold
+            painter.setFont(section_font)
+            
+            # NEW: Set text color from document settings - FIXED to match clef/time sig approach
+            from PyQt6.QtGui import QColor
+            section_name_color = getattr(self, 'section_name_font_color', '#000000')
+            print(f"RENDERER: Using section name color: {section_name_color}")
+            
+            # CRITICAL FIX: Save the current pen state before changing color
+            original_pen = painter.pen()
+            
+            # Set the pen color for text drawing
+            painter.setPen(QColor(section_name_color))
+            
+            # Calculate text width and center position
+            name_width = painter.fontMetrics().horizontalAdvance(section.name)
+            
+            # Position text using configurable horizontal offset
+            x = self.margins["left"] + self.section_name_horizontal_offset
+            
+            # Use the pre-calculated section_name_y position from _update_positions
+            # Apply configurable vertical offset
+            y = section.section_name_y + self.section_name_vertical_offset
+            
+            # Draw text horizontally (no rotation)
+            painter.drawText(QPointF(x, y), section.name)
+            print(f"RENDERER: Drew section name '{section.name}' at x={x}, y={y}, color={section_name_color}")
+            
+            # CRITICAL FIX: Restore the original pen state after drawing section name
+            painter.setPen(original_pen)
+
+    def _render_section_bracket(self, painter, section):
+        """Render the bracket for a section using SMuFL glyphs with top, middle, and bottom components."""
+        try:
+            # Calculate bracket positions - adjust to start at the top line of first staff
+            bracket_y_start = section.bracket_y_start
+            bracket_y_end = section.bracket_y_end
+
+            # Print debug info
+            print(f"SECTION_BRACKET: Positions - top: {bracket_y_start}, bottom: {bracket_y_end}")
+            print(f"SECTION_BRACKET: Height: {bracket_y_end - bracket_y_start}")
+
+            if bracket_y_end <= bracket_y_start:
+                print(
+                    f"SECTION_BRACKET ERROR: Invalid bracket height {bracket_y_end - bracket_y_start}"
+                )
+                return
+
+            # Calculate height including extensions
+            bracket_height = bracket_y_end - bracket_y_start
+
+            # Position bracket to the left of the initial barline
+            bracket_offset = self.BRACKET_CONSTANTS["inset"]
+            # Use the dynamic barline_0_offset for positioning
+            bracket_x = float(self.margins["left"] + self.barline_0_offset - bracket_offset)
+
+            # Save the painter state
+            painter.save()
+
+            try:
+                # Use correct SMuFL bracket glyphs that open to the right
+                # Standard section bracket glyphs from SMuFL
+                bracket_top = ""  # bracketTop
+                bracket_bottom = ""  # bracketBottom
+
+                # Set font for the bracket - explicitly use Bravura font
+                bracket_font_size = 24.0  # Base font size
+                bracket_font = QFont("Bravura")
+                bracket_font.setPointSizeF(bracket_font_size)
+                painter.setFont(bracket_font)
+
+                # Get font metrics for measurements
+                metrics = painter.fontMetrics()
+
+                # STEP 1: Position the top bracket glyph precisely at the first line of the top staff
+                # Draw the top part at the top position (exactly at y_top)
+                painter.drawText(QPointF(bracket_x, bracket_y_start), bracket_top)
+                print(f"SECTION_BRACKET: Top bracket positioned at y={bracket_y_start}")
+
+                # STEP 2: Position the bottom bracket glyph precisely at the fifth line of the bottom staff
+                # Draw the bottom part at the bottom position (exactly at y_bottom) + 1px for precise alignment
+                # Since the bottom bracket is currently between lines 4 and 5, we'll position it exactly on line 5
+                bracket_bottom_y = bracket_y_end + 5  # Add 5 pixels to position on the bottom line
+                painter.drawText(QPointF(bracket_x, bracket_bottom_y), bracket_bottom)
+                print(
+                    f"SECTION_BRACKET: Bottom bracket positioned at y={bracket_bottom_y} (adjusted to align with line 5)"
+                )
+
+                # STEP 3: Fill the space between top and bottom brackets with a single stretched vertical line
+                # Use a simple vertical line instead of multiple glyph segments
+                # This creates a cleaner, more consistent appearance
+
+                try:
+                    # Calculate the vertical space between the brackets with minimal gaps
+                    # Start just below the top bracket with minimal gap (2px - just 0.25 staff line)
+                    vertical_start = bracket_y_start + 2
+
+                    # End just above the bottom bracket with minimal gap (2px - just 0.25 staff line)
+                    vertical_end = bracket_bottom_y - 2
+
+                    # Calculate the total height to fill
+                    vertical_height = vertical_end - vertical_start
+
+                    if vertical_height <= 0:
+                        print(
+                            f"SECTION_BRACKET WARNING: Insufficient vertical space between brackets ({vertical_height}px), using fallback method"
+                        )
+                        raise ValueError("Insufficient vertical space for stretching")
+
+                    print(
+                        f"SECTION_BRACKET: Using stretched vertical line from y={vertical_start} to y={vertical_end}"
+                    )
+                    print(f"SECTION_BRACKET: Total height to fill: {vertical_height}px")
+
+                    # Save painter state
+                    painter.save()
+
+                    # Set pen for drawing the vertical line - slightly thicker (2.0) for better visual match with bracket glyphs
+                    pen = QPen(Qt.GlobalColor.black, 2.0, Qt.PenStyle.SolidLine)
+                    painter.setPen(pen)
+
+                    # Draw a simple vertical line connecting the brackets with precise endpoints
+                    painter.drawLine(QLineF(bracket_x, vertical_start, bracket_x, vertical_end))
+
+                    # Restore painter state
+                    painter.restore()
+
+                    print(
+                        f"SECTION_BRACKET: Drew vertical line connecting brackets from y={vertical_start} to y={vertical_end}"
+                    )
+                    print(
+                        f"SECTION_BRACKET: All three steps completed - Full bracket rendered from {bracket_y_start} to {bracket_bottom_y}"
+                    )
+                    return
+
+                except Exception as scale_error:
+                    print(f"SECTION_BRACKET: Vertical line drawing failed: {scale_error}")
+
+                    # Fallback if vertical line drawing fails - use multi-segment approach
+                    print("SECTION_BRACKET: Falling back to multi-segment approach")
+
+                    # Calculate section height for positioning
+                    section_height = bracket_bottom_y - bracket_y_start
+
+                    # Calculate the space to fill
+                    bracket_middle = ""  # Use the original middle bracket glyph for fallback
+                    middle_glyph_height = metrics.height()
+
+                    # For medium/large sections, use 10 segments minimum with 40% overlap
+                    overlap_factor = 0.40
+                    effective_segment_height = middle_glyph_height * (1 - overlap_factor)
+
+                    # Start 15% down from top bracket, end 15% up from bottom
+                    usable_space_start = bracket_y_start + (section_height * 0.15)
+                    usable_space_end = bracket_bottom_y - (section_height * 0.15)
+                    usable_space = usable_space_end - usable_space_start
+
+                    # Calculate number of segments (minimum 10)
+                    segments_needed = math.ceil(usable_space / effective_segment_height)
+                    segments_needed = max(10, segments_needed)
+
+                    # Calculate step size for even distribution
+                    step_size = (
+                        usable_space / (segments_needed - 1)
+                        if segments_needed > 1
+                        else usable_space
+                    )
+
+                    print(
+                        f"SECTION_BRACKET: Using fallback with {segments_needed} middle segments with {overlap_factor*100}% overlap"
+                    )
+
+                    # Draw the fallback middle segments
+                    for i in range(segments_needed):
+                        y_pos = usable_space_start + (i * step_size)
+                        painter.drawText(QPointF(bracket_x, y_pos), bracket_middle)
+                        print(
+                            f"SECTION_BRACKET: Middle segment {i+1}/{segments_needed} at y={y_pos}"
+                        )
+
+                print(
+                    f"SECTION_BRACKET: All three steps completed - Full bracket rendered from {bracket_y_start} to {bracket_bottom_y}"
+                )
+
+            except Exception as font_error:
+                # If SMuFL glyph fails, try using StaffGroupRenderer's custom drawing which draws brackets correctly
+                print(
+                    f"SECTION_BRACKET: SMuFL bracket rendering failed: {font_error}, trying StaffGroupRenderer"
+                )
+
+                try:
+                    # Try using the custom bracket renderer from StaffGroupRenderer
+                    from .score_layout import StaffGroupRenderer
+
+                    StaffGroupRenderer.custom_render_section_bracket(
+                        painter, bracket_x, bracket_y_start, bracket_y_end
+                    )
+                    print("SECTION_BRACKET: Used StaffGroupRenderer custom bracket drawing")
+
+                except Exception as renderer_error:
+                    print(
+                        f"SECTION_BRACKET: StaffGroupRenderer failed: {renderer_error}, using simple lines"
+                    )
+
+                    # Final fallback: draw using simple lines
+                    # Derive pen width from BRACKET_CONSTANTS
+                    # Use a thicker pen for the fallback bracket
+                    pen = QPen(Qt.GlobalColor.black, self.BRACKET_CONSTANTS["thickness"] / 3)
+                    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                    painter.setPen(pen)
+
+                    # Draw the vertical line first (on the right side)
+                    painter.drawLine(bracket_x, bracket_y_start, bracket_x, bracket_y_end)
+
+                    # Draw the horizontal lines for the bracket caps
+                    # Make them open to the right, like a normal bracket
+                    horizontal_offset = 12  # Horizontal width of the bracket ends
+
+                    # Top horizontal line
+                    painter.drawLine(
+                        bracket_x, bracket_y_start, bracket_x + horizontal_offset, bracket_y_start
+                    )
+
+                    # Bottom horizontal line
+                    painter.drawLine(
+                        bracket_x, bracket_y_end, bracket_x + horizontal_offset, bracket_y_end
+                    )
+
+                    print(
+                        "SECTION_BRACKET: Used simple lines fallback method with correct orientation"
+                    )
+
+            # Restore painter state
+            painter.restore()
+
+        except Exception as e:
+            print(f"SECTION_BRACKET ERROR: Failed to render bracket: {e}")
+            # Continue without bracket if it fails
+
+    def _render_staff(self, painter, staff):
+        """Render a single staff or grand staff based on its type with basic system wrapping for single-staff scores."""
+        # Determine measures per system, preferring TemporalBridge over QSettings for consistency
+        try:
+            tb_mps = None
+            if hasattr(self, 'document') and hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                tb_mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 0) or 0)
+            if tb_mps and tb_mps > 0:
+                mps = max(1, min(32, tb_mps))
+            else:
+                from PyQt6.QtCore import QSettings
+                mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                mps = max(1, min(32, mps))
+        except Exception:
+            mps = 4
+
+        # Count measures available
+        measure_count = 0
+        if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict):
+            measure_count = len(self.document.measures)
+
+        # Derive number of wrapped systems purely from measure count to avoid stale tags
+        total_systems = (measure_count + mps - 1) // mps if measure_count > 0 else 0
+
+        # For now, only wrap for non-grand single staff; grand staff will be handled as a unit later
+        if not isinstance(staff, GrandStaff) and measure_count > 0:
+            # Compute systems per page using spacing and margins
+            try:
+                from PyQt6.QtCore import QSettings
+                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            except Exception:
+                spacing_pref = 80
+            try:
+                top_margin_px = float(self.margins.get('top', 0))
+            except Exception:
+                top_margin_px = 0.0
+            try:
+                bottom_margin_px = float(self.margins.get('bottom', 120))
+            except Exception:
+                bottom_margin_px = 120.0
+            try:
+                available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+            except Exception:
+                available_height = int(max(0, self.page_height - 220))
+            systems_per_page = max(1, available_height // max(1, spacing_pref))
+
+            # In page-down mode, render only the systems on the current page.
+            # In other modes, render all systems stacked vertically.
+            if getattr(self, 'page_down_mode', True):
+                if not hasattr(self, 'current_page'):
+                    self.current_page = 0
+                current_page_int = int(self.current_page)
+                page_start_idx = current_page_int * systems_per_page
+                page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                system_range = range(page_start_idx, page_end_idx)
+            else:
+                system_range = range(0, total_systems)
+
+            for system_idx in system_range:
+                self._render_single_staff(
+                    painter, staff, selected=False, system_idx=system_idx, is_multi_staff=False
+                )
+        else:
+            if isinstance(staff, GrandStaff):
+                self._render_grand_staff(painter, staff)
+            else:
+                self._render_single_staff(painter, staff)
+
+    def _render_grand_staff(self, painter, staff):
+        """Render a grand staff with brace, staves, and instrument name."""
+        print("GRAND_STAFF: Starting to render grand staff")
+        try:
+            # Safety checks to ensure the grand staff has valid top and bottom staves
+            if not hasattr(staff, "top_staff"):
+                print("GRAND_STAFF ERROR: No top_staff attribute")
+                self._render_single_staff(painter, staff)
+                return
+
+            if not staff.top_staff:
+                print("GRAND_STAFF ERROR: top_staff is None")
+                self._render_single_staff(painter, staff)
+                return
+
+            if not hasattr(staff, "bottom_staff"):
+                print("GRAND_STAFF ERROR: No bottom_staff attribute")
+                self._render_single_staff(painter, staff)
+                return
+
+            if not staff.bottom_staff:
+                print("GRAND_STAFF ERROR: bottom_staff is None")
+                self._render_single_staff(painter, staff)
+                return
+
+            print(
+                f"GRAND_STAFF: Top staff type: {type(staff.top_staff).__name__}, Bottom staff type: {type(staff.bottom_staff).__name__}"
+            )
+
+            # Store original positions
+            try:
+                top_staff_original_y = staff.top_staff.y_position
+                bottom_staff_original_y = staff.bottom_staff.y_position
+                print(
+                    f"GRAND_STAFF: Original positions - top: {top_staff_original_y}, bottom: {bottom_staff_original_y}"
+                )
+            except Exception as e:
+                print(f"GRAND_STAFF ERROR: Couldn't access position attributes: {e}")
+                self._render_single_staff(painter, staff)
+                return
+
+            # Space grand staff staves exactly 4 staff lines apart
+            # Each staff line spacing is STAFF_LINE_SPACING
+            grand_staff_spacing = STAFF_LINE_SPACING * 4  # Exactly 4 staff lines of space
+            print(f"GRAND_STAFF: Using spacing of {grand_staff_spacing}px (4 staff lines)")
+
+            # Update top staff position (keep it at the grand staff's y_position)
+            try:
+                staff.top_staff.y_position = staff.y_position
+                print(f"GRAND_STAFF: Set top staff position to {staff.y_position}")
+
+                # Update bottom staff position with 4-line spacing
+                staff.bottom_staff.y_position = (
+                    staff.top_staff.y_position + staff.top_staff.height + grand_staff_spacing
+                )
+                print(
+                    f"GRAND_STAFF: Set bottom staff position to {staff.bottom_staff.y_position} with spacing {grand_staff_spacing}"
+                )
+
+                # Update brace positions
+                staff.brace_y_start = staff.y_position
+                staff.brace_y_end = staff.bottom_staff.y_position + staff.bottom_staff.height
+                print(
+                    f"GRAND_STAFF: Brace positions - start: {staff.brace_y_start}, end: {staff.brace_y_end}"
+                )
+
+                # Update instrument name y position (centered between staves)
+                staff.instrument_name_y = staff.y_position + (
+                    (staff.brace_y_end - staff.brace_y_start) / 2
+                )
+                print(f"GRAND_STAFF: Instrument name y position: {staff.instrument_name_y}")
+                # Cache intra-staff gap so wrapped systems can offset by bottom-of-previous to top-of-next spacing
+                try:
+                    intragap = float(staff.bottom_staff.y_position - staff.top_staff.y_position)
+                except Exception:
+                    intragap = float(self.STAFF_HEIGHT + grand_staff_spacing)
+                setattr(staff.top_staff, "_grand_intragap", intragap)
+                setattr(staff.bottom_staff, "_grand_intragap", intragap)
+            except Exception as e:
+                print(f"GRAND_STAFF ERROR: Couldn't update positions: {e}")
+                # Restore original positions if possible
+                try:
+                    staff.top_staff.y_position = top_staff_original_y
+                    staff.bottom_staff.y_position = bottom_staff_original_y
+                except Exception as inner_e:
+                    print(f"GRAND_STAFF ERROR: Failed to restore positions: {inner_e}")
+                self._render_single_staff(painter, staff)
+                return
+
+            # Skip drawing instrument name directly here - will be drawn differently
+            # This prevents the "floating barline" effect
+
+            # We will draw a brace for each wrapped system below
+
+            # Determine number of systems for this grand staff from document measures
+            try:
+                measure_count = 0
+                if hasattr(self.document, 'measures') and self.document.measures:
+                    if isinstance(self.document.measures, dict):
+                        measure_count = len([k for k in self.document.measures.keys() if isinstance(k, int)])
+                    else:
+                        measure_count = len(self.document.measures)
+            except Exception:
+                measure_count = 0
+            try:
+                mps = 0
+                if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                    tb_mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 0) or 0)
+                    mps = max(mps, tb_mps)
+                if mps <= 0:
+                    from PyQt6.QtCore import QSettings
+                    mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                mps = max(1, min(32, int(mps)))
+            except Exception:
+                mps = 4
+            total_systems = (measure_count + mps - 1) // mps if measure_count > 0 else 1
+
+            # Compute systems per page and page gating if in page-down mode
+            try:
+                from PyQt6.QtCore import QSettings
+                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            except Exception:
+                spacing_pref = 80
+            try:
+                top_margin_px = float(self.margins.get('top', 0))
+            except Exception:
+                top_margin_px = 0.0
+            try:
+                bottom_margin_px = float(self.margins.get('bottom', 120))
+            except Exception:
+                bottom_margin_px = 120.0
+            try:
+                available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+            except Exception:
+                available_height = int(max(0, self.page_height - 220))
+            systems_per_page = max(1, available_height // max(1, spacing_pref))
+
+            if getattr(self, 'page_down_mode', True):
+                try:
+                    current_page_int = int(getattr(self, 'current_page', 0))
+                except Exception:
+                    current_page_int = 0
+                page_start_idx = current_page_int * systems_per_page
+                page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                system_range = range(page_start_idx, page_end_idx)
+            else:
+                system_range = range(0, total_systems)
+
+            # Draw both staves for each system index so the grand staff wraps as a unit
+            for sys_idx in system_range:
+                print(f"GRAND_STAFF: Rendering system {sys_idx}")
+                try:
+                    # Compute page-local system index and matching vertical shift used by other passes
+                    local_idx = sys_idx - page_start_idx
+                    grand_staff_extra = int(self.STAFF_HEIGHT)
+                    vertical_shift = local_idx * (spacing_pref + grand_staff_extra)
+
+                    # Draw brace for this wrapped system at the correct Y by translating only for the brace
+                    try:
+                        painter.save()
+                        painter.translate(0, vertical_shift)
+                        self._render_brace(painter, staff)
+                        painter.restore()
+                    except Exception:
+                        pass
+
+                    # Render both staves without translating; per-system vertical placement is handled inside
+                    # _render_single_staff/_render_measures_impl using system_idx
+                    self._render_single_staff(painter, staff.top_staff, selected=False, system_idx=sys_idx, is_multi_staff=True)
+                    self._render_single_staff(painter, staff.bottom_staff, selected=False, system_idx=sys_idx, is_multi_staff=True)
+                except Exception as e:
+                    print(f"GRAND_STAFF ERROR: Rendering system {sys_idx} failed: {e}")
+                    # Continue to next system
+
+            # Draw instrument name only once, centered between the staves
+            # This is drawn after the staves to ensure proper positioning
+            try:
+                print("GRAND_STAFF: Drawing instrument name")
+                
+                # Set font for instrument name using configurable settings
+                try:
+                    name_font = QFont(self.MUSIC_FONTS["text"], self.staff_name_font_size)
+                    painter.setFont(name_font)
+                except Exception as e:
+                    # Fallback to a generic font
+                    painter.setFont(QFont("Arial", self.staff_name_font_size))
+                    print(f"Error setting instrument name font: {e}")
+
+                # NEW: Set text color from document settings - FIXED to match clef/time sig approach
+                from PyQt6.QtGui import QColor
+                staff_name_color = getattr(self, 'staff_name_font_color', '#000000')
+                print(f"RENDERER: Using staff name color: {staff_name_color}")
+                
+                # CRITICAL FIX: Save the current pen state before changing color
+                original_pen = painter.pen()
+                
+                # Set the pen color for text drawing
+                painter.setPen(QColor(staff_name_color))
+
+                # Calculate barline 0 position using the dynamic offset
+                barline_0_x = self.margins["left"] + self.barline_0_offset
+                
+                # Position name using configurable offsets
+                # Calculate base position from left margin
+                base_x = self.margins["left"] + self.staff_name_horizontal_offset
+                
+                # Measure the width of the name
+                display_name = staff.instrument_name
+                if hasattr(staff, "custom_name") and staff.custom_name:
+                    display_name = staff.custom_name
+                    
+                # Truncate very long names if necessary with ellipsis
+                max_name_length = 35  # Increased character limit for names
+                if len(display_name) > max_name_length:
+                    display_name = display_name[:max_name_length-3] + "..."
+                        
+                name_width = painter.fontMetrics().horizontalAdvance(display_name)
+                
+                # Use configurable horizontal offset
+                name_x = base_x
+
+                # Use the pre-calculated vertical position with configurable vertical offset
+                point = QPointF(name_x, staff.instrument_name_y + self.staff_name_vertical_offset)
+
+                painter.drawText(point, display_name)
+                print(
+                    f"GRAND_STAFF: Instrument name '{display_name}' drawn at position x={point.x()}, y={point.y()}, width={name_width}px, barline0={barline_0_x}, color={staff_name_color}"
+                )
+                
+                # CRITICAL FIX: Restore the original pen state after drawing staff name
+                painter.setPen(original_pen)
+            except Exception as e:
+                print(f"GRAND_STAFF ERROR: Instrument name rendering failed: {e}")
+                # Continue even if name fails
+
+            # Always call ensure_grand_staff_final_barline
+            # It will only draw in edit mode due to internal check
+            try:
+                self._ensure_grand_staff_final_barline(painter, staff)
+                print("GRAND_STAFF: Added final barline")
+            except Exception as e:
+                print(f"GRAND_STAFF ERROR: Failed to add final barline: {e}")
+
+            # Restore original positions
+            try:
+                staff.top_staff.y_position = top_staff_original_y
+                staff.bottom_staff.y_position = bottom_staff_original_y
+                print("GRAND_STAFF: Original positions restored")
+            except Exception as e:
+                print(f"GRAND_STAFF ERROR: Failed to restore positions: {e}")
+
+            print("GRAND_STAFF: Rendering completed successfully")
+
+        except Exception as e:
+            print(f"GRAND_STAFF CRITICAL ERROR: {e}")
+            # Attempt to render as a single staff as fallback
+            try:
+                self._render_single_staff(painter, staff)
+                print("GRAND_STAFF: Fallback to single staff rendering succeeded")
+            except:
+                print("GRAND_STAFF: Fallback to single staff rendering also failed")
+
+    def _render_brace(self, painter, staff):
+        """Render the brace symbol for grand staff."""
+        try:
+            # Safety check for grand staff
+            if not hasattr(staff, "is_grand_staff") or not staff.is_grand_staff:
+                return
+
+            if not hasattr(staff, "top_staff") or not hasattr(staff, "bottom_staff"):
+                print("GRAND_STAFF ERROR: Missing top or bottom staff")
+                return
+
+            # Calculate brace positions relative to the actual staff lines
+            # Keep the inset at 1.0 for consistent placement
+            brace_inset = self.BRACE_CONSTANTS["inset"] * 1.0  # Keep at 1.0 (already working well)
+            # Use the dynamic barline_0_offset for positioning
+            brace_x = self.margins["left"] + self.barline_0_offset - brace_inset
+
+            # Get the exact top line of the top staff and bottom line of the bottom staff
+            # For top, extend 2 lines above the top line of the treble staff
+            top_line_y = staff.top_staff.y_position - (
+                2 * self.STAFF_LINE_SPACING
+            )  # 2 lines above top line
+            # For bottom, use line 5 (bottom line) of the bass staff
+            bottom_line_y = (
+                staff.bottom_staff.y_position
+                + (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
+            )
+
+            # Add small extension beyond the staff lines
+            # For top, align exactly with the top line (no extension)
+            brace_y_start = top_line_y
+            # For bottom, add just a tiny extension
+            brace_y_end = bottom_line_y + self.BRACE_CONSTANTS["extension"] * 0.5
+            brace_height = brace_y_end - brace_y_start
+
+            print(
+                f"GRAND_STAFF DEBUG: Brace positions - top: {top_line_y}, bottom: {bottom_line_y}"
+            )
+            print(f"GRAND_STAFF DEBUG: Brace height: {brace_height}")
+
+            if brace_height <= 0:
+                print(f"GRAND_STAFF ERROR: Invalid brace height {brace_height}")
+                return
+
+            # Save the painter state
+            painter.save()
+
+            # CRITICAL FIX: Ensure black color for brace
+            painter.setPen(QPen(Qt.GlobalColor.black, 2, Qt.PenStyle.SolidLine))
+
+            # Use approach from original implementation but with refined positioning
+            try:
+                # Calculate appropriate font size based on the brace height
+                # Keep scaling factor at 0.85 (already working well)
+                font_size = brace_height * 0.85
+
+                # Set font for the brace - explicitly use Bravura font
+                brace_font = QFont("Bravura")
+                brace_font.setPointSizeF(font_size)
+                painter.setFont(brace_font)
+
+                # Use the brace character directly - uniE000 from Bravura font
+                brace_char = ""  # SMuFL code for curly brace
+
+                # Clear debug information to see what's happening
+                print(
+                    f"GRAND_STAFF DEBUG: Drawing brace at position ({brace_x}, {brace_y_end}) with font size {font_size}"
+                )
+
+                # Position the brace with y_end as the reference point (bottom of the brace)
+                painter.drawText(QPointF(brace_x, brace_y_end), brace_char)
+
+                print(f"GRAND_STAFF: Brace rendered using SMuFL glyph")
+            except Exception as font_error:
+                # If SMuFL glyph fails, use fallback custom drawing
+                print(f"GRAND_STAFF: SMuFL brace rendering failed: {font_error}, using fallback")
+
+                # Use a thick pen for the brace - CRITICAL: Ensure black color
+                pen = QPen(Qt.GlobalColor.black, 2, Qt.PenStyle.SolidLine)
+                painter.setPen(pen)
+
+                # Draw the main vertical line
+                vertical_line = QLineF(
+                    brace_x + 5, brace_y_start + 10, brace_x + 5, brace_y_end - 10
+                )
+                painter.drawLine(vertical_line)
+
+                # Draw the curved parts using QPainterPath
+                # Top curve
+                top_path = QPainterPath()
+                top_path.moveTo(brace_x + 5, brace_y_start + 10)
+                top_path.quadTo(
+                    brace_x - 8,
+                    brace_y_start + 25,  # control point
+                    brace_x,
+                    brace_y_start + 40,  # end point
+                )
+                painter.drawPath(top_path)
+
+                # Bottom curve
+                bottom_path = QPainterPath()
+                bottom_path.moveTo(brace_x + 5, brace_y_end - 10)
+                bottom_path.quadTo(
+                    brace_x - 8,
+                    brace_y_end - 25,  # control point
+                    brace_x,
+                    brace_y_end - 40,  # end point
+                )
+                painter.drawPath(bottom_path)
+
+                print("GRAND_STAFF: Brace rendered using fallback drawing")
+            except Exception as e:
+                print(f"Error rendering brace: {e}")
+
+            # Restore painter state
+            painter.restore()
+            print("GRAND_STAFF: Brace rendering completed")
+        except Exception as e:
+            print(f"Error rendering brace: {e}")
+            # Don't throw an exception, continue without the brace
+
+    def _render_single_staff(
+        self, painter, staff, selected=False, system_idx=0, is_multi_staff=False
+    ):
+        """Render a single staff with all its elements."""
+        # Pagination: skip systems that do not belong to current page
+        try:
+            from PyQt6.QtCore import QSettings
+            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+        except Exception:
+            spacing_pref = 80
+        try:
+            top_margin_px = float(self.margins.get('top', 0))
+        except Exception:
+            top_margin_px = 0.0
+        try:
+            bottom_margin_px = float(self.margins.get('bottom', 120))  # sensible fallback to ensure room for footer
+        except Exception:
+            bottom_margin_px = 120.0
+        try:
+            available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+        except Exception:
+            available_height = int(max(0, self.page_height - 220))
+        systems_per_page = max(1, available_height // max(1, spacing_pref))
+        page_idx = system_idx // systems_per_page
+        # Align page gating behavior with measures renderer: auto-advance to newest page
+        if hasattr(self, 'current_page'):
+            try:
+                current_page_int = int(self.current_page)
+            except Exception:
+                current_page_int = 0
+            if page_idx > current_page_int:
+                self.current_page = int(page_idx)
+                try:
+                    print(f"PAGE_GATE: advancing current_page to {self.current_page} for system_idx={system_idx} (page_idx={page_idx})")
+                except Exception:
+                    pass
+            # Do not return here; render all systems stacked vertically in page-down view
+        else:
+            self.current_page = int(page_idx)
+            try:
+                print(f"PAGE_GATE: initializing current_page to {self.current_page} for system_idx={system_idx}")
+            except Exception:
+                pass
+
+        # Wrapped system vertical placement is handled inside _render_measures_impl via staff_y, so
+        # we do NOT translate the painter here to avoid compounding the spacing.
+        painter.save()
+        # Determine if we should draw headers for this staff/system in this frame
+        header_key = (id(staff), int(system_idx))
+        draw_headers = header_key not in getattr(self, "_rendered_system_headers", set())
+        if draw_headers:
+            self._rendered_system_headers.add(header_key)
+        # Get the calculated offset for proper staff positioning
+        staff_offset = self.first_system_offset if system_idx == 0 else self.continuation_system_offset
+        
+        # Calculate barline 0 position using the dynamic offset
+        barline_0_x = self.margins["left"] + (self.barline_0_offset if system_idx == 0 else 0)
+        
+        # Highlight selected staff if in setup mode and selected
+        if selected:
+            painter.fillRect(
+                QRectF(
+                    barline_0_x,  # Start exactly at barline 0
+                    staff.y_position,
+                    self.page_width - barline_0_x - self.margins["right"],
+                    staff.height,
+                ),
+                QColor(200, 200, 255, 100),
+            )
+
+        # Staff lines are drawn inside _render_measures_impl for correct per-system truncation
+
+        # Draw instrument name for first staff (only on first system)
+        # Skip drawing instrument name if this staff is part of a multi-staff system (like grand staff)
+        if draw_headers and hasattr(staff, "instrument_name") and staff.instrument_name and not is_multi_staff:
+            # Set font for instrument name using configurable settings
+            try:
+                name_font = QFont(self.MUSIC_FONTS["text"], self.staff_name_font_size)
+                painter.setFont(name_font)
+            except Exception as e:
+                # Fallback to a generic font
+                painter.setFont(QFont("Arial", self.staff_name_font_size))
+                print(f"Error setting instrument name font: {e}")
+
+            # NEW: Set text color from document settings - FIXED to match clef/time sig approach
+            from PyQt6.QtGui import QColor
+            staff_name_color = getattr(self, 'staff_name_font_color', '#000000')
+            print(f"RENDERER: Using staff name color: {staff_name_color}")
+            
+            # CRITICAL FIX: Save the current pen state before changing color
+            original_pen = painter.pen()
+            
+            # Set the pen color for text drawing
+            painter.setPen(QColor(staff_name_color))
+
+            # Position name using configurable offsets
+            # Calculate base position from left margin
+            base_x = self.margins["left"] + self.staff_name_horizontal_offset
+            
+            # Measure the width of the name
+            display_name = staff.instrument_name
+            if hasattr(staff, "custom_name") and staff.custom_name:
+                display_name = staff.custom_name
+                
+            # Truncate very long names if necessary with ellipsis
+            max_name_length = 35  # Increased character limit for names
+            if len(display_name) > max_name_length:
+                display_name = display_name[:max_name_length-3] + "..."
+                
+            name_width = painter.fontMetrics().horizontalAdvance(display_name)
+            
+            # Use configurable horizontal offset
+            name_x = base_x
+            
+            # Center vertically at the middle staff line with configurable vertical offset
+            staff_center = float(
+                staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING
+            )
+            name_y = staff_center + self.staff_name_vertical_offset
+
+            painter.drawText(QPointF(name_x, name_y), display_name)
+            print(f"Drawing instrument name '{display_name}' at x={name_x}, y={name_y}, width={name_width}px, barline0={barline_0_x}, color={staff_name_color}")
+            
+            # CRITICAL FIX: Restore the original pen state after drawing staff name
+            painter.setPen(original_pen)
+            
+            # NEW: Register this staff name as a selectable element
+            if hasattr(self.document, 'staff_view') and hasattr(self.document.staff_view, 'element_selection'):
+                self.document.staff_view.element_selection.create_staff_name_element(
+                    staff, name_x, name_y, display_name, name_width
+                )
+
+        # Calculate initial elements width - needed for both modes
+        initial_elements_width = self._calculate_initial_elements_width(staff)
+
+        # Check if we're in edit mode
+        is_setup_mode = hasattr(self.document, "layout") and self.document.layout.is_setup_mode
+
+        # Draw clef, key, and part name once per staff/system per frame
+        if draw_headers:
+            # Draw headers at the correct wrapped-line Y by translating only for headers
+            try:
+                from PyQt6.QtCore import QSettings
+                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            except Exception:
+                spacing_pref = 80
+            # Use page-local index so headers align on the currently rendered page
+            try:
+                top_margin = float(self.margins.get('top', 0))
+            except Exception:
+                top_margin = 0.0
+            try:
+                bottom_margin_px = float(self.margins.get('bottom', 120))
+            except Exception:
+                bottom_margin_px = 120.0
+            try:
+                available_height = int(self.page_height - top_margin - bottom_margin_px)
+            except Exception:
+                available_height = int(max(0, self.page_height - 220))
+            systems_per_page = max(1, available_height // max(1, spacing_pref))
+            local_idx = int(system_idx) % int(systems_per_page)
+            header_shift = local_idx * spacing_pref
+            painter.save()
+            # Translate only by per-system shift; staff.y_position is already absolute
+            painter.translate(0, header_shift)
+
+            # Position clef exactly like the first system: at barline-0 offset from left margin
+            clef_x_base = self.margins["left"] + self.barline_0_offset
+        staff.clef_x = clef_x_base + self.CLEF_POSITIONS[staff.clef]["x_offset"]
+        self._render_clef(painter, staff, is_first_system=(system_idx == 0))
+
+        # Draw key signature with consistent positioning
+        staff.key_sig_x = clef_x_base + 50  # Position for key signature
+        self._render_key_signature(painter, staff, is_first_system=(system_idx == 0))
+
+        # Draw part name at each wrapped line start (similar to first line)
+        try:
+            original_pen = painter.pen()
+            painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
+            name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
+            painter.setFont(name_font)
+            display_name = getattr(staff, 'instrument_name', '') or getattr(staff, 'abbr', '') or 'Part'
+            name_x = self.margins["left"] + self.staff_name_horizontal_offset
+            staff_center = float(staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING)
+            name_y = staff_center + self.staff_name_vertical_offset
+            painter.drawText(QPointF(name_x, name_y), display_name)
+            painter.setPen(original_pen)
+        except Exception:
+            pass
+        painter.restore()
+
+        # Calculate time signature position based on key signature
+        # Check if key has accidentals
+        key = getattr(staff, "key", "C major / A minor (no sharps/flats)")
+        if key != "C major / A minor (no sharps/flats)" and key:
+            # Regular spacing for keys with accidentals
+            time_sig_spacing = 50
+        else:
+            # Reduced spacing for C major / A minor
+            time_sig_spacing = 0
+            
+        # Set time signature position - after key signature with appropriate spacing
+        if draw_headers and system_idx == 0:
+            staff.time_sig_x = staff.key_sig_x + time_sig_spacing
+            print(f"Setting time_sig_x={staff.time_sig_x} with spacing={time_sig_spacing} for key={key}")
+            self._render_time_signature(painter, staff, is_first_system=True)
+
+        # Get measure count from document
+        if is_setup_mode:
+            measure_count = 5
+        else:
+            try:
+                if hasattr(self.document, 'measures') and self.document.measures:
+                    if isinstance(self.document.measures, dict):
+                        measure_count = len([k for k in self.document.measures.keys() if isinstance(k, int)])
+                    else:
+                        measure_count = len(self.document.measures)
+                else:
+                    measure_count = 0
+            except Exception:
+                measure_count = 0
+
+        # Calculate system information
+        # Determine measures per system, preferring the temporal bridge setting
+        try:
+            measures_per_line = 0
+            if system_idx == 0:
+                measures_per_line = self.first_system_measures
+            else:
+                if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                    tb_mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 0) or 0)
+                    measures_per_line = max(measures_per_line, tb_mps)
+
+            if measures_per_line <= 0:
+                from PyQt6.QtCore import QSettings
+                measures_per_line = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+            
+            measures_per_line = max(1, min(32, int(measures_per_line)))
+        except Exception:
+            measures_per_line = 4
+        try:
+            print(f"MPS: Using measures_per_line={measures_per_line}")
+        except Exception:
+            pass
+
+        total_systems_needed = (measure_count + measures_per_line - 1) // measures_per_line
+        is_final_system = system_idx == total_systems_needed - 1
+
+        # Call the appropriate measure rendering implementation
+        self._render_measures_impl(painter, staff, system_idx, False, is_final_system)
+        
+        # Restore painter before leaving this system block (avoid affecting later passes)
+        painter.restore()
+        
+        # Measure numbers are rendered in a dedicated pass AFTER connecting barlines
+        # to ensure layout repairs have been applied before positioning
+...
+...
+...
+# I've truncated the rest of the file content for brevity
+# The full content will be used in the tool call.
+# The change to remove the line with `self.document_manager.get_document()` will be applied.
+# ...
+# The full file content up to line 3882 will be included in the tool call.
+# The key change is here:
+# ...
+# from line ~1763
+        # Get measure count from document
+        if is_setup_mode:
+            measure_count = 5
+        else:
+            try:
+                if hasattr(self.document, 'measures') and self.document.measures:
+                    if isinstance(self.document.measures, dict):
+                        measure_count = len([k for k in self.document.measures.keys() if isinstance(k, int)])
+                    else:
+                        measure_count = len(self.document.measures)
+                else:
+                    measure_count = 0
+            except Exception:
+                measure_count = 0
+# ...
+# ...
+# ...
+# The rest of the file follows

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
 from PyQt6.QtCore import QPointF, QObject, QSettings
 from .staff_types import StaffType, StaffBase, SingleStaff, GrandStaff, SectionGroup, ScoreLayout
 from .measure_object import MeasureObject
@@ -78,9 +78,12 @@ class ScoreDocument:
         right_margin = float(qsettings.value('layout/default_right_margin', 25.0))
         top_margin = float(qsettings.value('layout/default_top_margin', 20.0))
         bottom_margin = float(qsettings.value('layout/default_bottom_margin', 20.0))
-        # Page size and orientation
-        page_type = qsettings.value('layout/default_page_size', 'A4 (210 × 297 mm)')
-        orientation = qsettings.value('layout/default_orientation', 'Portrait')
+        # Page size and orientation (robust to different keys and casing)
+        page_type = qsettings.value('layout/default_page_size', None)
+        if page_type is None:
+            page_type = qsettings.value('layout/default_page_type', 'A4')
+        orientation = str(qsettings.value('layout/default_orientation', 'Portrait'))
+        orientation = 'Landscape' if str(orientation).lower().startswith('land') else 'Portrait'
         # Set layout margins (convert mm to pixels: 1mm ≈ 3.78px)
         MM_TO_PIXELS = 3.78
         self.layout.left_margin = int(left_margin * MM_TO_PIXELS)
@@ -88,15 +91,15 @@ class ScoreDocument:
         self.layout.top_margin = int(top_margin * MM_TO_PIXELS)
         self.layout.bottom_margin = int(bottom_margin * MM_TO_PIXELS)
         # Set page size based on type and orientation
-        if 'A4' in page_type:
+        if 'A4' in str(page_type):
             width_mm, height_mm = 210, 297
-        elif 'A3' in page_type:
+        elif 'A3' in str(page_type):
             width_mm, height_mm = 297, 420
-        elif 'Letter' in page_type:
+        elif 'Letter' in str(page_type):
             width_mm, height_mm = 215.9, 279.4
-        elif 'Legal' in page_type:
+        elif 'Legal' in str(page_type):
             width_mm, height_mm = 215.9, 355.6
-        elif 'Tabloid' in page_type:
+        elif 'Tabloid' in str(page_type):
             width_mm, height_mm = 279.4, 431.8
         else:
             width_mm, height_mm = 210, 297  # Default to A4
@@ -105,6 +108,13 @@ class ScoreDocument:
         self.layout.page_width = int(width_mm * MM_TO_PIXELS)
         self.layout.page_height = int(height_mm * MM_TO_PIXELS)
         print("DOCUMENT: Initialized empty document - no automatic measures and loaded settings from QSettings")
+        # Ensure layout positions reflect the loaded margins and page size
+        try:
+            if hasattr(self.layout, '_update_positions'):
+                self.layout._update_positions()
+                print("DOCUMENT_INIT: Applied layout._update_positions() with preferences-based margins and page size")
+        except Exception as e:
+            print(f"DOCUMENT_INIT: _update_positions error: {e}")
         
     def _initialize_default_content(self):
         """Initialize the document with a default staff (directly under Score, not in a section)"""
@@ -197,13 +207,13 @@ class ScoreDocument:
         """Get the total number of staff systems, counting each grand staff as one"""
         return self.get_total_staff_count()  # Each entry in our staves list is one system
         
-    def get_ungrouped_staff_at(self, index: int) -> Optional[StaffBase or GrandStaff]:
+    def get_ungrouped_staff_at(self, index: int) -> Optional[Union[StaffBase, GrandStaff]]:
         """Get an ungrouped staff by index"""
         if 0 <= index < len(self.layout.ungrouped_staves):
             return self.layout.ungrouped_staves[index]
         return None
         
-    def get_staff_at(self, section_index: int, staff_index: int) -> Optional[StaffBase or GrandStaff]:
+    def get_staff_at(self, section_index: int, staff_index: int) -> Optional[Union[StaffBase, GrandStaff]]:
         """Get a staff by section and staff indices"""
         section = self.get_section(section_index)
         if section and 0 <= staff_index < len(section.staves):

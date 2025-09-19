@@ -43,6 +43,131 @@ from .notation_constants import (
 from .staff_types import StaffBase, SingleStaff, GrandStaff, SectionGroup, ScoreLayout
 
 
+class UniversalSystemManager:
+    """
+    Manages system layout and pagination for all staff types.
+    This provides a unified approach to wrapping and pagination.
+    """
+    
+    def __init__(self, renderer):
+        self.renderer = renderer
+        
+    def calculate_system_info(self, staff_type="single"):
+        """Calculate system layout information for any staff type."""
+        try:
+            # Get measure count
+            measure_count = 0
+            if hasattr(self.renderer.document, 'measures') and self.renderer.document.measures:
+                if isinstance(self.renderer.document.measures, dict):
+                    measure_count = len([k for k in self.renderer.document.measures.keys() if isinstance(k, int)])
+                else:
+                    measure_count = len(self.renderer.document.measures)
+            
+            # Get measures per system with document precedence
+            measures_per_system = 0
+            if hasattr(self.renderer.document, 'settings') and self.renderer.document.settings:
+                measures_per_system = int(self.renderer.document.settings.get('layout/measures_per_system', 0) or 0)
+            if measures_per_system <= 0 and hasattr(self.renderer.document, 'temporal_bridge') and self.renderer.document.temporal_bridge:
+                tb_mps = int(getattr(self.renderer.document.temporal_bridge, 'measures_per_system', 0) or 0)
+                measures_per_system = max(measures_per_system, tb_mps)
+            if measures_per_system <= 0:
+                from PyQt6.QtCore import QSettings
+                measures_per_system = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+            measures_per_system = max(1, min(32, int(measures_per_system)))
+            
+            # Calculate total systems needed
+            total_systems = (measure_count + measures_per_system - 1) // measures_per_system if measure_count > 0 else 1
+            
+            # Get system spacing with document precedence
+            system_spacing = 80
+            if hasattr(self.renderer.document, 'settings') and self.renderer.document.settings:
+                system_spacing = int(self.renderer.document.settings.get('layout/system_spacing', 0) or 0)
+            if system_spacing <= 0:
+                from PyQt6.QtCore import QSettings
+                system_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            system_spacing = max(40, min(200, int(system_spacing)))
+            
+            # Get staff spacing with document precedence
+            staff_spacing = 40  # Match Preferences default
+            if hasattr(self.renderer.document, 'settings') and self.renderer.document.settings:
+                staff_spacing = int(self.renderer.document.settings.get('layout/staff_spacing', 0) or 0)
+            if staff_spacing <= 0:
+                from PyQt6.QtCore import QSettings
+                staff_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_staff_spacing", 40))
+            staff_spacing = max(20, min(120, int(staff_spacing)))
+                
+            try:
+                top_margin_px = float(self.renderer.margins.get('top', 0))
+                bottom_margin_px = float(self.renderer.margins.get('bottom', 120))
+                available_height = int(self.renderer.page_height - top_margin_px - bottom_margin_px)
+            except Exception:
+                top_margin_px = 102.0
+                bottom_margin_px = 120.0
+                available_height = int(max(0, self.renderer.page_height - 220))
+                
+            systems_per_page = max(1, available_height // max(1, system_spacing))
+            
+            print(f"SYSTEM_MANAGER: Calculated system_spacing={system_spacing}, staff_spacing={staff_spacing}, measures_per_system={measures_per_system}")
+            
+            return {
+                'measure_count': measure_count,
+                'measures_per_system': measures_per_system,
+                'total_systems': total_systems,
+                'system_spacing': system_spacing,
+                'staff_spacing': staff_spacing,
+                'top_margin_px': top_margin_px,
+                'bottom_margin_px': bottom_margin_px,
+                'available_height': available_height,
+                'systems_per_page': systems_per_page
+            }
+        except Exception as e:
+            print(f"SYSTEM_MANAGER ERROR: Failed to calculate system info: {e}")
+            return {
+                'measure_count': 5,
+                'measures_per_system': 4,
+                'total_systems': 1,
+                'system_spacing': 80,
+                'staff_spacing': 50,
+                'top_margin_px': 102.0,
+                'bottom_margin_px': 120.0,
+                'available_height': 400,
+                'systems_per_page': 5
+            }
+    
+    def get_systems_to_render(self, system_info):
+        """Determine which systems to render based on pagination mode."""
+        if getattr(self.renderer, 'page_down_mode', True):
+            # Page-down mode: only render current page systems
+            try:
+                current_page_int = int(getattr(self.renderer, 'current_page', 0))
+            except Exception:
+                current_page_int = 0
+            page_start_idx = current_page_int * system_info['systems_per_page']
+            page_end_idx = min(system_info['total_systems'], page_start_idx + system_info['systems_per_page'])
+            return range(page_start_idx, page_end_idx)
+        else:
+            # Continuous mode: render all systems
+            return range(0, system_info['total_systems'])
+    
+    def calculate_system_vertical_shift(self, system_idx, system_info):
+        """Calculate vertical shift for a given system index."""
+        if getattr(self.renderer, 'page_down_mode', True):
+            # In page-down mode, use page-local positioning
+            systems_per_page = system_info['systems_per_page']
+            page_idx = system_idx // systems_per_page
+            local_idx = system_idx % systems_per_page
+            
+            # Each page adds page_height, each local system adds system_spacing
+            page_height = getattr(self.renderer, 'page_height', 800)
+            vertical_shift = (page_idx * page_height) + (local_idx * system_info['system_spacing'])
+            
+            print(f"SYSTEM_MANAGER: System {system_idx} -> page {page_idx}, local {local_idx}, shift {vertical_shift}")
+            return vertical_shift
+        else:
+            # In continuous mode, simple linear spacing using system_spacing
+            return system_idx * system_info['system_spacing']
+
+
 class ScoreRenderer:
     """
     Handles rendering of score elements according to standardized practices.
@@ -115,6 +240,9 @@ class ScoreRenderer:
         self.page_width = int(A4_WIDTH_MM * MM_TO_PIXELS)   # ≈ 794 pixels
         self.page_height = int(A4_HEIGHT_MM * MM_TO_PIXELS)  # ≈ 1123 pixels
         
+        # Initialize universal system manager
+        self.system_manager = UniversalSystemManager(self)
+        
         # A4 standard margins: 25mm left/right, 20mm top/bottom
         A4_MARGIN_LEFT_MM = 25
         A4_MARGIN_RIGHT_MM = 25
@@ -171,6 +299,9 @@ class ScoreRenderer:
         # Initialize measure number manager
         self.measure_number_manager = None
         self._initialize_measure_number_manager()
+
+        # Pagination context (set by StaffView)
+        self.current_page = 0
 
         # Add or update these attributes in __init__
         self.staff_name_font_color = '#000000'
@@ -454,6 +585,9 @@ class ScoreRenderer:
             if not self.document or not hasattr(self.document, "layout"):
                 return
 
+            # Guard set to avoid drawing headers (clef/key/time, names) twice per staff/system within a single frame
+            self._rendered_system_headers = set()
+
             # Ensure measure numbers reflect the latest settings immediately
             if hasattr(self, 'measure_number_manager') and self.measure_number_manager:
                 try:
@@ -561,19 +695,108 @@ class ScoreRenderer:
 
             # --- CRITICAL: Draw barline 0 and barline 1 (and their numbers) ---
             self._render_connecting_barlines(painter)
+            # Render green barline numbers at the top group if enabled in Preferences
+            try:
+                from PyQt6.QtCore import QSettings
+                show_barlines = bool(QSettings("ONOTE", "Preferences").value("notation/show_barline_numbers", True))
+            except Exception:
+                show_barlines = True
+            if show_barlines:
+                try:
+                    # Draw barline numbers per system so they distribute across wrapped lines
+                    if hasattr(self.document, 'measures') and self.document.measures:
+                        if isinstance(self.document.measures, dict):
+                            measures_all = [self.document.measures[k] for k in sorted([k for k in self.document.measures.keys() if isinstance(k, int)])]
+                        else:
+                            measures_all = list(self.document.measures)
+                        from PyQt6.QtCore import QSettings
+                        mps_local = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                        mps_local = max(1, min(32, mps_local))
+                        total_systems = (len(measures_all) + mps_local - 1) // mps_local
+                        # Page gating (page-down mode only)
+                        if getattr(self, 'page_down_mode', True):
+                            try:
+                                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                            except Exception:
+                                spacing_pref = 80
+                            try:
+                                top_margin_px = float(self.margins.get('top', 0))
+                                bottom_margin_px = float(self.margins.get('bottom', 120))
+                                available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+                            except Exception:
+                                available_height = int(max(0, self.page_height - 220))
+                            systems_per_page = max(1, available_height // max(1, spacing_pref))
+                            current_page_int = int(getattr(self, 'current_page', 0))
+                            page_start_idx = current_page_int * systems_per_page
+                            page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                        else:
+                            page_start_idx = 0
+                            page_end_idx = total_systems
+                        for sys_idx in range(page_start_idx, page_end_idx):
+                            start = sys_idx * mps_local
+                            end = min(len(measures_all), start + mps_local)
+                            eps = 0.5
+                            drawn = set()
+                            for m in measures_all[start:end]:
+                                if hasattr(m, 'end_x'):
+                                    x = float(getattr(m, 'end_x', 0.0))
+                                    if not any(abs(x - dx) < eps for dx in drawn):
+                                        self._render_barline_numbers(painter, m, x, [])
+                                        drawn.add(x)
+                except Exception as e:
+                    print(f"RENDERER: Barline numbers render error: {e}")
 
             # NEW: Render measure numbers after barlines/layout repair so positions are correct
             try:
                 if self.measure_number_manager and not (hasattr(self.document, 'layout') and self.document.layout.is_setup_mode):
+                    # Group measures by wrapped system so numbers render on each line, not stacked on the first
                     measures = []
                     if hasattr(self.document, 'measures') and self.document.measures:
                         if isinstance(self.document.measures, dict):
-                            ordered_keys = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
-                            measures = [self.document.measures[k] for k in ordered_keys]
+                            measures = [self.document.measures[k] for k in sorted([k for k in self.document.measures.keys() if isinstance(k, int)])]
                         else:
-                            measures = self.document.measures
-                    staff_name = 'ScoreTop'
-                    self.measure_number_manager.render_for_staff(painter, staff_name, measures, None, 0)
+                            measures = list(self.document.measures)
+                    # Determine measures per system
+                    from PyQt6.QtCore import QSettings
+                    mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                    mps = max(1, min(32, mps))
+                    total = len(measures)
+                    total_systems = (total + mps - 1) // mps
+                    # Page gating (page-down mode only)
+                    if getattr(self, 'page_down_mode', True):
+                        try:
+                            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                        except Exception:
+                            spacing_pref = 80
+                        try:
+                            top_margin_px = float(self.margins.get('top', 0))
+                            bottom_margin_px = float(self.margins.get('bottom', 120))
+                            available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+                        except Exception:
+                            available_height = int(max(0, self.page_height - 220))
+                        systems_per_page = max(1, available_height // max(1, spacing_pref))
+                        current_page_int = int(getattr(self, 'current_page', 0))
+                        page_start_idx = current_page_int * systems_per_page
+                        page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                    else:
+                        try:
+                            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                        except Exception:
+                            spacing_pref = 80
+                        page_start_idx = 0
+                        page_end_idx = total_systems
+                    # Render per system using top staff y and page-local vertical shift
+                    # Top staff y
+                    top_y = 0.0
+                    if self.document and hasattr(self.document.layout, 'ungrouped_staves') and self.document.layout.ungrouped_staves:
+                        top_y = float(self.document.layout.ungrouped_staves[0].y_position)
+                    for sys_idx in range(page_start_idx, page_end_idx):
+                        start = sys_idx * mps
+                        end = min(total, start + mps)
+                        sys_measures = measures[start:end]
+                        local_idx = sys_idx - page_start_idx
+                        system_y = top_y + local_idx * spacing_pref
+                        self.measure_number_manager.render_for_staff(painter, 'ScoreTop', sys_measures, system_y, start + 1)
             except Exception as e:
                 print(f"RENDERER: Error in post-barlines measure number pass: {e}")
 
@@ -702,7 +925,8 @@ class ScoreRenderer:
             # For staff content, we use the same offset as barline 0
             # This ensures everything aligns properly
             self.first_system_offset = self.barline_0_offset
-            self.continuation_system_offset = min_offset
+            # Continuation systems start at the same left offset as the first system
+            self.continuation_system_offset = self.barline_0_offset
 
             # Debug info with additional details
             print(
@@ -1007,11 +1231,17 @@ class ScoreRenderer:
 
     def _render_staff(self, painter, staff):
         """Render a single staff or grand staff based on its type with basic system wrapping for single-staff scores."""
-        # Determine measures per system from preferences
+        # Determine measures per system, preferring TemporalBridge over QSettings for consistency
         try:
-            from PyQt6.QtCore import QSettings
-            mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
-            mps = max(1, min(32, mps))
+            tb_mps = None
+            if hasattr(self, 'document') and hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                tb_mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 0) or 0)
+            if tb_mps and tb_mps > 0:
+                mps = max(1, min(32, tb_mps))
+            else:
+                from PyQt6.QtCore import QSettings
+                mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                mps = max(1, min(32, mps))
         except Exception:
             mps = 4
 
@@ -1020,11 +1250,47 @@ class ScoreRenderer:
         if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict):
             measure_count = len(self.document.measures)
 
+        # Derive number of wrapped systems purely from measure count to avoid stale tags
+        total_systems = (measure_count + mps - 1) // mps if measure_count > 0 else 0
+
         # For now, only wrap for non-grand single staff; grand staff will be handled as a unit later
         if not isinstance(staff, GrandStaff) and measure_count > 0:
-            total_systems = (measure_count + mps - 1) // mps
-            for system_idx in range(total_systems):
-                self._render_single_staff(painter, staff, selected=False, system_idx=system_idx, is_multi_staff=False)
+            # Compute systems per page using spacing and margins
+            try:
+                from PyQt6.QtCore import QSettings
+                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            except Exception:
+                spacing_pref = 80
+            try:
+                top_margin_px = float(self.margins.get('top', 0))
+            except Exception:
+                top_margin_px = 0.0
+            try:
+                bottom_margin_px = float(self.margins.get('bottom', 120))
+            except Exception:
+                bottom_margin_px = 120.0
+            try:
+                available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+            except Exception:
+                available_height = int(max(0, self.page_height - 220))
+            systems_per_page = max(1, available_height // max(1, spacing_pref))
+
+            # In page-down mode, render only the systems on the current page.
+            # In other modes, render all systems stacked vertically.
+            if getattr(self, 'page_down_mode', True):
+                if not hasattr(self, 'current_page'):
+                    self.current_page = 0
+                current_page_int = int(self.current_page)
+                page_start_idx = current_page_int * systems_per_page
+                page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                system_range = range(page_start_idx, page_end_idx)
+            else:
+                system_range = range(0, total_systems)
+
+            for system_idx in system_range:
+                self._render_single_staff(
+                    painter, staff, selected=False, system_idx=system_idx, is_multi_staff=False
+                )
         else:
             if isinstance(staff, GrandStaff):
                 self._render_grand_staff(painter, staff)
@@ -1032,219 +1298,246 @@ class ScoreRenderer:
                 self._render_single_staff(painter, staff)
 
     def _render_grand_staff(self, painter, staff):
-        """Render a grand staff with brace, staves, and instrument name."""
-        print("GRAND_STAFF: Starting to render grand staff")
+        """Render a grand staff with brace, staves, and instrument name using universal pagination."""
+        print("GRAND_STAFF: Starting to render grand staff with universal pagination")
         try:
             # Safety checks to ensure the grand staff has valid top and bottom staves
-            if not hasattr(staff, "top_staff"):
-                print("GRAND_STAFF ERROR: No top_staff attribute")
+            if not hasattr(staff, "top_staff") or not staff.top_staff or \
+               not hasattr(staff, "bottom_staff") or not staff.bottom_staff:
+                print("GRAND_STAFF ERROR: Invalid top/bottom staff configuration")
                 self._render_single_staff(painter, staff)
                 return
 
-            if not staff.top_staff:
-                print("GRAND_STAFF ERROR: top_staff is None")
-                self._render_single_staff(painter, staff)
-                return
-
-            if not hasattr(staff, "bottom_staff"):
-                print("GRAND_STAFF ERROR: No bottom_staff attribute")
-                self._render_single_staff(painter, staff)
-                return
-
-            if not staff.bottom_staff:
-                print("GRAND_STAFF ERROR: bottom_staff is None")
-                self._render_single_staff(painter, staff)
-                return
-
-            print(
-                f"GRAND_STAFF: Top staff type: {type(staff.top_staff).__name__}, Bottom staff type: {type(staff.bottom_staff).__name__}"
-            )
+            print(f"GRAND_STAFF: Top staff type: {type(staff.top_staff).__name__}, Bottom staff type: {type(staff.bottom_staff).__name__}")
 
             # Store original positions
-            try:
-                top_staff_original_y = staff.top_staff.y_position
-                bottom_staff_original_y = staff.bottom_staff.y_position
-                print(
-                    f"GRAND_STAFF: Original positions - top: {top_staff_original_y}, bottom: {bottom_staff_original_y}"
-                )
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Couldn't access position attributes: {e}")
-                self._render_single_staff(painter, staff)
-                return
+            top_staff_original_y = staff.top_staff.y_position
+            bottom_staff_original_y = staff.bottom_staff.y_position
+            print(f"GRAND_STAFF: Original positions - top: {top_staff_original_y}, bottom: {bottom_staff_original_y}")
+
+            # Use universal system manager to get system information
+            system_info = self.system_manager.calculate_system_info("grand_staff")
+            systems_to_render = self.system_manager.get_systems_to_render(system_info)
+            
+            print(f"GRAND_STAFF: Will render systems {list(systems_to_render)} out of {system_info['total_systems']} total systems")
 
             # Space grand staff staves exactly 4 staff lines apart
-            # Each staff line spacing is STAFF_LINE_SPACING
-            grand_staff_spacing = STAFF_LINE_SPACING * 4  # Exactly 4 staff lines of space
+            grand_staff_spacing = self.STAFF_LINE_SPACING * 4
             print(f"GRAND_STAFF: Using spacing of {grand_staff_spacing}px (4 staff lines)")
 
-            # Update top staff position (keep it at the grand staff's y_position)
-            try:
-                staff.top_staff.y_position = staff.y_position
-                print(f"GRAND_STAFF: Set top staff position to {staff.y_position}")
-
-                # Update bottom staff position with 4-line spacing
-                staff.bottom_staff.y_position = (
-                    staff.top_staff.y_position + staff.top_staff.height + grand_staff_spacing
-                )
-                print(
-                    f"GRAND_STAFF: Set bottom staff position to {staff.bottom_staff.y_position} with spacing {grand_staff_spacing}"
-                )
-
-                # Update brace positions
-                staff.brace_y_start = staff.y_position
+            # Render each system
+            for system_idx in systems_to_render:
+                print(f"GRAND_STAFF: Rendering system {system_idx}")
+                
+                # Calculate vertical shift for this system
+                vertical_shift = self.system_manager.calculate_system_vertical_shift(system_idx, system_info)
+                
+                # Update staff positions for this system
+                staff.top_staff.y_position = staff.y_position + vertical_shift
+                staff.bottom_staff.y_position = staff.top_staff.y_position + staff.top_staff.height + grand_staff_spacing
+                
+                # Update brace positions for this system
+                staff.brace_y_start = staff.top_staff.y_position
                 staff.brace_y_end = staff.bottom_staff.y_position + staff.bottom_staff.height
-                print(
-                    f"GRAND_STAFF: Brace positions - start: {staff.brace_y_start}, end: {staff.brace_y_end}"
-                )
 
                 # Update instrument name y position (centered between staves)
-                staff.instrument_name_y = staff.y_position + (
-                    (staff.brace_y_end - staff.brace_y_start) / 2
-                )
-                print(f"GRAND_STAFF: Instrument name y position: {staff.instrument_name_y}")
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Couldn't update positions: {e}")
-                # Restore original positions if possible
-                try:
-                    staff.top_staff.y_position = top_staff_original_y
-                    staff.bottom_staff.y_position = bottom_staff_original_y
-                except Exception as inner_e:
-                    print(f"GRAND_STAFF ERROR: Failed to restore positions: {inner_e}")
-                self._render_single_staff(painter, staff)
-                return
-
-            # Skip drawing instrument name directly here - will be drawn differently
-            # This prevents the "floating barline" effect
-
-            # Draw brace first - ensure it appears
-            try:
-                print("GRAND_STAFF: Drawing brace")
-                self._render_brace(painter, staff)
-                print("GRAND_STAFF: Brace drawn successfully")
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Brace rendering failed: {e}")
-                # Continue even if brace fails
-
-            # Draw staves - pass system_idx=0 for both, is_multi_staff=True to indicate part of multi-staff system
-            print("GRAND_STAFF: Rendering top staff")
-            try:
-                self._render_single_staff(
-                    painter, staff.top_staff, selected=False, system_idx=0, is_multi_staff=True
-                )
-                print("GRAND_STAFF: Top staff rendered successfully")
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Top staff rendering failed: {e}")
-                # Restore original positions
-                try:
-                    staff.top_staff.y_position = top_staff_original_y
-                    staff.bottom_staff.y_position = bottom_staff_original_y
-                except Exception as inner_e:
-                    print(f"GRAND_STAFF ERROR: Failed to restore positions: {inner_e}")
-                return
-
-            print("GRAND_STAFF: Rendering bottom staff")
-            try:
-                self._render_single_staff(
-                    painter, staff.bottom_staff, selected=False, system_idx=0, is_multi_staff=True
-                )
-                print("GRAND_STAFF: Bottom staff rendered successfully")
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Bottom staff rendering failed: {e}")
-                # Restore original positions
-                try:
-                    staff.top_staff.y_position = top_staff_original_y
-                    staff.bottom_staff.y_position = bottom_staff_original_y
-                except Exception as inner_e:
-                    print(f"GRAND_STAFF ERROR: Failed to restore positions: {inner_e}")
-                return
-
-            # Draw instrument name only once, centered between the staves
-            # This is drawn after the staves to ensure proper positioning
-            try:
-                print("GRAND_STAFF: Drawing instrument name")
+                staff.instrument_name_y = staff.y_position + vertical_shift + ((staff.brace_y_end - staff.brace_y_start) / 2)
                 
-                # Set font for instrument name using configurable settings
+                print(f"GRAND_STAFF: System {system_idx} positions - top: {staff.top_staff.y_position}, bottom: {staff.bottom_staff.y_position}")
+                print(f"GRAND_STAFF: System {system_idx} brace: {staff.brace_y_start} to {staff.brace_y_end}")
+
+                # Draw brace for this system
                 try:
-                    name_font = QFont(self.MUSIC_FONTS["text"], self.staff_name_font_size)
-                    painter.setFont(name_font)
+                    print(f"GRAND_STAFF: Drawing brace for system {system_idx}")
+                    self._render_brace(painter, staff)
                 except Exception as e:
-                    # Fallback to a generic font
-                    painter.setFont(QFont("Arial", self.staff_name_font_size))
-                    print(f"Error setting instrument name font: {e}")
+                    print(f"GRAND_STAFF ERROR: Brace rendering failed for system {system_idx}: {e}")
 
-                # NEW: Set text color from document settings - FIXED to match clef/time sig approach
-                from PyQt6.QtGui import QColor
-                staff_name_color = getattr(self, 'staff_name_font_color', '#000000')
-                print(f"RENDERER: Using staff name color: {staff_name_color}")
-                
-                # CRITICAL FIX: Save the current pen state before changing color
-                original_pen = painter.pen()
-                
-                # Set the pen color for text drawing
-                painter.setPen(QColor(staff_name_color))
+                # Calculate if this is the final system
+                is_final_system = system_idx == system_info['total_systems'] - 1
 
-                # Calculate barline 0 position using the dynamic offset
-                barline_0_x = self.margins["left"] + self.barline_0_offset
-                
-                # Position name using configurable offsets
-                # Calculate base position from left margin
-                base_x = self.margins["left"] + self.staff_name_horizontal_offset
-                
-                # Measure the width of the name
-                display_name = staff.instrument_name
-                if hasattr(staff, "custom_name") and staff.custom_name:
-                    display_name = staff.custom_name
+                # Render both staves for this system with proper multi-staff context
+                try:
+                    print(f"GRAND_STAFF: Rendering top staff for system {system_idx}")
+                    self._render_single_staff(painter, staff.top_staff, selected=False, system_idx=system_idx, is_multi_staff=True)
                     
-                # Truncate very long names if necessary with ellipsis
-                max_name_length = 35  # Increased character limit for names
-                if len(display_name) > max_name_length:
-                    display_name = display_name[:max_name_length-3] + "..."
-                        
-                name_width = painter.fontMetrics().horizontalAdvance(display_name)
-                
-                # Use configurable horizontal offset
-                name_x = base_x
+                    print(f"GRAND_STAFF: Rendering bottom staff for system {system_idx}")
+                    self._render_single_staff(painter, staff.bottom_staff, selected=False, system_idx=system_idx, is_multi_staff=True)
+                except Exception as e:
+                    print(f"GRAND_STAFF ERROR: Staff rendering failed for system {system_idx}: {e}")
 
-                # Use the pre-calculated vertical position with configurable vertical offset
-                point = QPointF(name_x, staff.instrument_name_y + self.staff_name_vertical_offset)
-
-                painter.drawText(point, display_name)
-                print(
-                    f"GRAND_STAFF: Instrument name '{display_name}' drawn at position x={point.x()}, y={point.y()}, width={name_width}px, barline0={barline_0_x}, color={staff_name_color}"
-                )
-                
-                # CRITICAL FIX: Restore the original pen state after drawing staff name
-                painter.setPen(original_pen)
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Instrument name rendering failed: {e}")
-                # Continue even if name fails
-
-            # Always call ensure_grand_staff_final_barline
-            # It will only draw in edit mode due to internal check
-            try:
-                self._ensure_grand_staff_final_barline(painter, staff)
-                print("GRAND_STAFF: Added final barline")
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Failed to add final barline: {e}")
+                # Render measures for this system
+                try:
+                    print(f"GRAND_STAFF: Rendering measures for system {system_idx}")
+                    # Use the top staff as reference for measure rendering
+                    self._render_measures_impl(painter, staff.top_staff, system_idx, True, is_final_system)
+                except Exception as e:
+                    print(f"GRAND_STAFF ERROR: Measure rendering failed for system {system_idx}: {e}")
 
             # Restore original positions
             try:
                 staff.top_staff.y_position = top_staff_original_y
                 staff.bottom_staff.y_position = bottom_staff_original_y
-                print("GRAND_STAFF: Original positions restored")
             except Exception as e:
                 print(f"GRAND_STAFF ERROR: Failed to restore positions: {e}")
 
-            print("GRAND_STAFF: Rendering completed successfully")
+        except Exception as e:
+            print(f"GRAND_STAFF ERROR: General failure: {e}")
+            # Fallback to single staff rendering
+            self._render_single_staff(painter, staff)
+
+    def _render_grand_staff_for_system(self, painter, staff, system_idx, system_info):
+        """Render a grand staff for a specific system (used in universal wrapping)."""
+        try:
+            # Safety checks
+            if not hasattr(staff, "top_staff") or not staff.top_staff or \
+               not hasattr(staff, "bottom_staff") or not staff.bottom_staff:
+                print(f"GRAND_STAFF_SYSTEM ERROR: Invalid top/bottom staff configuration for system {system_idx}")
+                self._render_single_staff(painter, staff, selected=False, system_idx=system_idx, is_multi_staff=True)
+                return
+
+            # Space grand staff staves exactly 4 staff lines apart
+            grand_staff_spacing = self.STAFF_LINE_SPACING * 4
+            
+            # Store original positions
+            top_staff_original_y = staff.top_staff.y_position
+            bottom_staff_original_y = staff.bottom_staff.y_position
+            
+            # Update staff positions for this system
+            staff.top_staff.y_position = staff.y_position
+            staff.bottom_staff.y_position = staff.top_staff.y_position + staff.top_staff.height + grand_staff_spacing
+            
+            # Update brace positions for this system
+            staff.brace_y_start = staff.top_staff.y_position
+            staff.brace_y_end = staff.bottom_staff.y_position + staff.bottom_staff.height
+            
+            print(f"GRAND_STAFF_SYSTEM: System {system_idx} positions - top: {staff.top_staff.y_position}, bottom: {staff.bottom_staff.y_position}")
+
+            # Draw brace for this system
+            try:
+                self._render_brace(painter, staff)
+            except Exception as e:
+                print(f"GRAND_STAFF_SYSTEM ERROR: Brace rendering failed for system {system_idx}: {e}")
+
+            # Calculate if this is the final system
+            is_final_system = system_idx == system_info['total_systems'] - 1
+
+            # Render both staves for this system with proper multi-staff context
+            try:
+                self._render_single_staff(painter, staff.top_staff, selected=False, system_idx=system_idx, is_multi_staff=True)
+                self._render_single_staff(painter, staff.bottom_staff, selected=False, system_idx=system_idx, is_multi_staff=True)
+            except Exception as e:
+                print(f"GRAND_STAFF_SYSTEM ERROR: Staff rendering failed for system {system_idx}: {e}")
+
+            # Render measures for this system
+            try:
+                # Use the top staff as reference for measure rendering
+                self._render_measures_impl(painter, staff.top_staff, system_idx, True, is_final_system)
+            except Exception as e:
+                print(f"GRAND_STAFF_SYSTEM ERROR: Measure rendering failed for system {system_idx}: {e}")
+
+            # Restore original positions
+            staff.top_staff.y_position = top_staff_original_y
+            staff.bottom_staff.y_position = bottom_staff_original_y
 
         except Exception as e:
-            print(f"GRAND_STAFF CRITICAL ERROR: {e}")
-            # Attempt to render as a single staff as fallback
-            try:
-                self._render_single_staff(painter, staff)
-                print("GRAND_STAFF: Fallback to single staff rendering succeeded")
-            except:
-                print("GRAND_STAFF: Fallback to single staff rendering also failed")
+            print(f"GRAND_STAFF_SYSTEM ERROR: General failure for system {system_idx}: {e}")
+            # Fallback to single staff rendering
+            self._render_single_staff(painter, staff, selected=False, system_idx=system_idx, is_multi_staff=True)
+
+    def _render_score_with_universal_wrapping(self, painter):
+        """Render the entire score using universal Score-system wrapping."""
+        try:
+            # Get system information using the universal system manager
+            system_info = self.system_manager.calculate_system_info("score_system")
+            systems_to_render = self.system_manager.get_systems_to_render(system_info)
+            
+            print(f"UNIVERSAL_WRAPPING: Will render systems {list(systems_to_render)} out of {system_info['total_systems']} total systems")
+            
+            # Collect all staves from sections and ungrouped staves in rendering order
+            all_staves = []
+            sorted_sections = []
+            
+            # First determine if we have sections to render
+            has_sections = hasattr(self.document.layout, 'sections') and self.document.layout.sections
+            
+            if has_sections:
+                # Sort sections based on their display_order_index
+                sorted_sections = sorted(self.document.layout.sections, 
+                                         key=lambda s: getattr(s, 'display_order_index', 0))
+                print(f"UNIVERSAL_WRAPPING: Found {len(sorted_sections)} sections")
+                
+                # Add section staves to the list
+                for section in sorted_sections:
+                    if section.staves:
+                        all_staves.extend([{'type': 'section_staff', 'staff': staff, 'section': section} for staff in section.staves])
+            
+            # Add ungrouped staves
+            for staff in self.document.layout.ungrouped_staves:
+                all_staves.append({'type': 'ungrouped_staff', 'staff': staff, 'section': None})
+            
+            print(f"UNIVERSAL_WRAPPING: Total staves in score-system: {len(all_staves)}")
+            
+            # Render each system
+            for system_idx in systems_to_render:
+                print(f"\nUNIVERSAL_WRAPPING: Rendering system {system_idx}")
+                
+                # Calculate vertical shift for this system
+                vertical_shift = self.system_manager.calculate_system_vertical_shift(system_idx, system_info)
+                
+                # Render all staves for this system with proper vertical positioning
+                for staff_info in all_staves:
+                    staff = staff_info['staff']
+                    original_y = staff.y_position
+                    
+                    # Apply system vertical shift
+                    staff.y_position = original_y + vertical_shift
+                    
+                    try:
+                        # Render the staff for this system
+                        if isinstance(staff, GrandStaff):
+                            # For grand staff, we need to use the system-aware rendering
+                            self._render_grand_staff_for_system(painter, staff, system_idx, system_info)
+                        else:
+                            # For single staves, render with system context
+                            is_multi_staff = len(all_staves) > 1  # Multi-staff if more than one staff in score
+                            self._render_single_staff(painter, staff, selected=False, system_idx=system_idx, is_multi_staff=is_multi_staff)
+                    except Exception as e:
+                        print(f"UNIVERSAL_WRAPPING ERROR: Failed to render staff {staff.instrument_name} for system {system_idx}: {e}")
+                    finally:
+                        # Restore original position
+                        staff.y_position = original_y
+                
+                # Render section brackets for this system if needed
+                if has_sections:
+                    for section in sorted_sections:
+                        if section.staves:
+                            # Apply vertical shift to section bracket positions
+                            if hasattr(section, 'bracket_y_start') and hasattr(section, 'bracket_y_end'):
+                                original_start = section.bracket_y_start
+                                original_end = section.bracket_y_end
+                                
+                                section.bracket_y_start = original_start + vertical_shift
+                                section.bracket_y_end = original_end + vertical_shift
+                                
+                                try:
+                                    self._render_section_bracket(painter, section)
+                                except Exception as e:
+                                    print(f"UNIVERSAL_WRAPPING ERROR: Failed to render section bracket for system {system_idx}: {e}")
+                                finally:
+                                    # Restore original positions
+                                    section.bracket_y_start = original_start
+                                    section.bracket_y_end = original_end
+        except Exception as e:
+            print(f"UNIVERSAL_WRAPPING ERROR: Failed to render with universal wrapping: {e}")
+            # Fall back to original rendering approach
+            self._render_score_fallback(painter)
+
+    def _render_score_fallback(self, painter):
+        """Fallback to original rendering approach if universal wrapping fails."""
+        print("RENDERER: Using fallback rendering approach")
+        # This is the original approach - render each element independently
+        # [Original rendering code would go here if needed]
 
     def _render_brace(self, painter, staff):
         """Render the brace symbol for grand staff."""
@@ -1371,6 +1664,54 @@ class ScoreRenderer:
         self, painter, staff, selected=False, system_idx=0, is_multi_staff=False
     ):
         """Render a single staff with all its elements."""
+        # Pagination: skip systems that do not belong to current page
+        try:
+            from PyQt6.QtCore import QSettings
+            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+        except Exception:
+            spacing_pref = 80
+        try:
+            top_margin_px = float(self.margins.get('top', 0))
+        except Exception:
+            top_margin_px = 0.0
+        try:
+            bottom_margin_px = float(self.margins.get('bottom', 120))  # sensible fallback to ensure room for footer
+        except Exception:
+            bottom_margin_px = 120.0
+        try:
+            available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+        except Exception:
+            available_height = int(max(0, self.page_height - 220))
+        systems_per_page = max(1, available_height // max(1, spacing_pref))
+        page_idx = system_idx // systems_per_page
+        # Align page gating behavior with measures renderer: auto-advance to newest page
+        if hasattr(self, 'current_page'):
+            try:
+                current_page_int = int(self.current_page)
+            except Exception:
+                current_page_int = 0
+            if page_idx > current_page_int:
+                self.current_page = int(page_idx)
+                try:
+                    print(f"PAGE_GATE: advancing current_page to {self.current_page} for system_idx={system_idx} (page_idx={page_idx})")
+                except Exception:
+                    pass
+            # Do not return here; render all systems stacked vertically in page-down view
+        else:
+            self.current_page = int(page_idx)
+            try:
+                print(f"PAGE_GATE: initializing current_page to {self.current_page} for system_idx={system_idx}")
+            except Exception:
+                pass
+
+        # Wrapped system vertical placement is handled inside _render_measures_impl via staff_y, so
+        # we do NOT translate the painter here to avoid compounding the spacing.
+        painter.save()
+        # Determine if we should draw headers for this staff/system in this frame
+        header_key = (id(staff), int(system_idx))
+        draw_headers = header_key not in getattr(self, "_rendered_system_headers", set())
+        if draw_headers:
+            self._rendered_system_headers.add(header_key)
         # Get the calculated offset for proper staff positioning
         staff_offset = self.first_system_offset if system_idx == 0 else self.continuation_system_offset
         
@@ -1389,25 +1730,11 @@ class ScoreRenderer:
                 QColor(200, 200, 255, 100),
             )
 
-        # Draw staff lines with a consistent thickness
-        pen = QPen(Qt.GlobalColor.black, self.STAFF_LINE_THICKNESS)
-        pen.setCapStyle(Qt.PenCapStyle.FlatCap)  # Use flat caps for clean edges
-        painter.setPen(pen)
-
-        # Calculate the precise position for each staff line - start at barline 0
-        for i in range(self.STAFF_LINE_COUNT):
-            y = float(staff.y_position + (i * self.STAFF_LINE_SPACING))
-            line = QLineF(
-                float(barline_0_x),  # Start at the dynamically calculated barline 0 position
-                y,
-                float(self.page_width - self.margins["right"]),
-                y,
-            )
-            painter.drawLine(line)
+        # Staff lines are drawn inside _render_measures_impl for correct per-system truncation
 
         # Draw instrument name for first staff (only on first system)
         # Skip drawing instrument name if this staff is part of a multi-staff system (like grand staff)
-        if hasattr(staff, "instrument_name") and staff.instrument_name and not is_multi_staff:
+        if draw_headers and hasattr(staff, "instrument_name") and staff.instrument_name and not is_multi_staff:
             # Set font for instrument name using configurable settings
             try:
                 name_font = QFont(self.MUSIC_FONTS["text"], self.staff_name_font_size)
@@ -1471,14 +1798,58 @@ class ScoreRenderer:
         # Check if we're in edit mode
         is_setup_mode = hasattr(self.document, "layout") and self.document.layout.is_setup_mode
 
-        # Draw clef with consistent positioning - starting from barline 0 + offset
-        clef_x_base = barline_0_x
+        # Draw clef, key, and part name once per staff/system per frame
+        if draw_headers:
+            # Draw headers at the correct wrapped-line Y by translating only for headers
+            try:
+                from PyQt6.QtCore import QSettings
+                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            except Exception:
+                spacing_pref = 80
+            # Use page-local index so headers align on the currently rendered page
+            try:
+                top_margin = float(self.margins.get('top', 0))
+            except Exception:
+                top_margin = 0.0
+            try:
+                bottom_margin_px = float(self.margins.get('bottom', 120))
+            except Exception:
+                bottom_margin_px = 120.0
+            try:
+                available_height = int(self.page_height - top_margin - bottom_margin_px)
+            except Exception:
+                available_height = int(max(0, self.page_height - 220))
+            systems_per_page = max(1, available_height // max(1, spacing_pref))
+            local_idx = int(system_idx) % int(systems_per_page)
+            header_shift = local_idx * spacing_pref
+            painter.save()
+            # Translate only by per-system shift; staff.y_position is already absolute
+            painter.translate(0, header_shift)
+
+            # Position clef exactly like the first system: at barline-0 offset from left margin
+            clef_x_base = self.margins["left"] + self.barline_0_offset
         staff.clef_x = clef_x_base + self.CLEF_POSITIONS[staff.clef]["x_offset"]
         self._render_clef(painter, staff, is_first_system=(system_idx == 0))
 
         # Draw key signature with consistent positioning
         staff.key_sig_x = clef_x_base + 50  # Position for key signature
         self._render_key_signature(painter, staff, is_first_system=(system_idx == 0))
+
+        # Draw part name at each wrapped line start (similar to first line)
+        try:
+            original_pen = painter.pen()
+            painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
+            name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
+            painter.setFont(name_font)
+            display_name = getattr(staff, 'instrument_name', '') or getattr(staff, 'abbr', '') or 'Part'
+            name_x = self.margins["left"] + self.staff_name_horizontal_offset
+            staff_center = float(staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING)
+            name_y = staff_center + self.staff_name_vertical_offset
+            painter.drawText(QPointF(name_x, name_y), display_name)
+            painter.setPen(original_pen)
+        except Exception:
+            pass
+        painter.restore()
 
         # Calculate time signature position based on key signature
         # Check if key has accidentals
@@ -1491,9 +1862,11 @@ class ScoreRenderer:
             time_sig_spacing = 0
             
         # Set time signature position - after key signature with appropriate spacing
-        staff.time_sig_x = staff.key_sig_x + time_sig_spacing  
-        print(f"Setting time_sig_x={staff.time_sig_x} with spacing={time_sig_spacing} for key={key}")
-        self._render_time_signature(painter, staff, is_first_system=(system_idx == 0))
+        # CRITICAL FIX: Render time signature on ALL wrapped systems, not just the first
+        if draw_headers:
+            staff.time_sig_x = staff.key_sig_x + time_sig_spacing  
+            print(f"Setting time_sig_x={staff.time_sig_x} with spacing={time_sig_spacing} for key={key} on system {system_idx}")
+            self._render_time_signature(painter, staff, is_first_system=True)
 
         # Get measure count from document
         if is_setup_mode:
@@ -1511,18 +1884,31 @@ class ScoreRenderer:
                 measure_count = 0
 
         # Calculate system information
+        # Determine measures per system, preferring the temporal bridge setting
         try:
-            from PyQt6.QtCore import QSettings
-            measures_per_line = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
-            measures_per_line = max(1, min(32, measures_per_line))
+            measures_per_line = 0
+            if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                tb_mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 0) or 0)
+                measures_per_line = max(measures_per_line, tb_mps)
+            if measures_per_line <= 0:
+                from PyQt6.QtCore import QSettings
+                measures_per_line = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+            measures_per_line = max(1, min(32, int(measures_per_line)))
         except Exception:
             measures_per_line = 4
+        try:
+            print(f"MPS: Using measures_per_line={measures_per_line}")
+        except Exception:
+            pass
 
         total_systems_needed = (measure_count + measures_per_line - 1) // measures_per_line
         is_final_system = system_idx == total_systems_needed - 1
 
         # Call the appropriate measure rendering implementation
         self._render_measures_impl(painter, staff, system_idx, False, is_final_system)
+        
+        # Restore painter before leaving this system block (avoid affecting later passes)
+        painter.restore()
         
         # Measure numbers are rendered in a dedicated pass AFTER connecting barlines
         # to ensure layout repairs have been applied before positioning
@@ -1618,7 +2004,8 @@ class ScoreRenderer:
             line_y = staff.y_position + 3.5 * self.STAFF_LINE_SPACING
 
             # Add a slight vertical adjustment for visual centering of the clef on the line
-            visual_adjustment = -7  # Pixels to shift up for visual centering
+            # Tuned for 8px staff spacing so the treble clef sits exactly through the G line
+            visual_adjustment = -4  # Pixels to shift up for visual centering
             clef_y = line_y + visual_adjustment + self.clef_vertical_offset
 
             print(
@@ -1637,7 +2024,7 @@ class ScoreRenderer:
             line_y = staff.y_position + 1.5 * self.STAFF_LINE_SPACING
 
             # Add a slight vertical adjustment for visual centering of the clef
-            visual_adjustment = -5  # Pixels to shift up for visual centering
+            visual_adjustment = -3  # Pixels to shift up for visual centering
             clef_y = line_y + visual_adjustment + self.clef_vertical_offset
 
             print(
@@ -1656,7 +2043,7 @@ class ScoreRenderer:
             line_y = staff.y_position + 2.5 * self.STAFF_LINE_SPACING
 
             # Add a slight vertical adjustment for visual centering of the clef
-            visual_adjustment = -4  # Pixels to shift up for visual centering
+            visual_adjustment = -3  # Pixels to shift up for visual centering
             clef_y = line_y + visual_adjustment + self.clef_vertical_offset
 
             print(
@@ -1675,7 +2062,7 @@ class ScoreRenderer:
             line_y = staff.y_position + 2.5 * self.STAFF_LINE_SPACING
 
             # Add a slight vertical adjustment for visual centering of the clef
-            visual_adjustment = -4  # Pixels to shift up for visual centering
+            visual_adjustment = -3  # Pixels to shift up for visual centering
             clef_y = line_y + visual_adjustment + self.clef_vertical_offset
 
             print(
@@ -2047,14 +2434,9 @@ class ScoreRenderer:
         # Determine if we're in setup mode
         is_setup_mode = hasattr(self.document, "layout") and self.document.layout.is_setup_mode
 
-        # Calculate staff positions - CONSISTENT for both modes
-        # Use the same positioning logic for both setup and edit modes
-        staff_left_x = self.margins["left"]
-        if system_idx == 0:  # First system
-            # Use the dynamic offset for barline 0
-            staff_left_x += self.barline_0_offset
-        else:  # Continuation systems
-            staff_left_x += self.continuation_system_offset
+        # Calculate staff positions - CONSISTENT: continuation systems start at same left offset
+        # as the first system (same visual indentation)
+        staff_left_x = float(self.margins["left"]) + float(self.barline_0_offset)
 
         # Compute vertical offset per wrapped system using Preferences
         try:
@@ -2065,14 +2447,45 @@ class ScoreRenderer:
         except Exception:
             spacing_pref = getattr(self, 'staff_spacing', 120)
 
-        staff_y = staff.y_position + (system_idx * spacing_pref)
+        # Vertical placement: within page-down mode use local index so systems respect page bottom margin
+        try:
+            from PyQt6.QtCore import QSettings
+            top_margin_px = float(self.margins.get('top', 0))
+            bottom_margin_px = float(self.margins.get('bottom', 120))
+            available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+        except Exception:
+            available_height = int(self.page_height * 0.85)
+        # If rendering a multi-staff group like grand staff, use its span to adjust spacing between systems
+        group_span = float(getattr(self, '_active_group_span_height', 0.0) or 0.0)
+        inter_system_gap = int(max(0, spacing_pref))
+        if group_span > 0:
+            # Total vertical advance per wrapped system = group height + configured gap
+            system_advance = int(group_span + inter_system_gap)
+        else:
+            # Single staff: keep configured spacing
+            system_advance = int(spacing_pref)
+
+        systems_per_page = max(1, available_height // max(1, system_advance))
+        local_idx = int(system_idx) % int(systems_per_page)
+        vertical_shift = int(local_idx) * int(system_advance)
+        staff_y = float(staff.y_position) + vertical_shift
+        try:
+            print(f"STAFF_LINES: system_idx={system_idx}, local_idx={local_idx}, spacing_pref={spacing_pref}, staff_base={staff.y_position}, staff_y_used={staff_y}")
+        except Exception:
+            pass
 
         # Calculate initial elements width - needed for both modes
         initial_elements_width = self._calculate_initial_elements_width(staff)
 
-        # Calculate the positions of the first measure barline (after clef, key, time)
-        # This is NOT barline 0, which is now at the exact left margin in edit mode
-        first_measure_barline_x = staff_left_x + initial_elements_width
+        # Calculate the positions of the first measure barline (start of notation space)
+        # Use TemporalBridge leftmost note position for consistency with measure justification
+        try:
+            if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                first_measure_barline_x = float(self.document.temporal_bridge.calculate_leftmost_note_position())
+            else:
+                first_measure_barline_x = staff_left_x + initial_elements_width
+        except Exception:
+            first_measure_barline_x = staff_left_x + initial_elements_width
 
         # SETUP MODE RENDERING - NO MEASURES
         if is_setup_mode:
@@ -2088,14 +2501,10 @@ class ScoreRenderer:
                 # Draw shorter staff lines in setup mode - just for essential elements
                 painter.drawLine(QLineF(staff_left_x, line_y, staff_left_x + staff_content_width, line_y))
 
-            # Add clef in setup mode
-            self._render_clef(painter, staff, system_idx == 0)
-
-            # Add key signature in setup mode
-            self._render_key_signature(painter, staff, system_idx == 0)
-
-            # Add time signature in setup mode
-            self._render_time_signature(painter, staff, system_idx == 0)
+            # Always render clef/key/time on setup mode (for each system)
+            self._render_clef(painter, staff, is_first_system=(system_idx == 0))
+            self._render_key_signature(painter, staff, is_first_system=(system_idx == 0))
+            self._render_time_signature(painter, staff, is_first_system=(system_idx == 0))
 
             # NO BARLINES in setup mode - handled by _render_connecting_barlines
             return
@@ -2131,21 +2540,34 @@ class ScoreRenderer:
                 # Draw full-width staff lines - ready for first measure creation
                 painter.drawLine(QLineF(barline_0_x, line_y, end_barline_x, line_y))
 
-            # Add essential elements (clef, key signature, time signature)
-            self._render_clef(painter, staff, system_idx == 0)
-            self._render_key_signature(painter, staff, system_idx == 0)
-            self._render_time_signature(painter, staff, system_idx == 0)
+            # Render clef/key/time (render on ALL systems for wrapped lines)
+            self._render_clef(painter, staff, is_first_system=True)  # Always render clef on wrapped systems
+            self._render_key_signature(painter, staff, is_first_system=True)  # Always render key signature on wrapped systems
+            self._render_time_signature(painter, staff, is_first_system=True)  # Always render time signature on wrapped systems
             
             print(f"RENDERER: Empty staff rendered - first barline will be created at x={end_barline_x}")
             # No barlines yet - only barline 0 will be drawn by _render_connecting_barlines
             return
+
+        # Pagination gate: render only the systems that belong to the current page
+        try:
+            total_systems_needed_local = max(1, (doc_measure_count + measures_per_line - 1) // measures_per_line)
+        except Exception:
+            total_systems_needed_local = 1
+        if not hasattr(self, 'current_page'):
+            self.current_page = 0
+        try:
+            current_page_int = int(self.current_page)
+        except Exception:
+            current_page_int = 0
+        # Do not early-return here; allow stacked rendering. Page gating is handled in _render_single_staff.
 
         # EDIT MODE WITH MEASURES - Normal measure rendering
         # Right edge of the staff (available space)
         right_edge_x = self.page_width - self.margins["right"]
 
         # Calculate equal unit width for this system
-        available_width = right_edge_x - first_measure_barline_x
+        available_width = max(0.0, right_edge_x - first_measure_barline_x)
         unit_width = available_width / max(1, measures_per_line)
 
         # Get the starting measure index for this system
@@ -2164,8 +2586,29 @@ class ScoreRenderer:
         pen = QPen(Qt.GlobalColor.black, 1, Qt.PenStyle.SolidLine)
         painter.setPen(pen)
 
-        # Calculate the staff end position using equal unit width
-        staff_end_x = first_measure_barline_x + (unit_width * num_measures_to_render)
+        # Calculate the staff end position using equal unit width, but clamp the final
+        # system to the actual last measure end_x so we do not draw an extra empty span.
+        progressive_end_x = first_measure_barline_x + (unit_width * num_measures_to_render)
+        try:
+            print(f"STAFF_SPAN: sys={system_idx} left={staff_left_x} first_meas_x={first_measure_barline_x} unit={unit_width} num={num_measures_to_render} prog_end={progressive_end_x}")
+        except Exception:
+            pass
+        staff_end_x = progressive_end_x
+        # Guard: ensure a minimal visible width so lines appear even if width calculation is tiny
+        if staff_end_x <= staff_left_x:
+            staff_end_x = staff_left_x + max(60.0, unit_width)
+        if is_final_system:
+            # Prefer progressive growth; clamp to actual last measure end_x if smaller, and never exceed page right edge
+            try:
+                if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict) and self.document.measures:
+                    last_end = max(float(getattr(m, 'end_x', progressive_end_x)) for m in self.document.measures.values())
+                    staff_end_x = min(progressive_end_x, last_end, right_edge_x)
+            except Exception:
+                staff_end_x = min(progressive_end_x, right_edge_x)
+        try:
+            print(f"STAFF_SPAN: sys={system_idx} final={is_final_system} staff_end_x={staff_end_x}")
+        except Exception:
+            pass
         
         # CRITICAL FIX: If no measures exist, extend staff lines to match where barlines will be positioned
         if doc_measure_count == 0:
@@ -2175,6 +2618,11 @@ class ScoreRenderer:
         # Draw the staff lines (5 lines per staff)
         for i in range(5):
             line_y = staff_y + i * self.STAFF_LINE_SPACING
+            try:
+                if i == 0:
+                    print(f"STAFF_LINES: top_line_y={line_y}, bottom_line_y={staff_y + (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING}")
+            except Exception:
+                pass
             # Use QLineF to ensure correct types
             painter.drawLine(QLineF(staff_left_x, line_y, staff_end_x, line_y))
 
@@ -2283,7 +2731,12 @@ class ScoreRenderer:
             else:
                 bottom_base = last.y_position
             bottom_y_val = bottom_base + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-            return top_y_val, bottom_y_val
+            # Include top page margin so verticals align with staff lines
+            try:
+                top_margin_local = float(self.margins.get('top', 0))
+            except Exception:
+                top_margin_local = 0.0
+            return top_y_val + top_margin_local, bottom_y_val + top_margin_local
 
         # Calculate position for the LEFT edge of the staves - for precise barline 0 alignment
         staff_left_edge = float(self.margins["left"])
@@ -2376,6 +2829,8 @@ class ScoreRenderer:
                 bottom_y = bottom_staff.y_position + (
                     (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
                 )
+
+            # Align exactly with staff lines (no extra top-margin shift)
 
             # Now draw barline 0 with precise alignment
             barline_extension = 0  # No extension for perfect alignment
@@ -2587,72 +3042,76 @@ class ScoreRenderer:
                     measures = measures.values()
                 print(f"BARLINES: Using direct access, got {len(list(measures))} measures")
             
-            # De-duplicate barline x positions (guards against double-pass rendering on first frame)
-            unique_positions = []
+            # Group measure end positions PER WRAPPED SYSTEM
             eps = 0.5
-            for m in measures:
-                if hasattr(m, 'end_x'):
-                    x = float(getattr(m, 'end_x', final_barline_x))
-                    if not any(abs(x - ux) < eps for ux in unique_positions):
-                        unique_positions.append(x)
-            # Keep association of x to one representative measure for numbering/type
-            rep_for_x = {}
-            for m in measures:
-                if hasattr(m, 'end_x'):
-                    x = float(getattr(m, 'end_x', final_barline_x))
-                    for ux in unique_positions:
-                        if abs(x - ux) < eps and ux not in rep_for_x:
-                            rep_for_x[ux] = m
-                            break
+            # Prefer Temporal Bridge's measures per system if available
+            try:
+                mps_pref = 0
+                if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                    mps_pref = int(getattr(self.document.temporal_bridge, 'measures_per_system', 0) or 0)
+                if mps_pref <= 0:
+                    from PyQt6.QtCore import QSettings
+                    mps_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                measures_per_line = max(1, min(32, int(mps_pref)))
+            except Exception:
+                measures_per_line = 4
 
-            # Determine the current system's final barline x based on measures
-            # Use the maximum end_x from existing measures; fallback to page right edge
-            if unique_positions:
-                current_system_final_x = max(unique_positions)
-            else:
-                current_system_final_x = float(self.page_width - self.margins["right"])  # fallback
+            # Derive a fallback unit width and leftmost position for barlines
+            leftmost = float(first_measure_barline_x)
+            total_space = (self.page_width - self.margins["right"]) - leftmost
+            unit = float(total_space) / float(measures_per_line) if measures_per_line > 0 else float(total_space)
+
+            systems_to_positions: dict[int, list[float]] = {}
+            systems_rep_for_x: dict[int, dict[float, object]] = {}
+            for m in measures:
+                m_num = int(getattr(m, 'measure_number', 1))
+                sys_idx = max(0, (m_num - 1) // measures_per_line)
+                if hasattr(m, 'end_x'):
+                    x = float(getattr(m, 'end_x', float(self.page_width - self.margins["right"])))
+                else:
+                    # Fallback: compute end position from layout when end_x is not provided
+                    pos_in_system = (m_num - 1) % measures_per_line
+                    # End of the measure is at the next boundary
+                    x = leftmost + unit * float(pos_in_system + 1)
+                bucket = systems_to_positions.setdefault(sys_idx, [])
+                if not any(abs(x - ux) < eps for ux in bucket):
+                    bucket.append(x)
+                rep_map = systems_rep_for_x.setdefault(sys_idx, {})
+                # Only set representative once per unique x in this system
+                if not any(abs(x - k) < eps for k in rep_map.keys()):
+                    rep_map[x] = m
 
             # Build top-level rendering order once
-            rendering_order = []
-            if hasattr(self.document.layout, 'ungrouped_staves'):
-                for staff in self.document.layout.ungrouped_staves:
-                    rendering_order.append(staff)
-            if hasattr(self.document.layout, 'sections'):
-                for section in self.document.layout.sections:
-                    rendering_order.append(section)
-            rendering_order.sort(key=lambda element: getattr(element, 'y_position', 0))
+                    rendering_order = []
+                    if hasattr(self.document.layout, 'ungrouped_staves'):
+                        for staff in self.document.layout.ungrouped_staves:
+                            rendering_order.append(staff)
+                    if hasattr(self.document.layout, 'sections'):
+                        for section in self.document.layout.sections:
+                            rendering_order.append(section)
+                    rendering_order.sort(key=lambda element: getattr(element, 'y_position', 0))
 
-            for x in unique_positions:
-                measure = rep_for_x.get(x)
+            # Render barlines per-system later; keep backward-compat if no systems detected
+            for x, measure in []:
                 barline_x = x
                 barline_type = getattr(measure, 'barline_type', 'single') if measure else 'single'
-
+                
                 # Draw barlines for each group separately
                 self._draw_grouped_barlines(painter, barline_x, barline_type, rendering_order)
-
+                
                 # Render barline numbers for every measure when enabled
                 if measure is not None:
                     self._render_barline_numbers(painter, measure, barline_x, rendering_order)
-
-                print(f"BARLINES: Drew user-created {barline_type} barline at x={barline_x}")
+                    
+                    print(f"BARLINES: Drew user-created {barline_type} barline at x={barline_x}")
 
             # Automatically overlay a FINAL barline at the last measure position for the current system
-            try:
-                if unique_positions:
-                    last_x = max(unique_positions)
-                    self._draw_grouped_barlines(painter, last_x, 'final', rendering_order)
-                    print(f"BARLINES: Drew automatic FINAL overlay at x={last_x}")
-            except Exception:
-                pass
+            # Final overlay handled per-system below
 
         # Draw system barlines per top-level group (single staff, grand staff, or section)
-        staff_left_edge = float(self.margins["left"])
-        barline_0_x = staff_left_edge + self.barline_0_offset
-        # Prefer the computed current system final x if available
-        try:
-            final_barline_x = current_system_final_x
-        except Exception:
-            final_barline_x = float(self.page_width - self.margins["right"])  # fallback
+            staff_left_edge = float(self.margins["left"])
+            barline_0_x = staff_left_edge + self.barline_0_offset
+        page_final_x = float(self.page_width - self.margins["right"])  # fallback
 
         # Build top-level groups in vertical order
         top_level_groups = []
@@ -2664,35 +3123,140 @@ class ScoreRenderer:
                 top_level_groups.append(section)
         top_level_groups.sort(key=lambda g: getattr(g, 'y_position', 0))
 
+        # Determine if this is a single-staff-only score (no grand staff, no sections)
+        is_single_staff_score = False
+        try:
+            only_one = len(top_level_groups) == 1
+            if only_one:
+                g = top_level_groups[0]
+                is_single_staff_score = not (hasattr(g, 'staves') or getattr(g, 'is_grand_staff', False))
+        except Exception:
+            is_single_staff_score = False
+
         barline0_number_drawn = False
-        for group in top_level_groups:
-            # Compute top/bottom y for this group
-            if hasattr(group, 'staves') and group.staves:
-                # Section group
-                g_top = group.staves[0]
-                g_bottom = group.staves[-1]
-                top_y = g_top.y_position
-                bottom_y = g_bottom.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-            elif hasattr(group, 'is_grand_staff') and getattr(group, 'is_grand_staff', False) and hasattr(group, 'top_staff') and hasattr(group, 'bottom_staff'):
-                # Grand staff group
-                top_y = group.top_staff.y_position
-                bottom_y = group.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-            else:
-                # Single staff
-                top_y = group.y_position
-                bottom_y = group.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+        # Determine system vertical spacing to align with staff drawing
+        try:
+            from PyQt6.QtCore import QSettings
+            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+        except Exception:
+            spacing_pref = 80
+
+        # Determine page gating for page-down mode to keep within bottom margin
+        try:
+            top_margin_px = float(self.margins.get('top', 0))
+        except Exception:
+            top_margin_px = 0.0
+        try:
+            bottom_margin_px = float(self.margins.get('bottom', 120))
+        except Exception:
+            bottom_margin_px = 120.0
+        try:
+            available_height = int(self.page_height - top_margin_px - bottom_margin_px)
+        except Exception:
+            available_height = int(max(0, self.page_height - 220))
+        systems_per_page = max(1, available_height // max(1, spacing_pref))
+
+        system_indices = sorted(systems_to_positions.keys()) if systems_to_positions else [0]
+        # Compute last system index based on available positions or measure count
+        try:
+            last_system_idx = max(system_indices)
+        except Exception:
+            last_system_idx = 0
+
+        # Establish current page window when in page-down mode
+        if getattr(self, 'page_down_mode', True):
+            try:
+                current_page_int = int(getattr(self, 'current_page', 0))
+            except Exception:
+                current_page_int = 0
+            page_start_idx = current_page_int * systems_per_page
+            page_end_idx = page_start_idx + systems_per_page
+        else:
+            page_start_idx = 0
+            page_end_idx = 10**9  # effectively infinity
+
+        for sys_idx in system_indices:
+            # Skip systems not in current page when in page-down mode
+            if sys_idx < page_start_idx or sys_idx >= page_end_idx:
+                continue
+            # Must match staff_y computation in _render_measures_impl
+            local_idx = sys_idx - page_start_idx if getattr(self, 'page_down_mode', True) else sys_idx
+            vertical_shift = local_idx * spacing_pref
+            for group in top_level_groups:
+                # Compute top/bottom y for this group, shifted for this system
+                if hasattr(group, 'staves') and group.staves:
+                    g_top = group.staves[0]
+                    g_bottom = group.staves[-1]
+                    top_y = g_top.y_position + vertical_shift
+                    bottom_y = g_bottom.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
+                elif hasattr(group, 'is_grand_staff') and getattr(group, 'is_grand_staff', False) and hasattr(group, 'top_staff') and hasattr(group, 'bottom_staff'):
+                    top_y = group.top_staff.y_position + vertical_shift
+                    bottom_y = group.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
+                else:
+                    top_y = group.y_position + vertical_shift
+                    bottom_y = group.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
 
             if is_setup_mode:
-                draw_normal_barline(barline_0_x, top_y, bottom_y)
-                if not barline0_number_drawn:
-                    self._render_barline_0_number(painter, barline_0_x, [group])
-                    barline0_number_drawn = True
+                # Suppress barline 0 in setup for single-staff scores
+                if not is_single_staff_score:
+                    draw_normal_barline(barline_0_x, top_y, bottom_y)
+                    if not barline0_number_drawn:
+                        self._render_barline_0_number(painter, barline_0_x, [group])
+                        barline0_number_drawn = True
             else:
-                draw_normal_barline(barline_0_x, top_y, bottom_y)
-                if not barline0_number_drawn:
-                    self._render_barline_0_number(painter, barline_0_x, [group])
-                    barline0_number_drawn = True
-                # Final overlay is drawn once at the last measure position above
+                # Draw barline 0 for EACH wrapped system when there are multiple staves
+                # This ensures grand staff wraps always start with barline 0
+                if not is_single_staff_score:
+                    draw_normal_barline(barline_0_x, top_y, bottom_y)
+                    if not barline0_number_drawn:
+                        self._render_barline_0_number(painter, barline_0_x, [group])
+                        barline0_number_drawn = True
+
+                # Per-measure barlines for this system (always draw them)
+                for x in systems_to_positions.get(sys_idx, []):
+                    measure = None
+                    for ux, m in systems_rep_for_x.get(sys_idx, {}).items():
+                        if abs(x - ux) < eps:
+                            measure = m
+                            break
+                    barline_type = getattr(measure, 'barline_type', 'single') if measure else 'single'
+                    try:
+                        print(f"BARLINES: Drawing per-measure barline type={barline_type} at x={x} for system {sys_idx} with top_y={top_y}, bottom_y={bottom_y}")
+                    except Exception:
+                        pass
+                    self._draw_single_barline(painter, x, barline_type, top_y, bottom_y)
+                    # Draw barline numbers per system with proper vertical positioning
+                    if measure is not None:
+                        try:
+                            # Pass system index and vertical shift for proper positioning
+                            self._render_barline_numbers_with_system_info(painter, measure, x, top_level_groups, sys_idx, vertical_shift)
+                        except Exception:
+                            pass
+
+                # Draw FINAL overlay only for the last system in the score
+                if sys_idx == last_system_idx:
+                    # FINAL must sit at the end of the last existing measure on THIS system
+                    positions_this_system = systems_to_positions.get(sys_idx, [])
+                    final_x = None
+                    if positions_this_system:
+                        final_x = max(positions_this_system)
+                    else:
+                        # No explicit positions; estimate from leftmost note and how many measures exist on this system
+                        try:
+                            from PyQt6.QtCore import QSettings
+                            mps_est = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
+                            mps_est = max(1, min(32, mps_est))
+                            leftmost = float(self.document.temporal_bridge.calculate_leftmost_note_position()) if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge else (self.margins["left"] + self.barline_0_offset + 100)
+                            total_space = (self.page_width - self.margins["right"]) - leftmost
+                            unit = total_space / mps_est
+                            # Count measures on this system from reps map
+                            count = len(systems_rep_for_x.get(sys_idx, {}))
+                            if count >= 1:
+                                final_x = leftmost + unit * count
+                        except Exception:
+                            pass
+                    if final_x is not None:
+                        draw_system_final_barline(final_x, top_y, bottom_y)
 
         # Optional: draw preview barline following cursor (per group)
         if hasattr(self, 'preview_barline_x') and self.preview_barline_x is not None:
@@ -3155,12 +3719,12 @@ class ScoreRenderer:
                     bottom_y = element.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
                     self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
                     print(f"BARLINES: Drew {barline_type} barline across GRAND STAFF at x={barline_x} (y={top_y}→{bottom_y})")
-                else:
-                    # Single staff
-                    top_y = element.y_position
-                    bottom_y = element.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
-                    print(f"BARLINES: Drew {barline_type} barline on SINGLE STAFF at x={barline_x} (y={top_y}→{bottom_y})")
+            else:
+                # Single staff
+                top_y = element.y_position
+                bottom_y = element.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
+                print(f"BARLINES: Drew {barline_type} barline on SINGLE STAFF at x={barline_x} (y={top_y}→{bottom_y})")
 
     def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y):
         """Draw a single barline of the specified type between the given y coordinates"""
@@ -3176,11 +3740,11 @@ class ScoreRenderer:
         def draw_final_barline(x, y_top, y_bottom):
             # Always draw precise connecting final barline as two lines spanning the full group.
             # This guarantees the barline runs through both staves of a grand staff or all staves of a section.
-            painter.setPen(QPen(QColor(0, 0, 0), 1))
-            painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))  # Thin line
-            painter.setPen(QPen(QColor(0, 0, 0), 4))
-            painter.drawLine(int(x), int(y_top), int(x), int(y_bottom))  # Thick line at specified x
-            print(f"BARLINES: Drew manual end bar at x={x} (thick line), thin at x={x-6}")
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))  # Thin line
+                painter.setPen(QPen(QColor(0, 0, 0), 4))
+                painter.drawLine(int(x), int(y_top), int(x), int(y_bottom))  # Thick line at specified x
+                print(f"BARLINES: Drew manual end bar at x={x} (thick line), thin at x={x-6}")
 
         if barline_type == 'single':
             draw_normal_barline(barline_x, top_y, bottom_y)
@@ -3299,32 +3863,37 @@ class ScoreRenderer:
         from PyQt6.QtGui import QColor
         painter.setPen(QColor(barline_font_color))
         
-        # CRITICAL FIX: Position barline numbers at the same level as barline 0 and measure numbers
-        # Use the same positioning logic as barline 0 number for consistency
-        # ALWAYS use the actual top staff of the entire score system, not the top element in rendering order
+        # CRITICAL FIX: Place barline numbers per wrapped system, not always on the first line.
+        # Compute the system index from the measure number and measures-per-system, then
+        # offset the base top-staff Y by system_idx * system_spacing.
+        try:
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("ONOTE", "Preferences")
+            mps = int(settings.value("layout/default_measures_per_system", 4))
+            mps = max(1, min(32, mps))
+            system_spacing = int(settings.value("layout/default_system_spacing", 80))
+        except Exception:
+            mps = 4
+            system_spacing = 80
+
+        system_index = max(0, int((barline_number - 1) // mps))
+
+        # Base top Y from the actual top staff of the score
         if hasattr(self.document, 'layout') and self.document.layout:
-            # Get all staves to find the actual top staff
             all_staves = []
-            
-            # Add ungrouped staves
             if hasattr(self.document.layout, 'ungrouped_staves'):
                 all_staves.extend(self.document.layout.ungrouped_staves)
-            
-            # Add staves from sections
             if hasattr(self.document.layout, 'sections'):
                 for section in self.document.layout.sections:
                     if hasattr(section, 'staves'):
                         all_staves.extend(section.staves)
-            
             if all_staves:
-                # Find the actual top staff of the entire score system
-                top_staff_y = min(staff.y_position for staff in all_staves if hasattr(staff, 'y_position'))
+                base_top_staff_y = min(staff.y_position for staff in all_staves if hasattr(staff, 'y_position'))
             else:
-                # Fallback - use a reasonable default
-                top_staff_y = 40
+                base_top_staff_y = 40
         else:
-            # Fallback - use a reasonable default
-            top_staff_y = 40
+            base_top_staff_y = 40
+        top_staff_y = float(base_top_staff_y) + float(system_index * system_spacing)
         
         # CRITICAL FIX: Use settings for barline number positioning
         # Get barline number offset settings with document precedence
@@ -3380,6 +3949,99 @@ class ScoreRenderer:
         painter.drawText(int(number_x), int(number_y), str(barline_number))
         
         print(f"BARLINE_NUMBERS: Drew barline number {barline_number} at position ({number_x}, {number_y}) - same level as barline 0")
+        
+        painter.restore()
+
+    def _render_barline_numbers_with_system_info(self, painter, measure, barline_x, rendering_order, system_idx, vertical_shift):
+        """
+        Render barline numbers with proper system positioning.
+        
+        Args:
+            painter: QPainter instance
+            measure: The measure object containing the barline
+            barline_x: X position of the barline
+            rendering_order: List of staves/sections for positioning
+            system_idx: The system index for this barline
+            vertical_shift: The vertical offset for this system
+        """
+        # Get settings with document precedence
+        if hasattr(self.document, 'settings') and self.document.settings:
+            barline_numbering_enabled = self.document.settings.get("notation/barline_numbering", False)
+            barline_font_size = int(self.document.settings.get("notation/barline_number_font_size", 8))
+            barline_font_color = self.document.settings.get("notation/barline_numbers_font_color", "#666666")
+        else:
+            # Fallback to application preferences
+            from PyQt6.QtCore import QSettings
+            settings = QSettings()
+            barline_numbering_enabled = settings.value("notation/barline_numbering", False, type=bool)
+            barline_font_size = int(settings.value("notation/barline_number_font_size", 8))
+            barline_font_color = settings.value("notation/barline_numbers_font_color", "#666666")
+        
+        # Skip if barline numbering is disabled
+        if not barline_numbering_enabled:
+            return
+            
+        # Get the barline number (measure number)
+        barline_number = getattr(measure, 'measure_number', 1)
+        
+        # Skip barline 0 (system barline) - only show numbered barlines
+        if barline_number == 0:
+            return
+            
+        # Set up font for barline numbers
+        painter.save()
+        
+        # Create font for barline numbers
+        font = painter.font()
+        font.setPointSize(barline_font_size)
+        font.setBold(True)  # Make barline numbers bold for visibility
+        painter.setFont(font)
+        
+        # Set color for barline numbers
+        from PyQt6.QtGui import QColor
+        painter.setPen(QColor(barline_font_color))
+        
+        # Get offset settings
+        barline_number_vertical_offset = 0
+        barline_number_horizontal_offset = 3
+        
+        if hasattr(self.document, 'settings') and self.document.settings:
+            barline_number_vertical_offset = self.document.settings.get("notation/barline_number_vertical_offset", 0)
+            barline_number_horizontal_offset = self.document.settings.get("notation/barline_number_horizontal_offset", 3)
+        else:
+            from PyQt6.QtCore import QSettings
+            settings = QSettings()
+            barline_number_vertical_offset = settings.value("notation/barline_number_vertical_offset", 0, type=int)
+            barline_number_horizontal_offset = settings.value("notation/barline_number_horizontal_offset", 3, type=int)
+        
+        # CRITICAL FIX: Use the same vertical positioning logic as staff lines
+        # Get base top staff Y position
+        if hasattr(self.document, 'layout') and self.document.layout:
+            all_staves = []
+            if hasattr(self.document.layout, 'ungrouped_staves'):
+                all_staves.extend(self.document.layout.ungrouped_staves)
+            if hasattr(self.document.layout, 'sections'):
+                for section in self.document.layout.sections:
+                    if hasattr(section, 'staves'):
+                        all_staves.extend(section.staves)
+            if all_staves:
+                base_top_staff_y = min(staff.y_position for staff in all_staves if hasattr(staff, 'y_position'))
+            else:
+                base_top_staff_y = 40
+        else:
+            base_top_staff_y = 40
+        
+        # Apply the same vertical shift as used for staff lines
+        top_staff_y = float(base_top_staff_y) + float(vertical_shift)
+        
+        # Apply offset settings
+        number_x = barline_x + barline_number_horizontal_offset
+        number_y = top_staff_y + barline_number_vertical_offset
+        
+        print(f"BARLINE_NUMBERS: Positioned barline number {barline_number} at ({number_x}, {number_y}) with vertical_shift={vertical_shift}")
+        
+        # Draw the barline number
+        painter.drawText(int(number_x), int(number_y), str(barline_number))
         
         painter.restore()
 

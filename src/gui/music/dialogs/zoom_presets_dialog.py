@@ -59,6 +59,15 @@ class ZoomPresetsDialog(QDialog):
         spinner_layout.addWidget(apply_button)
         
         layout.addLayout(spinner_layout)
+
+        # Button: Set current zoom as default (persists to Preferences)
+        set_default_layout = QHBoxLayout()
+        set_default_btn = QPushButton("Set current Zoom as default")
+        set_default_btn.clicked.connect(self.set_current_as_default)
+        set_default_layout.addStretch(1)
+        set_default_layout.addWidget(set_default_btn)
+        set_default_layout.addStretch(1)
+        layout.addLayout(set_default_layout)
         
         # Preset slots
         presets_group = QGroupBox("Preset Slots")
@@ -101,6 +110,18 @@ class ZoomPresetsDialog(QDialog):
             print(f"ZOOM_PRESETS: Applied current zoom {int(zoom_factor * 100)}%")
         except Exception as e:
             print(f"ZOOM_PRESETS: Exception in apply_current_zoom: {e}")
+    
+    def set_current_as_default(self):
+        """Save the current spinner value into Preferences as default zoom for new docs."""
+        try:
+            settings = QSettings("ONOTE", "Preferences")
+            zoom_percent = int(self.zoom_spinner.value())
+            settings.setValue("general/default_zoom", f"{zoom_percent}%")
+            # Also emit zoom_changed so the view reflects it immediately
+            self.zoom_changed.emit(zoom_percent / 100.0)
+            print(f"ZOOM_PRESETS: Saved default zoom {zoom_percent}% to Preferences")
+        except Exception as e:
+            print(f"ZOOM_PRESETS: Failed to save default zoom: {e}")
         
     def set_preset(self, slot):
         """Set the preset slot to the current spinner value"""

@@ -410,6 +410,14 @@ class FullScoreOptionsDialog(QDialog):
         self.doc_system_spacing.setToolTip("Vertical spacing between systems in this document")
         doc_layout_layout.addRow("System Spacing:", self.doc_system_spacing)
         
+        # Staff Spacing (document-specific)
+        self.doc_staff_spacing = QSpinBox()
+        self.doc_staff_spacing.setRange(20, 120)
+        self.doc_staff_spacing.setValue(40)  # Match Preferences default
+        self.doc_staff_spacing.setSuffix(" px")
+        self.doc_staff_spacing.setToolTip("Vertical spacing between individual staves within the score-system")
+        doc_layout_layout.addRow("Staff Spacing:", self.doc_staff_spacing)
+        
         scroll_layout.addWidget(doc_layout_group)
         
         # Text and Markings section
@@ -505,6 +513,7 @@ class FullScoreOptionsDialog(QDialog):
         self.page_layout_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('page_layout', value))
         self.measures_system_spin.valueChanged.connect(lambda value: self._apply_single_parameter_change('measures_per_system', value))
         self.doc_system_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('system_spacing', value))
+        self.doc_staff_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('staff_spacing', value))
         self.staff_names_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names', value))
         self.title_display_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('title_display', value))
         self.notation_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('notation_style', value))
@@ -1367,6 +1376,7 @@ class FullScoreOptionsDialog(QDialog):
             'page_layout': self.page_layout_combo.currentText(),
             'measures_per_system': self.measures_system_spin.value(),
             'system_spacing': self.doc_system_spacing.value(),
+            'staff_spacing': self.doc_staff_spacing.value(),
             
             # Measure number settings (comprehensive)
             'measure_number_frequency': self.measure_number_frequency.currentText(),
@@ -1851,11 +1861,20 @@ class FullScoreOptionsDialog(QDialog):
             'notation/barline_numbers_font_color': barline_numbers_color,
         })
         
+        # Save layout settings
+        self.document.settings.update({
+            'layout/notation_scale': self.notation_size_spin.value(),
+            'layout/page_layout': self.page_layout_combo.currentText(),
+            'layout/measures_per_system': self.measures_system_spin.value(),
+            'layout/system_spacing': self.doc_system_spacing.value(),
+            'layout/staff_spacing': self.doc_staff_spacing.value(),
+        })
+        
         # Mark document as modified
         if hasattr(self.document, 'set_modified'):
             self.document.set_modified(True)
         
-        print("FULL_SCORE_OPTIONS: Saved notation settings to document")
+        print("FULL_SCORE_OPTIONS: Saved notation and layout settings to document")
 
 
     
@@ -2089,6 +2108,15 @@ class FullScoreOptionsDialog(QDialog):
             if hasattr(self, 'measures_system_spin'):
                 settings.setValue("notation/max_measures_per_system", int(self.measures_system_spin.value()))
                 settings.setValue("layout/default_measures_per_system", int(self.measures_system_spin.value()))
+            if hasattr(self, 'doc_system_spacing'):
+                settings.setValue("layout/default_system_spacing", int(self.doc_system_spacing.value()))
+                print(f"SET_AS_DEFAULTS: Saving system_spacing = {self.doc_system_spacing.value()}")
+            if hasattr(self, 'doc_staff_spacing'):
+                settings.setValue("layout/default_staff_spacing", int(self.doc_staff_spacing.value()))
+                print(f"SET_AS_DEFAULTS: Saving staff_spacing = {self.doc_staff_spacing.value()}")
+            if hasattr(self, 'page_layout_combo'):
+                settings.setValue("layout/default_page_layout", self.page_layout_combo.currentText())
+                print(f"SET_AS_DEFAULTS: Saving page_layout = {self.page_layout_combo.currentText()}")
             if hasattr(self, 'justify_last_system'):
                 settings.setValue("layout/justify_last_system", bool(self.justify_last_system.isChecked()))
             if hasattr(self, 'hide_empty_staves'):
@@ -2439,8 +2467,17 @@ class FullScoreOptionsDialog(QDialog):
             self.key_sig_font_color.setStyleSheet(f"background-color: {color}; color: {'white' if self.is_dark_color_hex(color) else 'black'};")
             setattr(self, 'key_sig_color_value', color)
             
+            # Load layout settings
+            self.notation_size_spin.setValue(get_setting_with_precedence('layout/notation_scale', 1.0))
+            page_layout = get_setting_with_precedence('layout/page_layout', 'Single Page')
+            if page_layout in ['Single Page', 'Facing Pages', 'Continuous Scroll']:
+                self.page_layout_combo.setCurrentText(page_layout)
+            self.measures_system_spin.setValue(get_setting_with_precedence('layout/measures_per_system', 5))
+            self.doc_system_spacing.setValue(get_setting_with_precedence('layout/system_spacing', 80))
+            self.doc_staff_spacing.setValue(get_setting_with_precedence('layout/staff_spacing', 40))
+            
             # Note: Measure numbers and barline control settings are now handled in this dialog
-            print("FULL_SCORE_OPTIONS: Loaded notation settings from document and QSettings")
+            print("FULL_SCORE_OPTIONS: Loaded notation and layout settings from document and QSettings")
             
         except Exception as e:
             print(f"FULL_SCORE_OPTIONS: Error loading settings: {e}") 
@@ -2923,6 +2960,7 @@ class FullScoreOptionsDialog(QDialog):
             'page_layout': self.page_layout_combo.currentText() if hasattr(self, 'page_layout_combo') else None,
             'measures_per_system': self.measures_system_spin.value() if hasattr(self, 'measures_system_spin') else None,
             'system_spacing': self.doc_system_spacing.value() if hasattr(self, 'doc_system_spacing') else None,
+            'staff_spacing': self.doc_staff_spacing.value() if hasattr(self, 'doc_staff_spacing') else None,
             'staff_names': self.staff_names_combo.currentText() if hasattr(self, 'staff_names_combo') else None,
             'title_display': self.title_display_combo.currentText() if hasattr(self, 'title_display_combo') else None,
             'notation_style': self.notation_style_combo.currentText() if hasattr(self, 'notation_style_combo') else None,
