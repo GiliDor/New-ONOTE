@@ -419,7 +419,12 @@ class BarlineTemporalBridge(QObject):
                 barline_type='single'
             )
             
-            # Add to document
+            # Add to document (ensure dict)
+            if not isinstance(getattr(self.document, 'measures', {}), dict):
+                try:
+                    self.document.set_measures(self.document.get_measures())
+                except Exception:
+                    self.document.measures = {}
             self.document.measures[new_measure_number] = new_measure
             print(f"BRIDGE: Created new measure #{new_measure_number} at position {x_position}")
             
@@ -710,7 +715,12 @@ class BarlineTemporalBridge(QObject):
                         barline_type='single'
                     )
                     
-                    # Add to document
+                    # Add to document (ensure dict)
+                    if not isinstance(getattr(self.document, 'measures', {}), dict):
+                        try:
+                            self.document.set_measures(self.document.get_measures())
+                        except Exception:
+                            self.document.measures = {}
                     self.document.measures[new_measure_number] = new_measure
                     print(f"BRIDGE: Created new measure #{new_measure_number} at position {x_position}")
                     
