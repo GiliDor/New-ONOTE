@@ -2369,7 +2369,12 @@ class FormWidget(QWidget):
         return measure
     
     def apply_changes(self):
-        """Apply all changes and notify document"""
+        """Apply button behavior: In Barlines tab it does nothing (per spec)."""
+        current_tab = self.tab_widget.tabText(self.tab_widget.currentIndex()) if hasattr(self, 'tab_widget') else ""
+        if str(current_tab).strip() == "🎵 Barlines" or str(current_tab).lower().startswith("barline"):
+            print("FORM_WIDGET: Apply pressed on Barlines tab - no-op as per spec")
+            return
+        # For other tabs, keep the default apply behavior if needed later
         self.emit_structure_changed()
         self.update_status("Changes applied to document")
     
@@ -2653,15 +2658,8 @@ class FormWidget(QWidget):
             elif temporal_bridge and hasattr(temporal_bridge, 'insert_measures_batch'):
                 created_measures = temporal_bridge.insert_measures_batch(count, insertion_position)
             else:
-                # Fallback: simulate by clicking at end repeatedly
                 created_measures = []
-                if self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
-                    sv = self.main_window_ref.staff_view
-                    for _ in range(count):
-                        # Place at a far-right x to force append; bridge will justify
-                        m = sv.create_barline_at_position(99999, 0)
-                        if m:
-                            created_measures.append(m)
+                print("FORM_WIDGET: No batch API available; skipping")
             print(f"FORM_WIDGET: Successfully created {len(created_measures)} measures in batch")
             
             # Update the display

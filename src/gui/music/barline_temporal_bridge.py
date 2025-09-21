@@ -291,6 +291,64 @@ class BarlineTemporalBridge(QObject):
             return self._create_barline_via_manager(x_position, barline_type)
         else:
             return self._create_barline_atomic(x_position, barline_type)
+
+    def insert_measures_batch(self, count: int, insertion_after_measure: Optional[int] = None) -> list:
+        """Insert multiple measures in a batch.
+        - If insertion_after_measure is None, append at end of score.
+        - Otherwise, insert after the given measure number by repeatedly splitting to the right of it.
+        Returns list of created MeasureObjects.
+        """
+        created: list = []
+        try:
+            self._load_layout_preferences()
+            current = self._get_current_measures() or []
+            if not current:
+                # Create the very first measure, then keep appending
+                first = self.create_initial_measure()
+                if first:
+                    created.append(first)
+                current = self._get_current_measures() or []
+
+            def _rightmost_end_x(measures):
+                return max(float(getattr(m, 'end_x', 0.0)) for m in measures if hasattr(m, 'end_x'))
+
+            # Compute base x for insertion loop
+            if insertion_after_measure is None:
+                base_x = _rightmost_end_x(current) + 1.0
+            else:
+                # Insert after a specific measure: click just to the right of its end
+                m = next((m for m in current if getattr(m, 'measure_number', -1) == insertion_after_measure), None)
+                base_x = float(getattr(m, 'end_x', _rightmost_end_x(current))) + 1.0
+
+            for i in range(int(max(0, count))):
+                m = self._create_barline_atomic(base_x, 'single')
+                if m:
+                    created.append(m)
+                # Advance base_x to the new rightmost after each add
+                cur = self._get_current_measures() or []
+                base_x = _rightmost_end_x(cur) + 1.0
+
+            # Normalize barline types so only the last is 'final'
+            try:
+                ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+                if ordered:
+                    last_num = ordered[-1]
+                    for num in ordered:
+                        m = self.document.measures.get(num)
+                        if not m:
+                            continue
+                        m.barline_type = 'final' if num == last_num else 'single'
+            except Exception:
+                pass
+
+            # Trigger refresh
+            self._force_form_widget_sync()
+            self.temporal_structure_changed.emit()
+            self.measure_layout_changed.emit()
+            return created
+        except Exception as e:
+            print(f"BRIDGE: insert_measures_batch error: {e}")
+            return created
     
     def _create_barline_via_manager(self, x_position: float, barline_type: str) -> Optional[MeasureObject]:
         """
