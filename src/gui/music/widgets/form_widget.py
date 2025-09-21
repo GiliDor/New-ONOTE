@@ -794,9 +794,9 @@ class FormWidget(QWidget):
         # Connect signals
         self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
         
-        # Do NOT auto-select any barline type by default
-        # User must explicitly select a type before creation
-        # This also prevents accidental re-selection when returning to the form
+        # Default selection: Single barline (per spec)
+        if self.barline_button_group.buttons():
+            self.barline_button_group.buttons()[0].setChecked(True)
         
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
@@ -1042,10 +1042,10 @@ class FormWidget(QWidget):
         self.tab_widget.addTab(tab, "🎵 Barlines")
 
     def showEvent(self, event):
-        """Ensure radio buttons are deselected when the Form opens."""
+        """Ensure default 'Single' is selected when Form opens."""
         try:
-            if hasattr(self, '_deselect_all_radio_buttons'):
-                self._deselect_all_radio_buttons()
+            if self.barline_button_group.buttons():
+                self.barline_button_group.buttons()[0].setChecked(True)
         except Exception:
             pass
         super().showEvent(event)

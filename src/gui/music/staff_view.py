@@ -1909,12 +1909,6 @@ class StaffView(QWidget):
                     else:
                         # Normal click: select only this barline (single select)
                         self.select_barline(existing_barline)
-                        # Do NOT auto-select any barline type in the Form when selecting in score
-                        try:
-                            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                                self.main_window.form_widget._deselect_all_radio_buttons()
-                        except Exception:
-                            pass
                 else:
                     # No existing barline found
                     if not shift_pressed:
@@ -1924,6 +1918,21 @@ class StaffView(QWidget):
                     # CRITICAL FIX: Only create barlines when form widget is active
                     # This prevents automatic barline creation on regular clicks that causes undo reversion
                     if not shift_pressed and self.is_form_widget_active():
+                        # If a barline type is selected and an existing barline is selected (orange), change its type
+                        try:
+                            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                                fw = self.main_window.form_widget
+                                selected_type = fw.get_selected_barline_type()
+                                selected_barlines = self.get_selected_barlines()
+                                if selected_type and selected_barlines:
+                                    # Change type of selected barlines instead of adding
+                                    for bl in selected_barlines:
+                                        if hasattr(bl, 'barline_type'):
+                                            bl.barline_type = selected_type
+                                    self.update()
+                                    return
+                        except Exception:
+                            pass
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
                             # Only emit signal for actual MeasureObjects, not graphical dashed barlines
@@ -2325,7 +2334,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 40  # Wider threshold for easier selection
+        selection_threshold = 60  # Widest threshold to ensure reliable selection on empty scores
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
