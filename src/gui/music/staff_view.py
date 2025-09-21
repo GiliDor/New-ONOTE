@@ -2379,6 +2379,10 @@ class StaffView(QWidget):
             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                 barline_type = self.main_window.form_widget.get_selected_barline_type()
                 print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+                # Guard: if no radio selected, do not create measures
+                if not barline_type:
+                    print("BARLINE_CREATE: No barline type selected - no-op")
+                    return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -3236,6 +3240,14 @@ class StaffView(QWidget):
                     # CRITICAL FIX: Only create barlines when form widget is active
                     # This prevents automatic barline creation on regular clicks that causes undo reversion
                     if not shift_pressed and self.is_form_widget_active():
+                        # Do nothing if no barline type is selected in Form
+                        try:
+                            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                                if not self.main_window.form_widget.get_selected_barline_type():
+                                    print("BARLINE_CREATE: No radio selected in Form - no-op on staff click")
+                                    return
+                        except Exception:
+                            pass
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
                             # Only emit signal for actual MeasureObjects, not graphical dashed barlines
@@ -3570,7 +3582,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 25  # Increased threshold for easier selection
+        selection_threshold = 60  # Widest threshold for easier selection
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
@@ -4793,7 +4805,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 25  # Increased threshold for easier selection
+        selection_threshold = 60  # Widest threshold for easier selection
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
