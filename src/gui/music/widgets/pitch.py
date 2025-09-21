@@ -137,6 +137,12 @@ class PitchWidget(QDockWidget):
         self.current_octave = 4
         self.current_note = None
         self.current_modifier = None
+        self.document = None
+    
+    def set_document(self, document):
+        """Set the document to work with"""
+        self.document = document
+        print(f"PITCH: Document set to {document}")
         
     def handle_note_selection(self, note):
         """Handle note selection"""

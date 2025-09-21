@@ -794,8 +794,9 @@ class FormWidget(QWidget):
         # Connect signals
         self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
         
-        # Set default selection to Single
-        self.barline_button_group.buttons()[0].setChecked(True)
+        # Do NOT auto-select any barline type by default
+        # User must explicitly select a type before creation
+        # This also prevents accidental re-selection when returning to the form
         
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
@@ -1039,6 +1040,15 @@ class FormWidget(QWidget):
         
         tab.setLayout(layout)
         self.tab_widget.addTab(tab, "🎵 Barlines")
+
+    def showEvent(self, event):
+        """Ensure radio buttons are deselected when the Form opens."""
+        try:
+            if hasattr(self, '_deselect_all_radio_buttons'):
+                self._deselect_all_radio_buttons()
+        except Exception:
+            pass
+        super().showEvent(event)
 
     def on_barline_type_changed(self, button):
         """Handle barline type selection changes"""
@@ -2631,18 +2641,15 @@ class FormWidget(QWidget):
         
         print(f"FORM_WIDGET: Batch inserting {count} measures at {position_text}")
         
-        # Get references to measure manager
+        # Get references to measure manager or temporal bridge fallback
         measure_manager = None
-        if hasattr(self, 'staff_view') and self.staff_view:
-            if hasattr(self.staff_view.document, 'measure_manager'):
-                measure_manager = self.staff_view.document.measure_manager
-        elif self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
-            if hasattr(self.main_window_ref.staff_view.document, 'measure_manager'):
-                measure_manager = self.main_window_ref.staff_view.document.measure_manager
-        
-        if not measure_manager:
-            print("FORM_WIDGET: No measure manager available for batch insertion")
-            return
+        temporal_bridge = None
+        if self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
+            sv = self.main_window_ref.staff_view
+            if hasattr(sv.document, 'measure_manager'):
+                measure_manager = sv.document.measure_manager
+            if hasattr(sv, 'temporal_bridge'):
+                temporal_bridge = sv.temporal_bridge
         
         # Determine insertion position
         insertion_position = None
@@ -2661,7 +2668,20 @@ class FormWidget(QWidget):
         
         # Perform batch insertion
         try:
-            created_measures = measure_manager.insert_measures_batch(count, insertion_position)
+            if measure_manager and hasattr(measure_manager, 'insert_measures_batch'):
+                created_measures = measure_manager.insert_measures_batch(count, insertion_position)
+            elif temporal_bridge and hasattr(temporal_bridge, 'insert_measures_batch'):
+                created_measures = temporal_bridge.insert_measures_batch(count, insertion_position)
+            else:
+                # Fallback: simulate by clicking at end repeatedly
+                created_measures = []
+                if self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
+                    sv = self.main_window_ref.staff_view
+                    for _ in range(count):
+                        # Place at a far-right x to force append; bridge will justify
+                        m = sv.create_barline_at_position(99999, 0)
+                        if m:
+                            created_measures.append(m)
             print(f"FORM_WIDGET: Successfully created {len(created_measures)} measures in batch")
             
             # Update the display

@@ -16,6 +16,14 @@ class RhythmWidget(QDockWidget):
         # Add placeholder content
         layout.addWidget(QLabel("Rhythm Widget"))
         layout.addStretch()
+        
+        # Initialize document reference
+        self.document = None
+    
+    def set_document(self, document):
+        """Set the document to work with"""
+        self.document = document
+        print(f"RHYTHM: Document set to {document}")
 
 class RhythmPatternWidget(QWidget):
     pattern_selected = pyqtSignal(str)  # Signal for pattern selection

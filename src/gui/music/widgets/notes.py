@@ -13,4 +13,12 @@ class NotesWidget(QDockWidget):
         
         # Add placeholder content
         layout.addWidget(QLabel("Notes Widget"))
-        layout.addStretch() 
+        layout.addStretch()
+        
+        # Initialize document reference
+        self.document = None
+    
+    def set_document(self, document):
+        """Set the document to work with"""
+        self.document = document
+        print(f"NOTES: Document set to {document}") 

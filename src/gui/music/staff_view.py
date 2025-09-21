@@ -2319,7 +2319,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 25  # Increased threshold for easier selection
+        selection_threshold = 40  # Wider threshold for easier selection
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')

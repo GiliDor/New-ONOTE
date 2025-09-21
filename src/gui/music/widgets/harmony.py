@@ -13,4 +13,12 @@ class HarmonyWidget(QDockWidget):
         
         # Add placeholder content
         layout.addWidget(QLabel("Harmony Widget"))
-        layout.addStretch() 
+        layout.addStretch()
+        
+        # Initialize document reference
+        self.document = None
+    
+    def set_document(self, document):
+        """Set the document to work with"""
+        self.document = document
+        print(f"HARMONY: Document set to {document}") 

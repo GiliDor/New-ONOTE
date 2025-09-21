@@ -1468,10 +1468,161 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'staff_view') and self.staff_view and self.staff_view.document:
             # The Form Widget will send a new structure_changed signal with updated measures
             print(f"FORM: Waiting for structure_changed signal with updated measure list")
-    def show_notes(self): pass
-    def show_rhythm(self): pass
-    def show_pitch(self): pass
-    def show_harmony(self): pass
+    def show_notes(self):
+        """Show the Notes Widget for note editing"""
+        # Check if we have a valid staff_view and document
+        if not hasattr(self, 'staff_view') or not self.staff_view or not hasattr(self.staff_view, 'document') or not self.staff_view.document:
+            QMessageBox.warning(self, "No Document", "Please create or open a score first.")
+            return
+            
+        if not hasattr(self, 'notes_widget') or self.notes_widget is None:
+            self.notes_widget = NotesWidget(self)
+            self.notes_widget.set_document(self.staff_view.document)
+        else:
+            # Notes widget already exists, sync if document has changed
+            if self.notes_widget.document != self.staff_view.document:
+                print(f"NOTES: Document changed, syncing Notes Widget with new document")
+                self.notes_widget.set_document(self.staff_view.document)
+        
+        # Position at top-right corner using WindowManager logic
+        screen = QApplication.primaryScreen().geometry()
+        base_x = screen.width() - 400  # Leave room for widget width
+        base_y = screen.y() + 50
+        
+        # Calculate stacking offset based on number of open dialogs
+        open_dialogs = WindowManager.get_open_dialogs()
+        stack_offset = len(open_dialogs) * 40
+        
+        final_x = base_x - stack_offset
+        final_y = base_y + stack_offset
+        
+        # Ensure widget stays on screen
+        final_x = max(50, final_x)
+        final_y = max(50, final_y)
+        
+        self.notes_widget.move(final_x, final_y)
+        self.notes_widget.show()
+        self.notes_widget.raise_()
+        self.notes_widget.activateWindow()
+        
+        print(f"NOTES: Notes Widget displayed at position ({final_x}, {final_y})")
+
+    def show_rhythm(self):
+        """Show the Rhythm Widget for rhythm editing"""
+        # Check if we have a valid staff_view and document
+        if not hasattr(self, 'staff_view') or not self.staff_view or not hasattr(self.staff_view, 'document') or not self.staff_view.document:
+            QMessageBox.warning(self, "No Document", "Please create or open a score first.")
+            return
+            
+        if not hasattr(self, 'rhythm_widget') or self.rhythm_widget is None:
+            self.rhythm_widget = RhythmWidget(self)
+            self.rhythm_widget.set_document(self.staff_view.document)
+        else:
+            # Rhythm widget already exists, sync if document has changed
+            if self.rhythm_widget.document != self.staff_view.document:
+                print(f"RHYTHM: Document changed, syncing Rhythm Widget with new document")
+                self.rhythm_widget.set_document(self.staff_view.document)
+        
+        # Position at top-right corner using WindowManager logic
+        screen = QApplication.primaryScreen().geometry()
+        base_x = screen.width() - 400  # Leave room for widget width
+        base_y = screen.y() + 50
+        
+        # Calculate stacking offset based on number of open dialogs
+        open_dialogs = WindowManager.get_open_dialogs()
+        stack_offset = len(open_dialogs) * 40
+        
+        final_x = base_x - stack_offset
+        final_y = base_y + stack_offset
+        
+        # Ensure widget stays on screen
+        final_x = max(50, final_x)
+        final_y = max(50, final_y)
+        
+        self.rhythm_widget.move(final_x, final_y)
+        self.rhythm_widget.show()
+        self.rhythm_widget.raise_()
+        self.rhythm_widget.activateWindow()
+        
+        print(f"RHYTHM: Rhythm Widget displayed at position ({final_x}, {final_y})")
+
+    def show_pitch(self):
+        """Show the Pitch Widget for pitch editing"""
+        # Check if we have a valid staff_view and document
+        if not hasattr(self, 'staff_view') or not self.staff_view or not hasattr(self.staff_view, 'document') or not self.staff_view.document:
+            QMessageBox.warning(self, "No Document", "Please create or open a score first.")
+            return
+            
+        if not hasattr(self, 'pitch_widget') or self.pitch_widget is None:
+            self.pitch_widget = PitchWidget(self)
+            self.pitch_widget.set_document(self.staff_view.document)
+        else:
+            # Pitch widget already exists, sync if document has changed
+            if self.pitch_widget.document != self.staff_view.document:
+                print(f"PITCH: Document changed, syncing Pitch Widget with new document")
+                self.pitch_widget.set_document(self.staff_view.document)
+        
+        # Position at top-right corner using WindowManager logic
+        screen = QApplication.primaryScreen().geometry()
+        base_x = screen.width() - 400  # Leave room for widget width
+        base_y = screen.y() + 50
+        
+        # Calculate stacking offset based on number of open dialogs
+        open_dialogs = WindowManager.get_open_dialogs()
+        stack_offset = len(open_dialogs) * 40
+        
+        final_x = base_x - stack_offset
+        final_y = base_y + stack_offset
+        
+        # Ensure widget stays on screen
+        final_x = max(50, final_x)
+        final_y = max(50, final_y)
+        
+        self.pitch_widget.move(final_x, final_y)
+        self.pitch_widget.show()
+        self.pitch_widget.raise_()
+        self.pitch_widget.activateWindow()
+        
+        print(f"PITCH: Pitch Widget displayed at position ({final_x}, {final_y})")
+
+    def show_harmony(self):
+        """Show the Harmony Widget for harmony editing"""
+        # Check if we have a valid staff_view and document
+        if not hasattr(self, 'staff_view') or not self.staff_view or not hasattr(self.staff_view, 'document') or not self.staff_view.document:
+            QMessageBox.warning(self, "No Document", "Please create or open a score first.")
+            return
+            
+        if not hasattr(self, 'harmony_widget') or self.harmony_widget is None:
+            self.harmony_widget = HarmonyWidget(self)
+            self.harmony_widget.set_document(self.staff_view.document)
+        else:
+            # Harmony widget already exists, sync if document has changed
+            if self.harmony_widget.document != self.staff_view.document:
+                print(f"HARMONY: Document changed, syncing Harmony Widget with new document")
+                self.harmony_widget.set_document(self.staff_view.document)
+        
+        # Position at top-right corner using WindowManager logic
+        screen = QApplication.primaryScreen().geometry()
+        base_x = screen.width() - 400  # Leave room for widget width
+        base_y = screen.y() + 50
+        
+        # Calculate stacking offset based on number of open dialogs
+        open_dialogs = WindowManager.get_open_dialogs()
+        stack_offset = len(open_dialogs) * 40
+        
+        final_x = base_x - stack_offset
+        final_y = base_y + stack_offset
+        
+        # Ensure widget stays on screen
+        final_x = max(50, final_x)
+        final_y = max(50, final_y)
+        
+        self.harmony_widget.move(final_x, final_y)
+        self.harmony_widget.show()
+        self.harmony_widget.raise_()
+        self.harmony_widget.activateWindow()
+        
+        print(f"HARMONY: Harmony Widget displayed at position ({final_x}, {final_y})")
     def show_documentation(self): pass
     def show_shortcuts(self): pass
     def check_for_updates(self): pass
