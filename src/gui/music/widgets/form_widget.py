@@ -1064,54 +1064,41 @@ class FormWidget(QWidget):
         
         # Get all selected barlines from staff view
         if self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
-            staff_view = self.main_window_ref.staff_view
-            if hasattr(staff_view, 'get_selected_barlines'):
-                selected_barlines = staff_view.get_selected_barlines()
-                print(f"FORM_WIDGET: Found {len(selected_barlines)} selected barlines to modify")
+            selected_barlines = self.main_window_ref.staff_view.get_selected_barlines()
+            
+            if selected_barlines:
+                # User has selected barlines and chosen a new type - modify them
+                print(f"FORM_WIDGET: Modifying {len(selected_barlines)} selected barlines to type '{barline_type}'")
                 
-                if selected_barlines:
-                    # RESTRICTION: Only allow single and dashed for direct creation
-                    # All other types can only modify existing selected barlines
-                    if barline_type not in ["single", "dashed"] and not selected_barlines:
-                        print(f"FORM_WIDGET: Cannot create {barline_type} barline directly - only single/dashed allowed")
-                        return
-                    
-                    # Save state for undo
-                    if len(selected_barlines) == 1:
-                        self.save_state(f"Change barline to {barline_type}")
-                    else:
-                        self.save_state(f"Change {len(selected_barlines)} barlines to {barline_type}")
-                    
-                    # Modify all selected barlines
-                    for barline in selected_barlines:
-                        if hasattr(barline, 'barline_type'):
-                            old_type = barline.barline_type
-                            barline.barline_type = barline_type
-                            print(f"FORM_WIDGET: Changed barline from {old_type} to {barline_type}")
-                            
-                            # Update repeat count for repeat barlines
-                            if 'repeat' in barline_type:
-                                if hasattr(barline, 'repeat_count'):
-                                    if not barline.repeat_count or barline.repeat_count < 2:
-                                        barline.repeat_count = self.repeat_count_spin.value()
-                                else:
-                                    # Add repeat_count attribute if it doesn't exist
-                                    barline.repeat_count = self.repeat_count_spin.value()
-                    
-                    # Update the staff view display
-                    staff_view.update()
-                    
-                    # Update status
-                    if len(selected_barlines) == 1:
-                        self.update_status(f"Changed barline to {barline_type}")
-                    else:
-                        self.update_status(f"Changed {len(selected_barlines)} barlines to {barline_type}")
+                # Save state for undo
+                if len(selected_barlines) == 1:
+                    self.save_state(f"Change barline to {barline_type}")
                 else:
-                    print(f"FORM_WIDGET: No barlines selected - button click will affect future creations")
+                    self.save_state(f"Change {len(selected_barlines)} barlines to {barline_type}")
+                
+                for barline in selected_barlines:
+                    old_type = getattr(barline, 'barline_type', 'single')
+                    barline.barline_type = barline_type
+                    print(f"FORM_WIDGET: Changed barline {getattr(barline, 'measure_number', 'unknown')} from '{old_type}' to '{barline_type}'")
+                    
+                    # Update repeat count for repeat barlines
+                    if 'repeat' in barline_type:
+                        if hasattr(barline, 'repeat_count'):
+                            if not barline.repeat_count or barline.repeat_count < 2:
+                                barline.repeat_count = self.repeat_count_spin.value()
+                        else:
+                            # Add repeat_count attribute if it doesn't exist
+                            barline.repeat_count = self.repeat_count_spin.value()
+                
+                # Update the score
+                self.update_score()
+                self.update_status(f"Changed {len(selected_barlines)} barlines to {barline_type}")
             else:
-                print(f"FORM_WIDGET: Staff view has no get_selected_barlines method")
+                # No barlines selected - just prepare for creation
+                print(f"FORM_WIDGET: No barlines selected - ready to create '{barline_type}' barlines")
+                self.update_status(f"Selected '{barline_type}' barline type - click on staff to create")
         else:
-            print(f"FORM_WIDGET: No staff view reference available")
+            print(f"FORM_WIDGET: No staff view available")
         
         # Update repeat count visibility
         is_repeat = barline_type in ["repeat_start", "repeat_end", "repeat_both"]
