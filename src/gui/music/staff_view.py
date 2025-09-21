@@ -3544,53 +3544,34 @@ class StaffView(QWidget):
         if not self.is_position_valid_for_barline(x, y):
             print(f"BARLINE_SELECTION: Position x={x}, y={y} not valid for barline operations")
             return None
-            
-        # Since barlines span the entire system, we only need to check horizontal distance
-        # The y-coordinate validation is already done in is_position_valid_for_barline
         
-        # Find the closest barline by horizontal distance only
-        closest_measure = None
+        # Since barlines are vertical and span the system, use horizontal distance only
+        closest = None
         min_distance = float('inf')
         
-        # Check if document has measures
-        if not (hasattr(self.document, 'measures') and self.document.measures):
-            print("BARLINE_SELECTION: No measures found in document")
-            return None
+        # Gather all barlines from measures
+        if hasattr(self.document, 'measures') and self.document.measures:
+            measures_iter = self.document.measures.values() if isinstance(self.document.measures, dict) else self.document.measures
+            for m in measures_iter:
+                if hasattr(m, 'end_x'):
+                    d = abs(float(m.end_x) - float(x))
+                    if d < min_distance:
+                        min_distance = d
+                        closest = m
         
-        # Check regular measures collection
-        measures = self.document.measures  # Reset iterator
-        if isinstance(measures, dict):
-            measures = measures.values()
+        # Include graphical dashed barlines
+        if hasattr(self.document, 'graphical_dashed_barlines') and self.document.graphical_dashed_barlines:
+            for dashed in self.document.graphical_dashed_barlines:
+                d = abs(float(getattr(dashed, 'x_position', 0.0)) - float(x))
+                if d < min_distance:
+                    min_distance = d
+                    closest = dashed
         
-        for measure in measures:
-            if hasattr(measure, 'end_x'):
-                distance = abs(measure.end_x - x)
-                print(f"BARLINE_SELECTION: Measure {getattr(measure, 'measure_number', 'unknown')} at x={measure.end_x}, distance={distance}")
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_measure = measure
+        if closest is not None:
+            print(f"BARLINE_SELECTION: Selected nearest barline (distance={min_distance}px)")
+            return closest
         
-        # ALSO CHECK GRAPHICAL DASHED BARLINES COLLECTION
-        if hasattr(self.document, 'graphical_dashed_barlines'):
-            print(f"BARLINE_SELECTION: Checking {len(self.document.graphical_dashed_barlines)} graphical dashed barlines")
-            for dashed_barline in self.document.graphical_dashed_barlines:
-                distance = abs(dashed_barline.x_position - x)
-                print(f"BARLINE_SELECTION: Dashed barline at x={dashed_barline.x_position}, distance={distance}, contains={dashed_barline.contains_x_position(x)}")
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_measure = dashed_barline
-                    print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
-        
-        # Return the closest barline if within threshold
-        selection_threshold = 60  # Widest threshold for easier selection
-        if closest_measure and min_distance < selection_threshold:
-            barline_type = getattr(closest_measure, 'barline_type', 'unknown')
-            measure_id = getattr(closest_measure, 'measure_number', 'unknown')
-            print(f"BARLINE_SELECTION: Found {barline_type} barline at {measure_id}, distance={min_distance}px")
-            return closest_measure
-        else:
-            print(f"BARLINE_SELECTION: No barline found within {selection_threshold}px threshold (closest was {min_distance}px)")
-            
+        print("BARLINE_SELECTION: No barlines available to select")
         return None
     
     def create_barline_at_position(self, x, y):
