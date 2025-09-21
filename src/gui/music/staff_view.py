@@ -1876,7 +1876,7 @@ class StaffView(QWidget):
                 existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
                 
                 if existing_barline:
-                    # Select the existing barline
+                    # Existing barline clicked
                     if shift_pressed:
                         # Shift-click: toggle selection of this barline (multi-select)
                         if hasattr(existing_barline, 'selected') and existing_barline.selected:
@@ -1907,7 +1907,21 @@ class StaffView(QWidget):
                         # Update display to show selection changes
                         self.update()
                     else:
-                        # Normal click: select only this barline (single select)
+                        # Normal click on an existing barline
+                        # If Form has an active barline type selection, change this barline's type instead of just selecting
+                        try:
+                            if self.is_form_widget_active() and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                                selected_type = self.main_window.form_widget.get_selected_barline_type()
+                                if selected_type:
+                                    if hasattr(existing_barline, 'barline_type'):
+                                        existing_barline.barline_type = selected_type
+                                        # Selecting it for visual feedback
+                                        self.select_barline(existing_barline)
+                                        self.update()
+                                        return
+                        except Exception:
+                            pass
+                        # Otherwise just select it
                         self.select_barline(existing_barline)
                 else:
                     # No existing barline found
@@ -1923,6 +1937,10 @@ class StaffView(QWidget):
                             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                                 fw = self.main_window.form_widget
                                 selected_type = fw.get_selected_barline_type()
+                                # If no type selected, do nothing (explicit user action required)
+                                if not selected_type:
+                                    print("BARLINE_CREATE: No barline type selected in Form - no-op")
+                                    return
                                 selected_barlines = self.get_selected_barlines()
                                 if selected_type and selected_barlines:
                                     # Change type of selected barlines instead of adding
@@ -1933,6 +1951,7 @@ class StaffView(QWidget):
                                     return
                         except Exception:
                             pass
+                        # Otherwise, create a new barline according to selected type
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
                             # Only emit signal for actual MeasureObjects, not graphical dashed barlines
