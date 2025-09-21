@@ -274,8 +274,12 @@ class PreferencesDialog(QDialog):
         self.default_left_margin.setValue(float(self.settings.value("layout/default_left_margin", 25.0)))
         self.default_right_margin.setValue(float(self.settings.value("layout/default_right_margin", 25.0)))
         self.default_staff_spacing.setValue(int(self.settings.value("layout/default_staff_spacing", 40)))
+        self.default_grand_staff_spacing.setValue(int(self.settings.value("layout/default_grand_staff_spacing", 32)))
         self.default_system_spacing.setValue(int(self.settings.value("layout/default_system_spacing", 80)))
         self.default_measures_per_system.setValue(int(self.settings.value("layout/default_measures_per_system", 4)))
+        # Initial MPS preference
+        if hasattr(self, 'initial_mps_enabled') and self.initial_mps_enabled is not None:
+            self.initial_mps_enabled.setChecked(self.settings.value("layout/initial_mps_enabled", True, type=bool))
         self.default_notation_size.setValue(float(self.settings.value("layout/default_notation_size", 1.0)))
         self.show_staff_names.setChecked(self.settings.value("layout/show_staff_names", True, type=bool))
         self.show_page_numbers.setChecked(self.settings.value("layout/show_page_numbers", True, type=bool))
@@ -428,10 +432,14 @@ class PreferencesDialog(QDialog):
         except Exception:
             pass
         self.settings.setValue("layout/default_staff_spacing", self.default_staff_spacing.value())
+        self.settings.setValue("layout/default_grand_staff_spacing", self.default_grand_staff_spacing.value())
         self.settings.setValue("layout/default_system_spacing", self.default_system_spacing.value())
         # Canonicalize Measures/System: prefer Page Layout tab spinner and mirror to notation key later
         canonical_mps = self.default_measures_per_system.value()
         self.settings.setValue("layout/default_measures_per_system", canonical_mps)
+        # Persist Initial MPS preference
+        if hasattr(self, 'initial_mps_enabled') and self.initial_mps_enabled is not None:
+            self.settings.setValue("layout/initial_mps_enabled", self.initial_mps_enabled.isChecked())
         self.settings.setValue("layout/default_notation_size", self.default_notation_size.value())
         self.settings.setValue("layout/show_staff_names", self.show_staff_names.isChecked())
         self.settings.setValue("layout/show_page_numbers", self.show_page_numbers.isChecked())
@@ -791,6 +799,15 @@ class PreferencesDialog(QDialog):
         score_layout_layout.addRow("Staff Spacing:", self.default_staff_spacing)
         self.default_staff_spacing.valueChanged.connect(self._mark_dirty)
         
+        # Grand Staff spacing (min internal gap for piano brace)
+        self.default_grand_staff_spacing = QSpinBox()
+        self.default_grand_staff_spacing.setRange(8, 160)
+        self.default_grand_staff_spacing.setValue(32)
+        self.default_grand_staff_spacing.setSuffix(" px")
+        self.default_grand_staff_spacing.setMinimumWidth(120)
+        score_layout_layout.addRow("Grand Staff Spacing:", self.default_grand_staff_spacing)
+        self.default_grand_staff_spacing.valueChanged.connect(self._mark_dirty)
+
         # System spacing
         self.default_system_spacing = QSpinBox()
         self.default_system_spacing.setRange(40, 200)
@@ -807,6 +824,20 @@ class PreferencesDialog(QDialog):
         self.default_measures_per_system.setMinimumWidth(120)
         score_layout_layout.addRow("Measures/System:", self.default_measures_per_system)
         self.default_measures_per_system.valueChanged.connect(self._mark_dirty)
+
+        # Initial MPS (auto-fill first system on entering Edit)
+        from PyQt6.QtWidgets import QCheckBox
+        self.initial_mps_enabled = QCheckBox("Initial MPS (auto-fill first system on enter Edit)")
+        self.initial_mps_enabled.setChecked(True)
+        score_layout_layout.addRow("Initial MPS:", self.initial_mps_enabled)
+        self.initial_mps_enabled.toggled.connect(self._mark_dirty)
+        # Persist immediately so new scores honor the toggle without reopening Preferences
+        def _immediate_save_initial_mps(checked):
+            try:
+                self.settings.setValue("layout/initial_mps_enabled", bool(checked))
+            except Exception:
+                pass
+        self.initial_mps_enabled.toggled.connect(_immediate_save_initial_mps)
         
         # Notation size
         self.default_notation_size = QDoubleSpinBox()

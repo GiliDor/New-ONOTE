@@ -24,7 +24,28 @@ from .widgets.pitch import PitchWidget
 from .widgets.harmony import HarmonyWidget
 from .widgets.notes import NotesWidget
 from .widgets.form import FormDockWidget
-from .measure_manager import PageLayout
+try:
+    from .measure_manager import PageLayout
+except Exception:
+    # Fallback: define a minimal PageLayout to allow app to start if import fails
+    from dataclasses import dataclass
+    @dataclass
+    class PageLayout:  # type: ignore
+        page_width: float = 800.0
+        page_height: float = 1120.0
+        left_margin: float = 40.0
+        right_margin: float = 40.0
+        top_margin: float = 40.0
+        bottom_margin: float = 120.0
+        system_spacing: int = 80
+
+        @property
+        def available_width(self) -> float:
+            return max(0.0, float(self.page_width) - float(self.left_margin + self.right_margin))
+
+        @property
+        def available_height(self) -> float:
+            return max(0.0, float(self.page_height) - float(self.top_margin + self.bottom_margin))
 
 class WindowManager:
     """Central window management system for ONOTE application"""
@@ -646,18 +667,7 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
         
-        # Add a test menu for debugging
-        test_menu = self.menuBar().addMenu("&Test")
-        
-        check_config_action = QAction("Check Resize Config", self)
-        check_config_action.setShortcut(QKeySequence("Ctrl+Shift+C"))
-        check_config_action.triggered.connect(self.check_resize_configuration)
-        test_menu.addAction(check_config_action)
-        
-        test_layout_action = QAction("Test Layout Refresh", self)
-        test_layout_action.setShortcut(QKeySequence("Ctrl+Shift+L"))
-        test_layout_action.triggered.connect(self.test_layout_refresh)
-        test_menu.addAction(test_layout_action)
+        # Test menu removed
         
         # Add window management menu
         window_menu = menubar.addMenu("&Window")
@@ -2095,44 +2105,7 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidget(self.staff_view)
         self.setCentralWidget(self.scroll_area)
 
-    def test_layout_refresh(self):
-        """Test method to manually trigger layout refresh"""
-        print(f"TEST_LAYOUT: Manually triggering layout refresh test")
-        
-        if (hasattr(self, 'staff_view') and self.staff_view and 
-            hasattr(self.staff_view, 'temporal_bridge') and self.staff_view.temporal_bridge):
-            
-            print(f"TEST_LAYOUT: Found staff_view and temporal_bridge")
-            
-            # Update renderer page width
-            if hasattr(self.staff_view, 'renderer') and self.staff_view.renderer:
-                new_width = self.width()
-                self.staff_view.renderer.page_width = new_width
-                print(f"TEST_LAYOUT: Updated renderer page width to {new_width}")
-            
-            # Force layout refresh
-            self.staff_view.temporal_bridge._force_layout_refresh()
-            print(f"TEST_LAYOUT: Called _force_layout_refresh")
-            
-            # Force UI update
-            self.staff_view.update()
-            print(f"TEST_LAYOUT: Forced staff view update")
-        else:
-            print(f"TEST_LAYOUT: No staff_view or temporal_bridge found")
-
-    def check_resize_configuration(self):
-        """Check if the window is properly configured for resize events"""
-        print(f"RESIZE_CONFIG: Window size: {self.width()}x{self.height()}")
-        print(f"RESIZE_CONFIG: Minimum size: {self.minimumSize().width()}x{self.minimumSize().height()}")
-        print(f"RESIZE_CONFIG: Maximum size: {self.maximumSize().width()}x{self.maximumSize().height()}")
-        print(f"RESIZE_CONFIG: Size policy: {self.sizePolicy().horizontalPolicy()} x {self.sizePolicy().verticalPolicy()}")
-        print(f"RESIZE_CONFIG: Window flags: {self.windowFlags()}")
-        print(f"RESIZE_CONFIG: Is welcome window: {self.is_welcome_window}")
-        print(f"RESIZE_CONFIG: Has staff_view: {hasattr(self, 'staff_view')}")
-        if hasattr(self, 'staff_view') and self.staff_view:
-            print(f"RESIZE_CONFIG: Has temporal_bridge: {hasattr(self.staff_view, 'temporal_bridge')}")
-            if hasattr(self.staff_view, 'temporal_bridge') and self.staff_view.temporal_bridge:
-                print(f"RESIZE_CONFIG: Has _force_layout_refresh: {hasattr(self.staff_view.temporal_bridge, '_force_layout_refresh')}")
+    # Removed debug/test helpers (test_layout_refresh, check_resize_configuration)
 
 
 

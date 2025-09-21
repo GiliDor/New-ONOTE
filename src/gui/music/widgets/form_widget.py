@@ -130,23 +130,23 @@ class FormWidget(QWidget):
         # Temporarily disconnect signals to prevent triggering save_settings_to_document during loading
         signal_connections = []
         # Layout settings (auto_justify_check, dynamic_width_check) are now handled by Preferences dialog
-        if hasattr(self, 'max_measures_per_system'):
-            signal_connections.append((self.max_measures_per_system.valueChanged, self.update_score))
+        if hasattr(self, 'max_measures_per_system') and self.max_measures_per_system is not None:
             try:
+                signal_connections.append((self.max_measures_per_system.valueChanged, self.update_score))
                 self.max_measures_per_system.valueChanged.disconnect(self.update_score)
-            except:
+            except Exception:
                 pass
-        if hasattr(self, 'show_measure_numbers'):
-            signal_connections.append((self.show_measure_numbers.toggled, self.update_score))
+        if hasattr(self, 'show_measure_numbers') and self.show_measure_numbers is not None:
             try:
+                signal_connections.append((self.show_measure_numbers.toggled, self.update_score))
                 self.show_measure_numbers.toggled.disconnect(self.update_score)
-            except:
+            except Exception:
                 pass
-        if hasattr(self, 'barline_numbering'):
-            signal_connections.append((self.barline_numbering.toggled, self.update_score))
+        if hasattr(self, 'barline_numbering') and self.barline_numbering is not None:
             try:
+                signal_connections.append((self.barline_numbering.toggled, self.update_score))
                 self.barline_numbering.toggled.disconnect(self.update_score)
-            except:
+            except Exception:
                 pass
         
         # Helper function to get setting with precedence: QSettings first for new documents, then document settings
@@ -267,11 +267,13 @@ class FormWidget(QWidget):
             self.barline_number_font_size.setValue(8)
             # Layout settings are now handled by Preferences dialog
         finally:
-            # Reconnect signals
+            # Reconnect signals (only if sender still exists and not deleted)
             for signal, slot in signal_connections:
                 try:
-                    signal.connect(slot)
-                except:
+                    sender = signal.sender()
+                    if sender is not None:
+                        signal.connect(slot)
+                except Exception:
                     pass
     
     def enable_staff_interaction(self):
@@ -802,6 +804,8 @@ class FormWidget(QWidget):
         type_group.installEventFilter(self)
 
         # ===== MEASURE NUMBERS SETTINGS =====
+        # UI removed per request (keep controls instantiated for internal logic)
+        show_removed_sections = False
         measure_numbers_group = QGroupBox("🔢 Measure Numbers")
         measure_numbers_layout = QFormLayout(measure_numbers_group)
         measure_numbers_layout.setSpacing(8)  # Reduced spacing for more compact layout
@@ -891,12 +895,18 @@ class FormWidget(QWidget):
         measure_numbers_layout.addRow("Font Color:", self.measure_numbers_font_color)
         
         measure_numbers_group.setLayout(measure_numbers_layout)
-        scroll_layout.addWidget(measure_numbers_group)
+        if show_removed_sections:
+            scroll_layout.addWidget(measure_numbers_group)
+        else:
+            # Keep widgets alive but hidden to satisfy existing logic without showing UI
+            measure_numbers_group.setParent(self)
+            measure_numbers_group.hide()
         
         # Install event filter on measure numbers group box to catch clicks
         measure_numbers_group.installEventFilter(self)
 
         # ===== BARLINE CONTROL SETTINGS =====
+        # UI removed per request (keep controls instantiated for internal logic)
         barline_group = QGroupBox("🎼 Barline Control")
         barline_group.setMinimumHeight(240)  # Make the area taller
         barline_group.setStyleSheet("""
@@ -958,7 +968,12 @@ class FormWidget(QWidget):
         barline_layout.addRow("Barline Number Color:", self.barline_number_font_color)
         
         barline_group.setLayout(barline_layout)
-        scroll_layout.addWidget(barline_group)
+        if show_removed_sections:
+            scroll_layout.addWidget(barline_group)
+        else:
+            # Keep widgets alive but hidden to satisfy existing logic without showing UI
+            barline_group.setParent(self)
+            barline_group.hide()
         
         # Install event filter on barline group box to catch clicks
         barline_group.installEventFilter(self)

@@ -394,10 +394,14 @@ class FullScoreOptionsDialog(QDialog):
         self.page_layout_combo.setCurrentText("Single Page")
         doc_layout_layout.addRow("Page Layout:", self.page_layout_combo)
         
-        # Measures per System (document-specific)
+        # Measures per System (document-specific)  
         self.measures_system_spin = QSpinBox()
         self.measures_system_spin.setRange(1, 12)
-        self.measures_system_spin.setValue(5)
+        # CRITICAL FIX: Always load initial value from Preferences for consistency
+        from PyQt6.QtCore import QSettings
+        preferences_settings = QSettings("ONOTE", "Preferences")
+        default_measures_per_system = int(preferences_settings.value("layout/default_measures_per_system", 4))
+        self.measures_system_spin.setValue(default_measures_per_system)
         self.measures_system_spin.setSpecialValueText("Auto")
         self.measures_system_spin.setToolTip("Number of measures per system (0 = automatic)")
         doc_layout_layout.addRow("Measures per System:", self.measures_system_spin)
@@ -405,7 +409,9 @@ class FullScoreOptionsDialog(QDialog):
         # System Spacing (document-specific)
         self.doc_system_spacing = QSpinBox()
         self.doc_system_spacing.setRange(40, 200)
-        self.doc_system_spacing.setValue(80)
+        # CRITICAL FIX: Always load initial value from Preferences for consistency
+        default_system_spacing = int(preferences_settings.value("layout/default_system_spacing", 80))
+        self.doc_system_spacing.setValue(default_system_spacing)
         self.doc_system_spacing.setSuffix(" px")
         self.doc_system_spacing.setToolTip("Vertical spacing between systems in this document")
         doc_layout_layout.addRow("System Spacing:", self.doc_system_spacing)
@@ -413,10 +419,24 @@ class FullScoreOptionsDialog(QDialog):
         # Staff Spacing (document-specific)
         self.doc_staff_spacing = QSpinBox()
         self.doc_staff_spacing.setRange(20, 120)
-        self.doc_staff_spacing.setValue(40)  # Match Preferences default
+        # CRITICAL FIX: Always load initial value from Preferences for consistency
+        default_staff_spacing = int(preferences_settings.value("layout/default_staff_spacing", 40))
+        self.doc_staff_spacing.setValue(default_staff_spacing)
         self.doc_staff_spacing.setSuffix(" px")
         self.doc_staff_spacing.setToolTip("Vertical spacing between individual staves within the score-system")
         doc_layout_layout.addRow("Staff Spacing:", self.doc_staff_spacing)
+        
+        # Grand Staff Spacing (document-specific)
+        self.doc_grand_staff_spacing = QSpinBox()
+        self.doc_grand_staff_spacing.setRange(8, 160)
+        try:
+            default_grand_spacing = int(preferences_settings.value("layout/default_grand_staff_spacing", 32))
+        except Exception:
+            default_grand_spacing = 32
+        self.doc_grand_staff_spacing.setValue(default_grand_spacing)
+        self.doc_grand_staff_spacing.setSuffix(" px")
+        self.doc_grand_staff_spacing.setToolTip("Minimum spacing between treble and bass within a grand staff (auto-expands if needed)")
+        doc_layout_layout.addRow("Grand Staff Spacing:", self.doc_grand_staff_spacing)
         
         scroll_layout.addWidget(doc_layout_group)
         
@@ -514,6 +534,7 @@ class FullScoreOptionsDialog(QDialog):
         self.measures_system_spin.valueChanged.connect(lambda value: self._apply_single_parameter_change('measures_per_system', value))
         self.doc_system_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('system_spacing', value))
         self.doc_staff_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('staff_spacing', value))
+        self.doc_grand_staff_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('grand_staff_spacing', value))
         self.staff_names_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names', value))
         self.title_display_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('title_display', value))
         self.notation_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('notation_style', value))
@@ -1868,6 +1889,7 @@ class FullScoreOptionsDialog(QDialog):
             'layout/measures_per_system': self.measures_system_spin.value(),
             'layout/system_spacing': self.doc_system_spacing.value(),
             'layout/staff_spacing': self.doc_staff_spacing.value(),
+            'layout/grand_staff_spacing': self.doc_grand_staff_spacing.value(),
         })
         
         # Mark document as modified
@@ -2475,12 +2497,13 @@ class FullScoreOptionsDialog(QDialog):
             self.measures_system_spin.setValue(get_setting_with_precedence('layout/measures_per_system', 5))
             self.doc_system_spacing.setValue(get_setting_with_precedence('layout/system_spacing', 80))
             self.doc_staff_spacing.setValue(get_setting_with_precedence('layout/staff_spacing', 40))
+            self.doc_grand_staff_spacing.setValue(get_setting_with_precedence('layout/grand_staff_spacing', 32))
             
             # Note: Measure numbers and barline control settings are now handled in this dialog
             print("FULL_SCORE_OPTIONS: Loaded notation and layout settings from document and QSettings")
             
         except Exception as e:
-            print(f"FULL_SCORE_OPTIONS: Error loading settings: {e}") 
+            print(f"FULL_SCORE_OPTIONS: Error loading settings: {e}")
     
     def on_measure_numbers_frequency_changed(self, text):
         """Show/hide custom interval controls based on frequency selection"""
@@ -2740,7 +2763,10 @@ class FullScoreOptionsDialog(QDialog):
                 self.document.settings = {}
             
             # Save ONLY this specific parameter
-            full_key = f"notation/{parameter_key}"
+            # Route layout-related parameters under the 'layout/' namespace
+            layout_params = {'system_spacing', 'staff_spacing', 'measures_per_system'}
+            key_namespace = 'layout' if parameter_key in layout_params else 'notation'
+            full_key = f"{key_namespace}/{parameter_key}"
             old_value = self.document.settings.get(full_key, "not set")
             self.document.settings[full_key] = value
             print(f"ISOLATED_PARAM: Changed {full_key}: {old_value} -> {value}")
@@ -2838,6 +2864,24 @@ class FullScoreOptionsDialog(QDialog):
                     else:
                         print(f"ISOLATED_PARAM: Renderer doesn't have attribute {renderer_attribute} (mapped from {parameter_key})")
                 
+                # For layout parameters, trigger a view refresh so spacing/wrapping updates immediately
+                if parameter_key in layout_params:
+                    # Update live layout object for immediate reflow where applicable
+                    try:
+                        if hasattr(self.document, 'layout') and self.document.layout:
+                            layout_obj = self.document.layout
+                            if parameter_key == 'staff_spacing' and hasattr(layout_obj, 'staff_spacing'):
+                                setattr(layout_obj, 'staff_spacing', int(value))
+                                if hasattr(layout_obj, '_update_positions'):
+                                    layout_obj._update_positions()
+                            if parameter_key == 'grand_staff_spacing' and hasattr(layout_obj, 'grand_staff_spacing'):
+                                setattr(layout_obj, 'grand_staff_spacing', int(value))
+                    except Exception as e:
+                        print(f"ISOLATED_PARAM: Layout live update failed: {e}")
+                    try:
+                        staff_view.update()
+                    except Exception:
+                        pass
                 # Force immediate visual refresh
                 staff_view.update()
                 print("ISOLATED_PARAM: Completed isolated parameter update and view refresh")

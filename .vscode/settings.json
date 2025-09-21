@@ -1,0 +1,23 @@
+{
+  "python.defaultInterpreterPath": "/Users/gilidor/Projects/New-ONOTE/venv/bin/python",
+  "python.analysis.extraPaths": [
+    "/Users/gilidor/Projects/New-ONOTE/src"
+  ],
+  "terminal.integrated.cwd": "/Users/gilidor/Projects/New-ONOTE",
+  "python.envFile": "${workspaceFolder}/.env"
+}
+{
+  "python.defaultInterpreterPath": "/Users/gilidor/Projects/New-ONOTE/venv/bin/python",
+  "python.analysis.extraPaths": [
+    "/Users/gilidor/Projects/New-ONOTE/src"
+  ],
+  "terminal.integrated.cwd": "/Users/gilidor/Projects/New-ONOTE",
+  "files.exclude": {
+    "**/build": true,
+    "**/dist": true,
+    "**/*.spec": true,
+    "**/__pycache__": true
+  }
+}
+
+

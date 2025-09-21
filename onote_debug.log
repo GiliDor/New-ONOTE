@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/gilidor/Projects/New-ONOTE/src/main.py", line 12, in <module>
+    from src.gui.music.staff_view import StaffView
+  File "/Users/gilidor/Projects/New-ONOTE/src/gui/music/staff_view.py", line 14, in <module>
+    from .score_renderer import ScoreRenderer
+  File "/Users/gilidor/Projects/New-ONOTE/src/gui/music/score_renderer.py", line 1292
+    if isinstance(staff, GrandStaff):
+    ^
+IndentationError: expected an indented block after 'else' statement on line 1291
+Loaded notation constants from /Users/gilidor/.onote/notation_constants.json

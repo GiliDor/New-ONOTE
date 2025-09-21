@@ -73,22 +73,27 @@ class BarlineTemporalBridge(QObject):
     def _load_layout_preferences(self):
         """Load layout preferences for measure spacing"""
         from PyQt6.QtCore import QSettings
-        settings = QSettings()
+        settings = QSettings("ONOTE", "Preferences")
 
         # Try to read from document settings first, then fallback to QSettings
         measures_per_system = 4
         if self.document and hasattr(self.document, 'settings') and self.document.settings:
-            # Try both possible keys for compatibility
-            measures_per_system = int(
-                self.document.settings.get('notation/max_measures_per_system',
-                self.document.settings.get('layout/default_measures_per_system', 4))
-            )
+            # Preferred document-specific key
+            value = self.document.settings.get('layout/measures_per_system', None)
+            if value is None:
+                # Legacy/compatibility key sometimes used for a cap
+                value = self.document.settings.get('notation/max_measures_per_system', None)
+            try:
+                measures_per_system = int(value) if value is not None else 4
+            except Exception:
+                measures_per_system = 4
         else:
-            # Fallback to QSettings, try both keys
-            measures_per_system = int(
-                settings.value('notation/max_measures_per_system',
-                settings.value('layout/default_measures_per_system', 4))
-            )
+            # Fallback to application defaults (Preferences)
+            try:
+                pref_val = settings.value('layout/default_measures_per_system', 4)
+                measures_per_system = int(pref_val)
+            except Exception:
+                measures_per_system = 4
         self.measures_per_system = measures_per_system
         print(f"BRIDGE: Loaded measures per system: {measures_per_system}")
 
@@ -496,6 +501,10 @@ class BarlineTemporalBridge(QObject):
         
         measures = self._get_current_measures()
         total_measures = len(measures)
+        # Compact-single override: skip justification entirely
+        if total_measures == 1 and getattr(measures[0], 'keep_compact', False):
+            print("BRIDGE: Compact single measure detected - skipping justification pass")
+            return
         justified_positions = self._calculate_justified_positions(total_measures)
         
     def _ensure_all_measures_justified(self):
@@ -508,6 +517,10 @@ class BarlineTemporalBridge(QObject):
             return
         
         total_measures = len(measures)
+        # Compact-single override: skip justification entirely
+        if total_measures == 1 and getattr(measures[0], 'keep_compact', False):
+            print("BRIDGE: Compact single measure detected - skipping _ensure_all_measures_justified")
+            return
         print(f"BRIDGE: Justifying {total_measures} measures")
         
         justified_positions = self._calculate_justified_positions(total_measures)
@@ -646,6 +659,24 @@ class BarlineTemporalBridge(QObject):
                     # Apply justified positioning across all systems
                     self._ensure_all_measures_justified()
                     
+                    # Normalize barline types so only the last measure is 'final'
+                    try:
+                        ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+                        if ordered:
+                            last_num = ordered[-1]
+                            for num in ordered:
+                                m = self.document.measures.get(num)
+                                if m is None:
+                                    continue
+                                if num == last_num:
+                                    m.barline_type = 'final'
+                                else:
+                                    if getattr(m, 'barline_type', 'single') == 'final':
+                                        m.barline_type = 'single'
+                            print(f"BRIDGE: Normalized barline types so only measure #{last_num} is 'final' after append")
+                    except Exception as e:
+                        print(f"BRIDGE: Error normalizing barline types after append: {e}")
+                    
                     # Force updates
                     self._force_form_widget_sync()
                     self.temporal_structure_changed.emit()
@@ -667,6 +698,9 @@ class BarlineTemporalBridge(QObject):
         print(f"BRIDGE: Target measure #{target_number} original barline type: '{original_target_barline_type}'")
         
         # STEP 6a: Update target measure (left part)
+        # If the target was 'final', demote it to 'single' and move 'final' to the new rightmost later
+        if getattr(target_measure, 'barline_type', 'single') == 'final':
+            print(f"BRIDGE: Demoting target measure #{target_number} barline from 'final' to 'single' prior to split")
         target_measure.barline_type = 'single'
         print(f"BRIDGE: Left part: measure #{target_number} gets 'single' barline type")
         
@@ -712,6 +746,24 @@ class BarlineTemporalBridge(QObject):
         # STEP 7: Apply Rule 1 - Justified positioning
         print("RULE1: Applying justified positioning")
         self._ensure_all_measures_justified()
+        
+        # STEP 7b: Ensure only the last measure has 'final' barline after the split
+        try:
+            ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+            if ordered:
+                last_num = ordered[-1]
+                for num in ordered:
+                    m = self.document.measures.get(num)
+                    if m is None:
+                        continue
+                    if num == last_num:
+                        m.barline_type = 'final'
+                    else:
+                        if getattr(m, 'barline_type', 'single') == 'final':
+                            m.barline_type = 'single'
+                print(f"BRIDGE: Normalized barline types so only measure #{last_num} is 'final'")
+        except Exception as e:
+            print(f"BRIDGE: Error normalizing barline types: {e}")
         
         # STEP 8: Verify result
         final_measures = sorted([num for num in self.document.measures.keys() if isinstance(num, int)])
@@ -984,7 +1036,17 @@ class BarlineTemporalBridge(QObject):
         print(f"SYSTEM_WRAP: Using {measures_per_system} measures per system")
         
         if total_measures == 1:
-            # RULE 1: Single measure spans full width - from leftmost note position to end barline
+            # Compact mode support: if the single measure was marked compact, keep its own end_x
+            try:
+                if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict) and self.document.measures:
+                    m = self.document.measures.get(1)
+                    if m is not None and getattr(m, 'keep_compact', False):
+                        compact_end = float(getattr(m, 'compact_end_x', getattr(m, 'end_x', end_barline_x)))
+                        print(f"RULE1-OVERRIDE: Single compact measure keeps end_x at {compact_end}")
+                        return [compact_end]
+            except Exception:
+                pass
+            # Default: single measure spans full width - from leftmost to end barline
             print(f"RULE1: Single measure spans full notation space to end barline at {end_barline_x}")
             return [end_barline_x]
         
@@ -1528,49 +1590,70 @@ class BarlineTemporalBridge(QObject):
 
     def enter_edit_mode(self):
         """
-        ENHANCED: When entering Edit mode from score setup mode, create an initial batch of
-        measures that fills the first system (max measures per system) with equal widths,
-        ending in a final barline position. Subsequent additions will wrap and extend.
+        Enter Edit mode with optional initial batch fill based on Preferences.
         """
         print("\n=== ENTERING EDIT MODE ===")
-        print("Creating initial batch of measures filling first system")
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("ONOTE", "Preferences")
+        initial_mps = settings.value('layout/initial_mps_enabled', True, type=bool)
+        print(f"Creating initial measures: initial_mps_enabled={initial_mps}")
 
         # Always reload layout preferences to get latest measures per system
         self._load_layout_preferences()
         
-        # Clear any existing measures to start fresh
-        if hasattr(self.document, 'measures'):
-            self.document.measures = {}
-        
-        # Determine the end position for the first system and create equal-width measures
-        staff_end_x = self.get_current_end_barline_x()
-        mps = max(1, int(getattr(self, 'measures_per_system', 4)))
-        print(f"EDIT_MODE: Initial system end at x={staff_end_x}; measures per system={mps}")
-
-        # Calculate equal barline positions for the first system
-        system_positions = self._calculate_system_justified_positions(mps, staff_end_x, 0)
-        
-        # Initialize collection
+        # Initialize measures container if missing
         if not hasattr(self.document, 'measures'):
             self.document.measures = {}
 
-        # Create measures 1..mps with equal widths across the first system
-        prev_end = self.LEFTMOST_NOTE_X
-        for i, end_x in enumerate(system_positions, start=1):
-            measure = self._create_measure_object(
-                measure_number=i,
-                x_position=prev_end,
-                end_x=end_x,
+        if initial_mps:
+            # Clear any existing measures to start fresh
+            self.document.measures = {}
+            # Determine the end position for the first system and create equal-width measures
+            staff_end_x = self.get_current_end_barline_x()
+            mps = max(1, int(getattr(self, 'measures_per_system', 4)))
+            print(f"EDIT_MODE: Initial system end at x={staff_end_x}; measures per system={mps}")
+            # Calculate equal barline positions for the first system
+            system_positions = self._calculate_system_justified_positions(mps, staff_end_x, 0)
+            # Create measures 1..mps with equal widths across the first system
+            prev_end = self.LEFTMOST_NOTE_X
+            for i, end_x in enumerate(system_positions, start=1):
+                measure = self._create_measure_object(
+                    measure_number=i,
+                    x_position=prev_end,
+                    end_x=end_x,
+                    barline_type='single'
+                )
+                try:
+                    measure.system_index = 0
+                except Exception:
+                    pass
+                self.document.measures[i] = measure
+                prev_end = end_x
+                print(f"EDIT_MODE: Created initial measure #{i}: start={measure.x_position}, end={measure.end_x}")
+        else:
+            # Only one compact measure with a final barline visually at its right edge
+            self.document.measures = {}
+            single_measure = self._create_measure_object(
+                measure_number=1,
+                x_position=self.LEFTMOST_NOTE_X,
+                end_x=self.LEFTMOST_NOTE_X + max(80.0, self.minimum_practical_space / 2),
                 barline_type='single'
             )
-            # Assign system index for renderer pagination/wrapping
+            # Mark as compact to avoid page-wide justification
             try:
-                measure.system_index = 0
+                setattr(single_measure, 'keep_compact', True)
+                setattr(single_measure, 'compact_end_x', float(getattr(single_measure, 'end_x', self.LEFTMOST_NOTE_X + 120.0)))
             except Exception:
                 pass
-            self.document.measures[i] = measure
-            prev_end = end_x
-            print(f"EDIT_MODE: Created initial measure #{i}: start={measure.x_position}, end={measure.end_x}")
+            # Mark barline type as final for edit mode visual behavior
+            try:
+                single_measure.barline_type = 'final'
+            except Exception:
+                pass
+            self.document.measures[1] = single_measure
+            print(f"EDIT_MODE: Created single compact initial measure: start={single_measure.x_position}, end={single_measure.end_x}")
+            # Do not run layout refresh that would justify the single measure to the full width
+            return
         
         # CRITICAL FIX: Force layout refresh to enable dynamic resizing
         print("EDIT_MODE: Forcing layout refresh to enable dynamic resizing")

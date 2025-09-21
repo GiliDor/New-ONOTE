@@ -1,0 +1,2284 @@
+Loaded notation constants from /Users/gilidor/.onote/notation_constants.json
+Starting ONOTE application...
+Starting ONOTE application...
+Starting main function...
+Could not import Foundation module
+RESIZE_DEBUG: MainWindow resizeEvent called - size: 1024x768
+RESIZE_DEBUG: Skipping resize handling for welcome window
+RESIZE_DEBUG: MainWindow resizeEvent called - size: 1728x998
+RESIZE_DEBUG: Skipping resize handling for welcome window
+Menu bar created
+Main window initialized
+Window shown, entering event loop...
+WINDOW_SIZING: Document window sized to 1200x1077 with 20px margins
+Menu bar created
+RENDERER: Warning - Could not load Bravura font from fonts/Bravura.otf
+RENDERER: load_notation_settings() called, document: None
+RENDERER: Using preference setting notation/staff_name_font_size = 15 (default: 10)
+RENDERER: Using preference setting notation/staff_name_vertical = 3 (default: -8)
+RENDERER: Using preference setting notation/staff_name_horizontal = -22 (default: -50)
+RENDERER: Using preference setting notation/staff_name_font_color = #0e4ba0 (default: #000000)
+RENDERER: Using preference setting notation/section_name_font_size = 16 (default: 12)
+RENDERER: Using preference setting notation/section_name_vertical = -6 (default: -10)
+RENDERER: Using preference setting notation/section_name_horizontal = -31 (default: -60)
+RENDERER: Using preference setting notation/section_name_font_color = #d67d10 (default: #000000)
+RENDERER: Using preference setting notation/clef_font_size = 32 (default: 32)
+RENDERER: Using preference setting notation/clef_vertical = 2 (default: 0)
+RENDERER: Using preference setting notation/clef_horizontal = -2 (default: 0)
+RENDERER: Using preference setting notation/clef_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/time_sig_font_size = 24 (default: 24)
+RENDERER: Using preference setting notation/time_sig_vertical = 1 (default: 0)
+RENDERER: Using preference setting notation/time_sig_horizontal = -10 (default: 40)
+RENDERER: Using preference setting notation/time_sig_spacing = 15 (default: 18)
+RENDERER: Using preference setting notation/time_sig_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/key_sig_font_size = 14 (default: 14)
+RENDERER: Using preference setting notation/key_sig_vertical = 0 (default: 0)
+RENDERER: Using preference setting notation/key_sig_horizontal = 75 (default: 75)
+RENDERER: Using preference setting notation/key_sig_accidental_spacing = 13 (default: 12)
+RENDERER: Using preference setting notation/key_sig_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/directions_font_size = 10 (default: 11)
+RENDERER: Using preference setting notation/directions_vertical = 10 (default: 30)
+RENDERER: Using preference setting notation/measure_numbers_font_size = 12 (default: 8)
+RENDERER: Using preference setting notation/measure_numbers_font_color = #e8161a (default: #000000)
+RENDERER: Using preference setting notation/barline_number_font_size = 10 (default: 7)
+RENDERER: Using preference setting notation/barline_numbers_font_color = #229c00 (default: #000000)
+RENDERER: Loaded notation settings - staff_name_color: #0e4ba0, section_name_color: #d67d10, clef_color: #000000, time_sig_color: #000000, key_sig_color: #000000
+RENDERER: Color settings loaded - clef: #000000, time_sig: #000000, key_sig: #000000
+RENDERER: Document settings available: None
+RENDERER DEBUG: staff_name_font_color attribute exists: #0e4ba0
+RENDERER DEBUG: section_name_font_color attribute exists: #d67d10
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = False (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 18 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = 25 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 2 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #e8161a (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: False, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 18, color: #e8161a, h_offset: 2, v_offset: 25
+RENDERER: Initialized measure number manager with document: None
+RENDERER: Settings loaded: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=25, horizontal_offset=2, font_size=18, font_color='#e8161a', enabled=False)
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = False (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 18 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = 25 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 2 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #e8161a (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: False, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 18, color: #e8161a, h_offset: 2, v_offset: 25
+MEASURE_NUMBERS: Refreshed settings - enabled: False, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 18, color: #e8161a, h_offset: 2, v_offset: 25
+RENDERER: Settings after refresh: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=25, horizontal_offset=2, font_size=18, font_color='#e8161a', enabled=False)
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = False (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 18 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = 25 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 2 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #e8161a (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: False, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 18, color: #e8161a, h_offset: 2, v_offset: 25
+RENDERER: Initialized measure number manager with document: None
+RENDERER: Settings loaded: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=25, horizontal_offset=2, font_size=18, font_color='#e8161a', enabled=False)
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = False (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 18 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = 25 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 2 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #e8161a (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: False, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 18, color: #e8161a, h_offset: 2, v_offset: 25
+MEASURE_NUMBERS: Refreshed settings - enabled: False, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 18, color: #e8161a, h_offset: 2, v_offset: 25
+RENDERER: Settings after refresh: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=25, horizontal_offset=2, font_size=18, font_color='#e8161a', enabled=False)
+BRIDGE: Calculated staff end position - page_width=800, right_margin=50, staff_end=750
+BRIDGE: Using dynamic END_BARLINE_X = 750.0 for barline alignment
+BRIDGE: Loaded measures per system: 8
+BRIDGE: Loaded layout settings - auto_justify: True, dynamic_width: True
+BRIDGE: Score starts with NO measures (only barline 0) - per ONOTE specification
+BRIDGE: Measures will be created when user first inserts a barline
+BRIDGE: BarlineTemporalBridge initialized - ready for user barline creation
+DOCUMENT_INIT: Loaded notation/max_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded layout/default_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/show_measure_numbers = True (type: bool)
+DOCUMENT_INIT: Loaded notation/measure_number_frequency = Every Measure (type: str)
+DOCUMENT_INIT: Loaded notation/measure_number_position = Center (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical = Above System (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_custom_interval = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_size = 12 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical_offset = 17 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_horizontal_offset = 3 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_color = #e8161a (type: str)
+DOCUMENT_INIT: Loaded notation/barline_numbering = True (type: bool)
+DOCUMENT_INIT: Loaded notation/barline_number_font_size = 10 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_vertical_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_horizontal_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_numbers_font_color = #229c00 (type: str)
+DOCUMENT_INIT: Barline color from QSettings: #229c00
+DOCUMENT_INIT: Barline vertical offset from QSettings: -3
+DOCUMENT_INIT: Barline horizontal offset from QSettings: -3
+DOCUMENT: Initialized empty document - no automatic measures and loaded settings from QSettings
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+DOCUMENT_INIT: Applied layout._update_positions() with preferences-based margins and page size
+STAFFVIEW: Created minimal ScoreDocument
+MEASURE_MANAGER: Using document layout - page_width=800.0, right_margin=49
+MEASURE_MANAGER: Initializing with document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x10762f050>, filename=None, is_modified=False, view_mode='page', zoom_level=1.0)
+MEASURE_MANAGER: Available width: 714.0px (page=800.0, margins=L37+R49)
+MEASURE_MANAGER: Document already has measures or document is None
+STAFFVIEW: Document measures before check: {}
+STAFFVIEW: Measure manager initialized - no automatic measures (created on first user click)
+STAFFVIEW: Initialized measure manager - ready for user-created barlines
+STAFFVIEW: Connected temporal bridge to MeasureManager for responsive layout
+STAFFVIEW: Connected temporal bridge with MeasureManager integration
+DOCUMENT_INIT: Loaded notation/max_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded layout/default_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/show_measure_numbers = True (type: bool)
+DOCUMENT_INIT: Loaded notation/measure_number_frequency = Every Measure (type: str)
+DOCUMENT_INIT: Loaded notation/measure_number_position = Center (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical = Above System (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_custom_interval = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_size = 12 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical_offset = 17 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_horizontal_offset = 3 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_color = #e8161a (type: str)
+DOCUMENT_INIT: Loaded notation/barline_numbering = True (type: bool)
+DOCUMENT_INIT: Loaded notation/barline_number_font_size = 10 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_vertical_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_horizontal_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_numbers_font_color = #229c00 (type: str)
+DOCUMENT_INIT: Barline color from QSettings: #229c00
+DOCUMENT_INIT: Barline vertical offset from QSettings: -3
+DOCUMENT_INIT: Barline horizontal offset from QSettings: -3
+DOCUMENT: Initialized empty document - no automatic measures and loaded settings from QSettings
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+DOCUMENT_INIT: Applied layout._update_positions() with preferences-based margins and page size
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+RENDERER: Refreshed measure number settings for new document
+RENDERER: Updated page size to 793x1122
+BRIDGE: Forcing layout refresh...
+BRIDGE: Updated END_BARLINE_X from 750.0 to 750.0 (page_width=800.0 - right_margin=50.0)
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: No measures to layout
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Emitted layout change signals
+RENDERER: Triggered layout refresh for margin change
+RENDERER: Applied document layout to renderer (size 793x1122, margins={'left': 37, 'right': 49, 'top': 102, 'bottom': 75})
+STAFFVIEW: Updated temporal bridge with new document reference
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+RENDERER: Updated page size to 793x1122
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 750.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: No measures to layout
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+MAIN_WINDOW: Automatically switching to edit mode after document initialization
+STAFFVIEW: Switching to EDIT mode (white)
+STAFFVIEW: Explicitly set document layout mode to EDIT
+STAFFVIEW: Entered edit mode, is_setup_mode is now False
+STAFFVIEW: ENTER_EDIT_MODE - FORCING interface update
+STAFFVIEW: ENTER_EDIT_MODE - Parent type: <class 'PyQt6.QtWidgets.QWidget'>
+STAFFVIEW: ENTER_EDIT_MODE - Parent has update_mode_interface_text: False
+STAFFVIEW: ENTER_EDIT_MODE - Method 2: Calling grandparent.update_mode_interface_text()
+MAINWINDOW: Updated menu text to '&Score Setup' and visibility to True
+MAINWINDOW: Updated toolbar text to 'Score Setup' and visibility to True
+STAFFVIEW: ENTER_EDIT_MODE - Method 2: SUCCESS - Called grandparent.update_mode_interface_text()
+STAFFVIEW: Document has 0 sections after entering edit mode
+MEASURE_MANAGER: Using document layout - page_width=793, right_margin=49
+MEASURE_MANAGER: Initializing with document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x10762e450>, filename=None, is_modified=False, view_mode='page', zoom_level=1.0)
+MEASURE_MANAGER: Available width: 707px (page=793, margins=L37+R49)
+MEASURE_MANAGER: Document already has measures or document is None
+STAFFVIEW: Document measures before check: {}
+STAFFVIEW: Measure manager initialized - no automatic measures (created on first user click)
+STAFFVIEW: Initialized measure manager - ready for user-created barlines
+STAFFVIEW: Connected temporal bridge to MeasureManager for responsive layout
+STAFFVIEW: Connected temporal bridge with MeasureManager integration
+STAFFVIEW: Temporal bridge check - hasattr: True, bridge: <src.gui.music.barline_temporal_bridge.BarlineTemporalBridge object at 0x107680370>
+STAFFVIEW: Calling temporal bridge enter_edit_mode to create initial measure
+
+=== ENTERING EDIT MODE ===
+Creating initial batch of measures filling first system
+BRIDGE: Loaded measures per system: 5
+BRIDGE: Loaded layout settings - auto_justify: True, dynamic_width: True
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+EDIT_MODE: Initial system end at x=744.0; measures per system=5
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+BRIDGE: Created measure object #1: x_position=210.0, end_x=316.8, width=106.80000000000001, type=single
+EDIT_MODE: Created initial measure #1: start=210.0, end=316.8
+BRIDGE: Created measure object #2: x_position=316.8, end_x=423.6, width=106.80000000000001, type=single
+EDIT_MODE: Created initial measure #2: start=316.8, end=423.6
+BRIDGE: Created measure object #3: x_position=423.6, end_x=530.4, width=106.79999999999995, type=single
+EDIT_MODE: Created initial measure #3: start=423.6, end=530.4
+BRIDGE: Created measure object #4: x_position=530.4, end_x=637.2, width=106.80000000000007, type=single
+EDIT_MODE: Created initial measure #4: start=530.4, end=637.2
+BRIDGE: Created measure object #5: x_position=637.2, end_x=744.0, width=106.79999999999995, type=single
+EDIT_MODE: Created initial measure #5: start=637.2, end=744.0
+EDIT_MODE: Forcing layout refresh to enable dynamic resizing
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+BRIDGE: No form widget found to sync
+EDIT_MODE: Initial batch creation complete
+EDIT_MODE: Ready for user to create additional measures by clicking on staff
+EDIT_MODE: Dynamic resizing is now enabled
+=== EDIT MODE ENTRY COMPLETE ===
+
+STAFFVIEW: Successfully called temporal bridge enter_edit_mode
+STAFFVIEW: Forcing layout refresh after entering edit mode
+STAFFVIEW: Keeping renderer page size from preferences on enter_edit_mode
+STAFFVIEW: Forcing temporal bridge layout refresh
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+STAFFVIEW: Refreshed measure number settings on enter_edit_mode
+BRIDGE: Ensuring all measures use justified positioning
+BRIDGE: Detected non-monotonic measure positions [272.66666666666663, 508.33333333333326, 743.9999999999999, 390.5, 744.0] — enforcing justified grid
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Repaired measure #1 end_x 272.66666666666663 → 316.8
+BRIDGE: Repaired measure #2 end_x 508.33333333333326 → 423.6
+BRIDGE: Repaired measure #3 end_x 743.9999999999999 → 530.4
+BRIDGE: Repaired measure #4 end_x 390.5 → 637.2
+BRIDGE: Repaired measure #5 end_x 744.0 → 744.0
+BRIDGE: _get_current_measures found 5 valid measures out of 5 total items
+BRIDGE: Measure numbers in order: [1, 2, 3, 4, 5]
+BRIDGE: Justifying 5 measures
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Updated measure #1 - end_x: 316.8 → 316.8, notation_width: 106.80000000000001
+BRIDGE: Updated measure #2 - end_x: 423.6 → 423.6, notation_width: 106.80000000000001
+BRIDGE: Updated measure #3 - end_x: 530.4 → 530.4, notation_width: 106.79999999999995
+BRIDGE: Updated measure #4 - end_x: 637.2 → 637.2, notation_width: 106.80000000000007
+BRIDGE: Updated measure #5 - end_x: 744.0 → 744.0, notation_width: 106.79999999999995
+BRIDGE: Justified positioning applied to 5 measures
+STAFFVIEW: Ensured all measures justified before initial paint
+STAFFVIEW: Forcing UI update in edit mode
+STAFFVIEW: Preserving renderer page size after entering edit mode
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+STAFFVIEW: Forced layout refresh in temporal bridge after entering edit mode
+STAFFVIEW: Forcing UI update in edit mode
+Main window initialized
+DOCUMENT_INIT: Loaded notation/max_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded layout/default_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/show_measure_numbers = True (type: bool)
+DOCUMENT_INIT: Loaded notation/measure_number_frequency = Every Measure (type: str)
+DOCUMENT_INIT: Loaded notation/measure_number_position = Center (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical = Above System (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_custom_interval = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_size = 12 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical_offset = 17 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_horizontal_offset = 3 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_color = #e8161a (type: str)
+DOCUMENT_INIT: Loaded notation/barline_numbering = True (type: bool)
+DOCUMENT_INIT: Loaded notation/barline_number_font_size = 10 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_vertical_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_horizontal_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_numbers_font_color = #229c00 (type: str)
+DOCUMENT_INIT: Barline color from QSettings: #229c00
+DOCUMENT_INIT: Barline vertical offset from QSettings: -3
+DOCUMENT_INIT: Barline horizontal offset from QSettings: -3
+DOCUMENT: Initialized empty document - no automatic measures and loaded settings from QSettings
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+DOCUMENT_INIT: Applied layout._update_positions() with preferences-based margins and page size
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+RENDERER: Refreshed measure number settings for new document
+RENDERER: Updated page size to 793x1122
+RENDERER: Applied document layout to renderer (size 793x1122, margins={'left': 37, 'right': 49, 'top': 102, 'bottom': 75})
+STAFFVIEW: Updated temporal bridge with new document reference
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+RENDERER: Refreshed measure number settings for new document
+RENDERER: Updated page size to 793x1122
+RENDERER: Applied document layout to renderer (size 793x1122, margins={'left': 37, 'right': 49, 'top': 102, 'bottom': 75})
+RENDERER: load_notation_settings() called, document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x107638740>, filename=None, is_modified=False, view_mode='page', zoom_level=1.0)
+RENDERER: Found document settings: ['notation/max_measures_per_system', 'layout/default_measures_per_system', 'notation/show_measure_numbers', 'notation/measure_number_frequency', 'notation/measure_number_position', 'notation/measure_numbers_vertical', 'notation/measure_numbers_custom_interval', 'notation/measure_numbers_font_size', 'notation/measure_numbers_vertical_offset', 'notation/measure_numbers_horizontal_offset', 'notation/measure_numbers_font_color', 'notation/barline_numbering', 'notation/barline_number_font_size', 'notation/barline_number_vertical_offset', 'notation/barline_number_horizontal_offset', 'notation/barline_numbers_font_color']
+RENDERER: Using preference setting notation/staff_name_font_size = 15 (default: 10)
+RENDERER: Using preference setting notation/staff_name_vertical = 3 (default: -8)
+RENDERER: Using preference setting notation/staff_name_horizontal = -22 (default: -50)
+RENDERER: Using preference setting notation/staff_name_font_color = #0e4ba0 (default: #000000)
+RENDERER: Using preference setting notation/section_name_font_size = 16 (default: 12)
+RENDERER: Using preference setting notation/section_name_vertical = -6 (default: -10)
+RENDERER: Using preference setting notation/section_name_horizontal = -31 (default: -60)
+RENDERER: Using preference setting notation/section_name_font_color = #d67d10 (default: #000000)
+RENDERER: Using preference setting notation/clef_font_size = 32 (default: 32)
+RENDERER: Using preference setting notation/clef_vertical = 2 (default: 0)
+RENDERER: Using preference setting notation/clef_horizontal = -2 (default: 0)
+RENDERER: Using preference setting notation/clef_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/time_sig_font_size = 24 (default: 24)
+RENDERER: Using preference setting notation/time_sig_vertical = 1 (default: 0)
+RENDERER: Using preference setting notation/time_sig_horizontal = -10 (default: 40)
+RENDERER: Using preference setting notation/time_sig_spacing = 15 (default: 18)
+RENDERER: Using preference setting notation/time_sig_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/key_sig_font_size = 14 (default: 14)
+RENDERER: Using preference setting notation/key_sig_vertical = 0 (default: 0)
+RENDERER: Using preference setting notation/key_sig_horizontal = 75 (default: 75)
+RENDERER: Using preference setting notation/key_sig_accidental_spacing = 13 (default: 12)
+RENDERER: Using preference setting notation/key_sig_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/directions_font_size = 10 (default: 11)
+RENDERER: Using preference setting notation/directions_vertical = 10 (default: 30)
+RENDERER: Using document setting notation/measure_numbers_font_size = 12
+RENDERER: Using document setting notation/measure_numbers_font_color = #e8161a
+RENDERER: Using document setting notation/barline_number_font_size = 10
+RENDERER: Using document setting notation/barline_numbers_font_color = #229c00
+RENDERER: Loaded notation settings - staff_name_color: #0e4ba0, section_name_color: #d67d10, clef_color: #000000, time_sig_color: #000000, key_sig_color: #000000
+RENDERER: Color settings loaded - clef: #000000, time_sig: #000000, key_sig: #000000
+RENDERER: Document settings available: ['notation/max_measures_per_system', 'layout/default_measures_per_system', 'notation/show_measure_numbers', 'notation/measure_number_frequency', 'notation/measure_number_position', 'notation/measure_numbers_vertical', 'notation/measure_numbers_custom_interval', 'notation/measure_numbers_font_size', 'notation/measure_numbers_vertical_offset', 'notation/measure_numbers_horizontal_offset', 'notation/measure_numbers_font_color', 'notation/barline_numbering', 'notation/barline_number_font_size', 'notation/barline_number_vertical_offset', 'notation/barline_number_horizontal_offset', 'notation/barline_numbers_font_color']
+RENDERER DEBUG: staff_name_font_color attribute exists: #0e4ba0
+RENDERER DEBUG: section_name_font_color attribute exists: #d67d10
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+RENDERER: Initialized measure number manager with document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x107638740>, filename=None, is_modified=False, view_mode='page', zoom_level=1.0)
+RENDERER: Settings loaded: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=17, horizontal_offset=3, font_size=12, font_color='#e8161a', enabled=True)
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+RENDERER: Settings after refresh: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=17, horizontal_offset=3, font_size=12, font_color='#e8161a', enabled=True)
+MAINWINDOW: Updated menu text to '&Edit Mode' and visibility to False
+MAINWINDOW: Updated toolbar text to 'Edit Mode' and visibility to False
+RESIZE_DEBUG: MainWindow resizeEvent called - size: 1200x1077
+RESIZE_DEBUG: Processing resize for document window
+RESIZE_DEBUG: Found staff_view and temporal_bridge
+RESIZE: Preserving renderer page width from preferences on window resize
+RESIZE: Forced staff view update after resize
+STAFFVIEW_RESIZE_DEBUG: StaffView resizeEvent called - size: 1176x1002
+STAFFVIEW_RESIZE: Forcing backup layout refresh for widget resize to 1176x1002
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+STAFFVIEW_RESIZE: Forced update after resize
+STAFFVIEW_RESIZE_DEBUG: StaffView resizeEvent called - size: 1176x923
+STAFFVIEW_RESIZE: Forcing backup layout refresh for widget resize to 1176x923
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+STAFFVIEW_RESIZE: Forced update after resize
+RESIZE_DEBUG: MainWindow resizeEvent called - size: 1200x998
+RESIZE_DEBUG: Processing resize for document window
+RESIZE_DEBUG: Found staff_view and temporal_bridge
+RESIZE: Preserving renderer page width from preferences on window resize
+RESIZE: Forced staff view update after resize
+[DEBUG] ScoreSetupDialog __init__ called, id=4419442064
+=== SCORE_SETUP_DIALOG: Constructor called ===
+=== SCORE_SETUP_DIALOG: Parent type: <class 'src.gui.music.main_window.MainWindow'> ===
+STAFF_COUNT: Updated label to show 0 staves
+[DEBUG] Connecting signals for ScoreSetupWidget id=4419761520
+[DEBUG] Dialog id: 4419442064
+[DEBUG] Dialog on_staff_added method: <bound method ScoreSetupDialog.on_staff_added of <src.gui.music.score_setup_dialog.ScoreSetupDialog object at 0x1076b5590>>
+[DEBUG] Connected staff_added signal
+[DEBUG] staff_added signal connected successfully
+[DEBUG] Connected staff_removed signal
+[DEBUG] Connected staff_visibility_changed signal
+[DEBUG] Connected staff_options_changed signal
+[DEBUG] Connected staff_reordered signal
+[DEBUG] Connected setup_completed signal
+Dialog init: Starting staff population
+POPULATE: No staves found in dialog_settings, attempting to populate from document structure
+POPULATE: Got document from parent.staff_view
+Populating staff list from document structure...
+Retrieved 0 sections from document
+Dialog init: Population complete, staff count = 0
+[DEBUG] ScoreSetupDialog __init__ complete, id=4419442064
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing edit mode white background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing edit mode white background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+[DEBUG] add_generic_staff called: staff_type=grand
+[DEBUG] Button clicked - adding grand staff
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 1)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4', 'custom_name': 'Part'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4', 'custom_name': 'Part'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4', 'custom_name': 'Part'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 2)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+[DEBUG] add_generic_staff emitting staff_added signal: part, grand_staff, 0
+[DEBUG] About to emit staff_added signal from widget
+[DEBUG] on_staff_added called
+[DEBUG] Dialog id: 4419442064
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent type: <class 'src.gui.music.main_window.MainWindow'>
+[DEBUG] Received signal: instrument_id=part, staff_type=grand_staff, index=0
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+ADDED: Staff part of type grand_staff at index 0
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 3)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+[DEBUG] staff_added signal emitted successfully
+STAFF_COUNT: Updated label to show 1 staves
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 4)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 5)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 6)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 7)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+STAFF ATTRIBUTES: Updated staff name to 'Part'
+[DEBUG] ScoreSetupWidget emitting staff_options_changed signal: 0, {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] on_staff_options_changed called
+[DEBUG] Received signal: index=0, settings={'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+[DEBUG] Dialog parent: <src.gui.music.main_window.MainWindow object at 0x1075639d0>
+[DEBUG] Dialog parent.staff_view: <src.gui.music.staff_view.StaffView object at 0x107666990>
+OPTIONS CHANGED: Staff at index 0 settings updated: {'clef': 'treble', 'custom_name': 'Part', 'instrument_abbr': 'PAR', 'instrument_id': 'part', 'instrument_name': 'Part', 'key': 'C major / A minor (no sharps/flats)', 'plugin': 'Default', 'real_instrument_type': 'Piano', 'section': '', 'staff_type': 'grand_staff', 'time_signature': '4/4'}
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+===== APPLY_CHANGES_IMMEDIATE: Applying changes immediately =====
+IMMEDIATE: Got document from parent.staff_view
+IMMEDIATE: Updated document with 1 staves
+IMMEDIATE: Forcing staff view to apply setup options and enter setup mode
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 8)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: Forcing setup mode
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs', 'force_setup_mode']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Set setup mode to True
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+IMMEDIATE: Forced staff view update (setup mode)
+===== APPLY_CHANGES_IMMEDIATE: Changes applied =====
+SETUP WIDGET: _on_any_setting_changed called
+SETUP WIDGET: Signal handlers will handle immediate rendering
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: 'Part' 16px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+  0. Staff: Part, y_position=102
+
+RENDERER: Final rendering order based on y_position:
+  0. Staff: Part, y_pos=102
+GRAND_STAFF: Starting to render grand staff with universal pagination
+GRAND_STAFF: Top staff type: SingleStaff, Bottom staff type: SingleStaff
+GRAND_STAFF: Original positions - top: 102, bottom: 174
+SYSTEM_MANAGER: Calculated system_spacing=80, staff_spacing=80, measures_per_system=5
+GRAND_STAFF: Will render systems [0] out of 1 total systems
+GRAND_STAFF: Using spacing of 32px (4 staff lines)
+GRAND_STAFF: Rendering system 0
+SYSTEM_MANAGER: System 0 -> page 0, local 0, shift 0
+GRAND_STAFF: System 0 positions - top: 102, bottom: 166
+GRAND_STAFF: System 0 brace: 102 to 198
+GRAND_STAFF: Drawing brace for system 0
+GRAND_STAFF DEBUG: Brace positions - top: 86, bottom: 198
+GRAND_STAFF DEBUG: Brace height: 113.0
+GRAND_STAFF DEBUG: Drawing brace at position (77.0, 199.0) with font size 96.05
+GRAND_STAFF: Brace rendered using SMuFL glyph
+GRAND_STAFF: Brace rendering completed
+GRAND_STAFF: Rendering top staff for system 0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+[CLEF DEBUG] Staff Part has clef type 'treble'
+[CLEF DEBUG] Rendering clef for Part, clef type is 'treble'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned treble clef 0.5 lines below 4th line from top: y=128.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef treble at x=95, y=128.0 for staff Part
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'treble'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+Setting time_sig_x=137 with spacing=0 for key= on system 0
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+MPS: Using measures_per_line=5
+STAFF_LINES: system_idx=0, local_idx=0, spacing_pref=80, staff_base=102, staff_y_used=102.0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+[CLEF DEBUG] Staff Part has clef type 'treble'
+[CLEF DEBUG] Rendering clef for Part, clef type is 'treble'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned treble clef 0.5 lines below 4th line from top: y=128.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef treble at x=95, y=128.0 for staff Part
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'treble'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+GRAND_STAFF: Rendering bottom staff for system 0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+!!!!! BASS CLEF DETECTED for Part !!!!!
+!!!!! Staff object ID: 5077932208 !!!!!
+!!!!! Instrument ID: part !!!!!
+[CLEF DEBUG] Rendering clef for Part, clef type is 'bass'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned bass clef 0.5 lines below 2nd line from top: y=177.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef bass at x=95, y=177.0 for staff Part
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'bass'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+Setting time_sig_x=137 with spacing=0 for key= on system 0
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+MPS: Using measures_per_line=5
+STAFF_LINES: system_idx=0, local_idx=0, spacing_pref=80, staff_base=166, staff_y_used=166.0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+!!!!! BASS CLEF DETECTED for Part !!!!!
+!!!!! Staff object ID: 5077932208 !!!!!
+!!!!! Instrument ID: part !!!!!
+[CLEF DEBUG] Rendering clef for Part, clef type is 'bass'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned bass clef 0.5 lines below 2nd line from top: y=177.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef bass at x=95, y=177.0 for staff Part
+Traceback (most recent call last):
+  File "/Users/gilidor/Projects/New-ONOTE/src/gui/music/score_renderer.py", line 700, in render_score
+    self._render_connecting_barlines(painter)
+  File "/Users/gilidor/Projects/New-ONOTE/src/gui/music/score_renderer.py", line 3179, in _render_connecting_barlines
+    system_indices = sorted(systems_to_positions.keys()) if systems_to_positions else [0]
+                                                            ^^^^^^^^^^^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'systems_to_positions' where it is not associated with a value
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'bass'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+GRAND_STAFF: Rendering measures for system 0
+STAFF_LINES: system_idx=0, local_idx=0, spacing_pref=80, staff_base=102, staff_y_used=102.0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+[CLEF DEBUG] Staff Part has clef type 'treble'
+[CLEF DEBUG] Rendering clef for Part, clef type is 'treble'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned treble clef 0.5 lines below 4th line from top: y=128.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef treble at x=95, y=128.0 for staff Part
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'treble'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+BARLINES: Rendering connecting barlines
+Calculated initial elements width: 105px for key: C major / A minor (no sharps/flats), with additional spacing: 0
+BARLINES: Drawing barline 0 at x=87.0 from y=102 to y=206
+BARLINE_0_NUMBERS: Settings loaded - enabled: True, font_size: 10, color: #229c00
+BARLINE_0_NUMBERS: Using document settings - vertical: -3, horizontal: -3
+BARLINE_NUMBERS: Drew barline number 0 at position (84.0, 99) using offsets - vertical: -3, horizontal: -3
+Error rendering score: cannot access local variable 'systems_to_positions' where it is not associated with a value
+===== ACCEPT: Dialog closing - applying changes and closing =====
+===== APPLY_SETTINGS: Starting apply process without closing =====
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+GET_OPTIONS: Got document from parent.staff_view
+Retrieved 0 sections from document for options
+Retrieved 1 plugins from document for options
+Created options with 0 sections and 1 plugins
+===== APPLY_SETTINGS: Applying changes =====
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+SETUP WIDGET: Applying changes with the following staves:
+  - Part with clef=treble
+SETUP WIDGET: Section map contains 0 entries:
+SETUP WIDGET: Completed applying all changes
+===== APPLY_SETTINGS: Always switching to edit mode =====
+===== APPLY_SETTINGS: Applying changes to parent.staff_view and switching to edit mode =====
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 9)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Updated Part plugin to Default from plugin_map
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to True
+APPLY_SETUP: Forcing 5 measures for setup mode display
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is True
+===== APPLY_SETTINGS: Switching to edit mode =====
+STAFFVIEW: Switching to EDIT mode (white)
+STAFFVIEW: Explicitly set document layout mode to EDIT
+STAFFVIEW: Entered edit mode, is_setup_mode is now False
+STAFFVIEW: ENTER_EDIT_MODE - FORCING interface update
+STAFFVIEW: ENTER_EDIT_MODE - Parent type: <class 'PyQt6.QtWidgets.QWidget'>
+STAFFVIEW: ENTER_EDIT_MODE - Parent has update_mode_interface_text: False
+STAFFVIEW: ENTER_EDIT_MODE - Method 2: Calling grandparent.update_mode_interface_text()
+MAINWINDOW: Updated menu text to '&Score Setup' and visibility to True
+MAINWINDOW: Updated toolbar text to 'Score Setup' and visibility to True
+STAFFVIEW: ENTER_EDIT_MODE - Method 2: SUCCESS - Called grandparent.update_mode_interface_text()
+STAFFVIEW: Applying current staff structure from dialog settings
+STAFFVIEW: Clearing document layout before rebuilding
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 10)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to False
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is False
+GET_CURRENT_STAFF_IDS: Found 1 staff IDs: ['part']
+STAFFVIEW: Current staves after applying dialog settings: ['part']
+STAFFVIEW: Document has 0 sections after entering edit mode
+MEASURE_MANAGER: Using document layout - page_width=793, right_margin=49
+MEASURE_MANAGER: Initializing with document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x107638740>, filename=None, is_modified=True, view_mode='page', zoom_level=1.0)
+MEASURE_MANAGER: Available width: 707px (page=793, margins=L37+R49)
+MEASURE_MANAGER: Document already has measures or document is None
+STAFFVIEW: Document measures before check: {}
+STAFFVIEW: Measure manager initialized - no automatic measures (created on first user click)
+STAFFVIEW: Initialized measure manager - ready for user-created barlines
+STAFFVIEW: Connected temporal bridge to MeasureManager for responsive layout
+STAFFVIEW: Connected temporal bridge with MeasureManager integration
+STAFFVIEW: Temporal bridge check - hasattr: True, bridge: <src.gui.music.barline_temporal_bridge.BarlineTemporalBridge object at 0x107680370>
+STAFFVIEW: Calling temporal bridge enter_edit_mode to create initial measure
+
+=== ENTERING EDIT MODE ===
+Creating initial batch of measures filling first system
+BRIDGE: Loaded measures per system: 5
+BRIDGE: Loaded layout settings - auto_justify: True, dynamic_width: True
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+EDIT_MODE: Initial system end at x=744.0; measures per system=5
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+BRIDGE: Created measure object #1: x_position=210.0, end_x=316.8, width=106.80000000000001, type=single
+EDIT_MODE: Created initial measure #1: start=210.0, end=316.8
+BRIDGE: Created measure object #2: x_position=316.8, end_x=423.6, width=106.80000000000001, type=single
+EDIT_MODE: Created initial measure #2: start=316.8, end=423.6
+BRIDGE: Created measure object #3: x_position=423.6, end_x=530.4, width=106.79999999999995, type=single
+EDIT_MODE: Created initial measure #3: start=423.6, end=530.4
+BRIDGE: Created measure object #4: x_position=530.4, end_x=637.2, width=106.80000000000007, type=single
+EDIT_MODE: Created initial measure #4: start=530.4, end=637.2
+BRIDGE: Created measure object #5: x_position=637.2, end_x=744.0, width=106.79999999999995, type=single
+EDIT_MODE: Created initial measure #5: start=637.2, end=744.0
+EDIT_MODE: Forcing layout refresh to enable dynamic resizing
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+BRIDGE: No form widget found to sync
+EDIT_MODE: Initial batch creation complete
+EDIT_MODE: Ready for user to create additional measures by clicking on staff
+EDIT_MODE: Dynamic resizing is now enabled
+=== EDIT MODE ENTRY COMPLETE ===
+
+STAFFVIEW: Successfully called temporal bridge enter_edit_mode
+STAFFVIEW: Forcing layout refresh after entering edit mode
+STAFFVIEW: Keeping renderer page size from preferences on enter_edit_mode
+STAFFVIEW: Forcing temporal bridge layout refresh
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+STAFFVIEW: Refreshed measure number settings on enter_edit_mode
+BRIDGE: Ensuring all measures use justified positioning
+BRIDGE: Detected non-monotonic measure positions [272.66666666666663, 508.33333333333326, 743.9999999999999, 390.5, 744.0] — enforcing justified grid
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Repaired measure #1 end_x 272.66666666666663 → 316.8
+BRIDGE: Repaired measure #2 end_x 508.33333333333326 → 423.6
+BRIDGE: Repaired measure #3 end_x 743.9999999999999 → 530.4
+BRIDGE: Repaired measure #4 end_x 390.5 → 637.2
+BRIDGE: Repaired measure #5 end_x 744.0 → 744.0
+BRIDGE: _get_current_measures found 5 valid measures out of 5 total items
+BRIDGE: Measure numbers in order: [1, 2, 3, 4, 5]
+BRIDGE: Justifying 5 measures
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Updated measure #1 - end_x: 316.8 → 316.8, notation_width: 106.80000000000001
+BRIDGE: Updated measure #2 - end_x: 423.6 → 423.6, notation_width: 106.80000000000001
+BRIDGE: Updated measure #3 - end_x: 530.4 → 530.4, notation_width: 106.79999999999995
+BRIDGE: Updated measure #4 - end_x: 637.2 → 637.2, notation_width: 106.80000000000007
+BRIDGE: Updated measure #5 - end_x: 744.0 → 744.0, notation_width: 106.79999999999995
+BRIDGE: Justified positioning applied to 5 measures
+STAFFVIEW: Ensured all measures justified before initial paint
+STAFFVIEW: Forcing UI update in edit mode
+STAFFVIEW: Preserving renderer page size after entering edit mode
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+STAFFVIEW: Forced layout refresh in temporal bridge after entering edit mode
+STAFFVIEW: Forcing UI update in edit mode
+===== APPLY_SETTINGS: Edit mode activated =====
+===== APPLY_SETTINGS: Updated toggle button text to 'Score Setup' =====
+===== APPLY_SETTINGS: Apply process completed - dialog remains open =====
+===== DIALOG DONE: Handling dialog completion with result 1 =====
+===== DIALOG DONE: Dialog was ACCEPTED, applying changes =====
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+GET_OPTIONS: Got document from parent.staff_view
+Retrieved 0 sections from document for options
+Retrieved 1 plugins from document for options
+Created options with 0 sections and 1 plugins
+===== DIALOG DONE: Ensuring changes are applied before closing =====
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+SETUP WIDGET: Applying changes with the following staves:
+  - Part with clef=treble
+SETUP WIDGET: Section map contains 0 entries:
+SETUP WIDGET: Completed applying all changes
+===== DIALOG DONE: Applying changes to parent.staff_view and switching to edit mode =====
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+UNDO_SYSTEM: Failed to deep copy measures, using fallback: cannot pickle 'StaffView' object
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 11)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Updated Part plugin to Default from plugin_map
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to False
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is False
+===== DIALOG DONE: Switching to edit mode =====
+STAFFVIEW: Switching to EDIT mode (white)
+STAFFVIEW: Entered edit mode, is_setup_mode is now False
+STAFFVIEW: ENTER_EDIT_MODE - FORCING interface update
+STAFFVIEW: ENTER_EDIT_MODE - Parent type: <class 'PyQt6.QtWidgets.QWidget'>
+STAFFVIEW: ENTER_EDIT_MODE - Parent has update_mode_interface_text: False
+STAFFVIEW: ENTER_EDIT_MODE - Method 2: Calling grandparent.update_mode_interface_text()
+MAINWINDOW: Updated menu text to '&Score Setup' and visibility to True
+MAINWINDOW: Updated toolbar text to 'Score Setup' and visibility to True
+STAFFVIEW: ENTER_EDIT_MODE - Method 2: SUCCESS - Called grandparent.update_mode_interface_text()
+STAFFVIEW: Applying current staff structure from dialog settings
+STAFFVIEW: Clearing document layout before rebuilding
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+UNDO_SYSTEM: Failed to deep copy measures, using fallback: cannot pickle 'StaffView' object
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 12)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to False
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is False
+GET_CURRENT_STAFF_IDS: Found 1 staff IDs: ['part']
+STAFFVIEW: Current staves after applying dialog settings: ['part']
+STAFFVIEW: Document has 0 sections after entering edit mode
+MEASURE_MANAGER: Using document layout - page_width=793, right_margin=49
+MEASURE_MANAGER: Initializing with document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x107638740>, filename=None, is_modified=True, view_mode='page', zoom_level=1.0)
+MEASURE_MANAGER: Available width: 707px (page=793, margins=L37+R49)
+MEASURE_MANAGER: Document has measures attribute: True
+MEASURE_MANAGER: Document measures: {1: <src.gui.music.measure_object.MeasureObject object at 0x10764c950>, 2: <src.gui.music.measure_object.MeasureObject object at 0x10762ea20>, 3: <src.gui.music.measure_object.MeasureObject object at 0x12eaa2b40>, 4: <src.gui.music.measure_object.MeasureObject object at 0x12eaa1880>, 5: <src.gui.music.measure_object.MeasureObject object at 0x12eaa14c0>}
+MEASURE_MANAGER: Synced 5 measures from document
+STAFFVIEW: Document measures before check: {1: <src.gui.music.measure_object.MeasureObject object at 0x10764c950>, 2: <src.gui.music.measure_object.MeasureObject object at 0x10762ea20>, 3: <src.gui.music.measure_object.MeasureObject object at 0x12eaa2b40>, 4: <src.gui.music.measure_object.MeasureObject object at 0x12eaa1880>, 5: <src.gui.music.measure_object.MeasureObject object at 0x12eaa14c0>}
+STAFFVIEW: Measure manager initialized - no automatic measures (created on first user click)
+STAFFVIEW: Initialized measure manager - ready for user-created barlines
+STAFFVIEW: Connected temporal bridge to MeasureManager for responsive layout
+STAFFVIEW: Connected temporal bridge with MeasureManager integration
+STAFFVIEW: Temporal bridge check - hasattr: True, bridge: <src.gui.music.barline_temporal_bridge.BarlineTemporalBridge object at 0x107680370>
+STAFFVIEW: Calling temporal bridge enter_edit_mode to create initial measure
+
+=== ENTERING EDIT MODE ===
+Creating initial batch of measures filling first system
+BRIDGE: Loaded measures per system: 5
+BRIDGE: Loaded layout settings - auto_justify: True, dynamic_width: True
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+EDIT_MODE: Initial system end at x=744.0; measures per system=5
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+BRIDGE: Created measure object #1: x_position=210.0, end_x=316.8, width=106.80000000000001, type=single
+EDIT_MODE: Created initial measure #1: start=210.0, end=316.8
+BRIDGE: Created measure object #2: x_position=316.8, end_x=423.6, width=106.80000000000001, type=single
+EDIT_MODE: Created initial measure #2: start=316.8, end=423.6
+BRIDGE: Created measure object #3: x_position=423.6, end_x=530.4, width=106.79999999999995, type=single
+EDIT_MODE: Created initial measure #3: start=423.6, end=530.4
+BRIDGE: Created measure object #4: x_position=530.4, end_x=637.2, width=106.80000000000007, type=single
+EDIT_MODE: Created initial measure #4: start=530.4, end=637.2
+BRIDGE: Created measure object #5: x_position=637.2, end_x=744.0, width=106.79999999999995, type=single
+EDIT_MODE: Created initial measure #5: start=637.2, end=744.0
+EDIT_MODE: Forcing layout refresh to enable dynamic resizing
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+BRIDGE: No form widget found to sync
+EDIT_MODE: Initial batch creation complete
+EDIT_MODE: Ready for user to create additional measures by clicking on staff
+EDIT_MODE: Dynamic resizing is now enabled
+=== EDIT MODE ENTRY COMPLETE ===
+
+STAFFVIEW: Successfully called temporal bridge enter_edit_mode
+STAFFVIEW: Forcing layout refresh after entering edit mode
+STAFFVIEW: Keeping renderer page size from preferences on enter_edit_mode
+STAFFVIEW: Forcing temporal bridge layout refresh
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+STAFFVIEW: Refreshed measure number settings on enter_edit_mode
+BRIDGE: Ensuring all measures use justified positioning
+BRIDGE: Detected non-monotonic measure positions [272.66666666666663, 508.33333333333326, 743.9999999999999, 390.5, 744.0] — enforcing justified grid
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Repaired measure #1 end_x 272.66666666666663 → 316.8
+BRIDGE: Repaired measure #2 end_x 508.33333333333326 → 423.6
+BRIDGE: Repaired measure #3 end_x 743.9999999999999 → 530.4
+BRIDGE: Repaired measure #4 end_x 390.5 → 637.2
+BRIDGE: Repaired measure #5 end_x 744.0 → 744.0
+BRIDGE: _get_current_measures found 5 valid measures out of 5 total items
+BRIDGE: Measure numbers in order: [1, 2, 3, 4, 5]
+BRIDGE: Justifying 5 measures
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Updated measure #1 - end_x: 316.8 → 316.8, notation_width: 106.80000000000001
+BRIDGE: Updated measure #2 - end_x: 423.6 → 423.6, notation_width: 106.80000000000001
+BRIDGE: Updated measure #3 - end_x: 530.4 → 530.4, notation_width: 106.79999999999995
+BRIDGE: Updated measure #4 - end_x: 637.2 → 637.2, notation_width: 106.80000000000007
+BRIDGE: Updated measure #5 - end_x: 744.0 → 744.0, notation_width: 106.79999999999995
+BRIDGE: Justified positioning applied to 5 measures
+STAFFVIEW: Ensured all measures justified before initial paint
+STAFFVIEW: Forcing UI update in edit mode
+STAFFVIEW: Preserving renderer page size after entering edit mode
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 744.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+BRIDGE: Recalculating 5 measures for new page layout (dynamic justification)
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Measure 1 justified from 210.0 to 316.8
+BRIDGE: Measure 2 justified from 316.8 to 423.6
+BRIDGE: Measure 3 justified from 423.6 to 530.4
+BRIDGE: Measure 4 justified from 530.4 to 637.2
+BRIDGE: Measure 5 justified from 637.2 to 744.0
+BRIDGE: Forced staff view update after layout refresh
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: Processing 5 justifiable measures (filtered out 0 dashed barlines)
+SYSTEM_WRAP: System 0 width exceeded (640.0 > 636.3000000000001)
+JUSTIFY: System 0 justified 3 measures across 707px
+JUSTIFY: Measure 1 - start_x=37, end_x=272.66666666666663, width=235.66666666666666
+JUSTIFY: Measure 2 - start_x=272.66666666666663, end_x=508.33333333333326, width=235.66666666666666
+JUSTIFY: Measure 3 - start_x=508.33333333333326, end_x=743.9999999999999, width=235.66666666666666
+JUSTIFY: System 1 justified 2 measures across 707px
+JUSTIFY: Measure 4 - start_x=37, end_x=390.5, width=353.5
+JUSTIFY: Measure 5 - start_x=390.5, end_x=744.0, width=353.5
+LAYOUT: Updated measure 1 to system 0, page 0
+LAYOUT: Updated measure 2 to system 0, page 0
+LAYOUT: Updated measure 3 to system 0, page 0
+LAYOUT: Updated measure 4 to system 1, page 0
+LAYOUT: Updated measure 5 to system 1, page 0
+LAYOUT: Syncing 5 measures back to document
+LAYOUT: Synced measure 1 (end_x=272.66666666666663) to document dict
+LAYOUT: Synced measure 2 (end_x=508.33333333333326) to document dict
+LAYOUT: Synced measure 3 (end_x=743.9999999999999) to document dict
+LAYOUT: Synced measure 4 (end_x=390.5) to document dict
+LAYOUT: Synced measure 5 (end_x=744.0) to document dict
+LAYOUT_ENGINE: Complete layout calculated - 2 systems, 5 measures
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+STAFFVIEW: Forced layout refresh in temporal bridge after entering edit mode
+STAFFVIEW: Forcing UI update in edit mode
+===== DIALOG DONE: Edit mode activated =====
+===== DIALOG DONE: Updated toggle button text to 'Score Setup' =====
+PRESERVE_CLEF: Using stored clef 'treble' for Part instead of display 'Treble/Bass'
+CLEF_MAP: Using stored clef 'treble' for part
+GET_OPTIONS: Got document from parent.staff_view
+Retrieved 0 sections from document for options
+Retrieved 1 plugins from document for options
+Created options with 0 sections and 1 plugins
+[DEBUG] StaffView.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+UNDO_SYSTEM: Failed to deep copy measures, using fallback: cannot pickle 'StaffView' object
+UNDO_SYSTEM: Saved state - Apply Setup Changes (Stack size: 13)
+UNDO: Saved state before applying setup changes
+APPLY_SETUP: preserve_staff_types = True
+APPLY_SETUP: Updated document section_map with 0 entries
+APPLY_SETUP: Updated document staff_type_map with 1 entries
+APPLY_SETUP: Updated document plugin_map with 1 entries
+APPLY_SETUP: Updated staff object Part plugin to Default
+APPLY_SETUP: Updated Part plugin to Default from plugin_map
+APPLY_SETUP: Resetting document layout to ensure removed staves don't persist
+APPLY_SETUP: Explicitly set document layout setup mode to False
+[DEBUG] ScoreDocument.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+[DEBUG] ScoreLayout.apply_setup_options called with options: ['added_staves', 'section_map', 'clef_map', 'staff_type_map', 'plugin_map', 'section_display_order', 'has_unapplied_changes', 'staff_spacing', 'system_spacing', 'measures_per_system', 'preserve_staff_types', 'preserve_clefs']
+LAYOUT: Received section_display_order with 0 entries
+Preserved notation settings for 0 staves before rebuild
+CREATING BASS CLEF STAFF: 'Part' (ID: part)
+
+LAYOUT: Section staves before creating section objects:
+
+LAYOUT: Created sections before sorting:
+
+LAYOUT: Sections after sorting:
+LAYOUT: Section order before _update_positions:
+
+LAYOUT: Final section order verification:
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+  0. Staff: Part - Order: 0
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+  0. Staff: Part at y=102
+[DEBUG] ScoreLayout: _update_positions called
+APPLY_SETUP: Document now has 1 total staves
+APPLY_SETUP: Document layout setup mode is False
+PAINT: Drawing EDIT mode white background
+PAGE_RENDER: Rendering in page down mode
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: 'Part' 16px, longest section: '' 0px)
+RENDERER: Drawing edit mode white background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+  0. Staff: Part, y_position=102
+
+RENDERER: Final rendering order based on y_position:
+  0. Staff: Part, y_pos=102
+GRAND_STAFF: Starting to render grand staff with universal pagination
+GRAND_STAFF: Top staff type: SingleStaff, Bottom staff type: SingleStaff
+GRAND_STAFF: Original positions - top: 102, bottom: 174
+SYSTEM_MANAGER: Calculated system_spacing=80, staff_spacing=80, measures_per_system=5
+GRAND_STAFF: Will render systems [0] out of 1 total systems
+GRAND_STAFF: Using spacing of 32px (4 staff lines)
+GRAND_STAFF: Rendering system 0
+SYSTEM_MANAGER: System 0 -> page 0, local 0, shift 0
+GRAND_STAFF: System 0 positions - top: 102, bottom: 166
+GRAND_STAFF: System 0 brace: 102 to 198
+GRAND_STAFF: Drawing brace for system 0
+GRAND_STAFF DEBUG: Brace positions - top: 86, bottom: 198
+GRAND_STAFF DEBUG: Brace height: 113.0
+GRAND_STAFF DEBUG: Drawing brace at position (77.0, 199.0) with font size 96.05
+GRAND_STAFF: Brace rendered using SMuFL glyph
+GRAND_STAFF: Brace rendering completed
+GRAND_STAFF: Rendering top staff for system 0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+[CLEF DEBUG] Staff Part has clef type 'treble'
+[CLEF DEBUG] Rendering clef for Part, clef type is 'treble'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned treble clef 0.5 lines below 4th line from top: y=128.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef treble at x=95, y=128.0 for staff Part
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'treble'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+Setting time_sig_x=137 with spacing=0 for key= on system 0
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+MPS: Using measures_per_line=5
+STAFF_LINES: system_idx=0, local_idx=0, spacing_pref=80, staff_base=102, staff_y_used=102.0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+RENDERER: Found 5 user-created measures to render
+STAFF_SPAN: sys=0 left=87.0 first_meas_x=210.0 unit=106.8 num=5 prog_end=744.0
+STAFF_SPAN: sys=0 final=True staff_end_x=744.0
+STAFF_LINES: top_line_y=102.0, bottom_line_y=134.0
+GRAND_STAFF: Rendering bottom staff for system 0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+!!!!! BASS CLEF DETECTED for Part !!!!!
+!!!!! Staff object ID: 4418936160 !!!!!
+!!!!! Instrument ID: part !!!!!
+[CLEF DEBUG] Rendering clef for Part, clef type is 'bass'
+[DEBUG] Found notation_settings on staff Part
+[CLEF RENDER] Using pre-calculated clef position: 95 (with horizontal offset: -2)
+[CLEF RENDER] Positioned bass clef 0.5 lines below 2nd line from top: y=177.0 (with vertical offset: 2)
+[CLEF RENDER] Rendering clef bass at x=95, y=177.0 for staff Part
+[CLEF RENDER] Using color #000000 for clef
+[CLEF RENDER] Drawing clef symbol: '' for clef type 'bass'
+[KEY SIG RENDER] Using color #000000 for key signature
+[KEY SIG RENDER] Using pre-calculated key signature position: 212 (with horizontal offset: 75)
+Setting time_sig_x=137 with spacing=0 for key= on system 0
+[TIME SIG RENDER] Using color #000000 for time signature
+[TIME SIG RENDER] Using pre-calculated time signature position: 127 (with horizontal offset: -10)
+MPS: Using measures_per_line=5
+STAFF_LINES: system_idx=0, local_idx=0, spacing_pref=80, staff_base=166, staff_y_used=166.0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+RENDERER: Found 5 user-created measures to render
+STAFF_SPAN: sys=0 left=87.0 first_meas_x=210.0 unit=106.8 num=5 prog_end=744.0
+STAFF_SPAN: sys=0 final=True staff_end_x=744.0
+STAFF_LINES: top_line_y=166.0, bottom_line_y=198.0
+GRAND_STAFF: Rendering measures for system 0
+STAFF_LINES: system_idx=0, local_idx=0, spacing_pref=80, staff_base=102, staff_y_used=102.0
+Calculated initial elements width: 105px for key: , with additional spacing: 0
+RENDERER: Found 5 user-created measures to render
+STAFF_SPAN: sys=0 left=87.0 first_meas_x=210.0 unit=106.8 num=5 prog_end=744.0
+STAFF_SPAN: sys=0 final=True staff_end_x=744.0
+STAFF_LINES: top_line_y=102.0, bottom_line_y=134.0
+BARLINES: Rendering connecting barlines
+Calculated initial elements width: 105px for key: C major / A minor (no sharps/flats), with additional spacing: 0
+BARLINES: Drawing barline 0 at x=87.0 from y=102 to y=206
+BARLINE_0_NUMBERS: Settings loaded - enabled: True, font_size: 10, color: #229c00
+BARLINE_0_NUMBERS: Using document settings - vertical: -3, horizontal: -3
+BARLINE_NUMBERS: Drew barline number 0 at position (84.0, 99) using offsets - vertical: -3, horizontal: -3
+BRIDGE: Detected non-monotonic measure positions [272.66666666666663, 508.33333333333326, 743.9999999999999, 390.5, 744.0] — enforcing justified grid
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+SYSTEM_WRAP: Using 5 measures per system
+SYSTEM_WRAP: Need 1 systems for 5 measures
+SYSTEM_WRAP: System 1 will have 5 measures
+SYSTEM_1: Equal space per measure: 106.8px
+SYSTEM_1: Measure 1 barline at 316.8px - notation space: 106.8px
+SYSTEM_1: Measure 2 barline at 423.6px - notation space: 106.8px
+SYSTEM_1: Measure 3 barline at 530.4px - notation space: 106.8px
+SYSTEM_1: Measure 4 barline at 637.2px - notation space: 106.8px
+SYSTEM_1: Measure 5 barline at 744.0px - notation space: 106.8px
+SYSTEM_WRAP: System 1 positions: ['316.8', '423.6', '530.4', '637.2', '744.0']
+SYSTEM_WRAP: ✓ Calculated 5 total positions across 1 systems
+BRIDGE: Repaired measure #1 end_x 272.66666666666663 → 316.8
+BRIDGE: Repaired measure #2 end_x 508.33333333333326 → 423.6
+BRIDGE: Repaired measure #3 end_x 743.9999999999999 → 530.4
+BRIDGE: Repaired measure #4 end_x 390.5 → 637.2
+BRIDGE: Repaired measure #5 end_x 744.0 → 744.0
+BRIDGE: _get_current_measures found 5 valid measures out of 5 total items
+BRIDGE: Measure numbers in order: [1, 2, 3, 4, 5]
+BARLINES: Using temporal bridge, got 5 measures:
+  Measure #1: end_x=316.8
+  Measure #2: end_x=423.6
+  Measure #3: end_x=530.4
+  Measure #4: end_x=637.2
+  Measure #5: end_x=744.0
+BARLINE_0_NUMBERS: Settings loaded - enabled: True, font_size: 10, color: #229c00
+BARLINE_0_NUMBERS: Using document settings - vertical: -3, horizontal: -3
+BARLINE_NUMBERS: Drew barline number 0 at position (84.0, 99) using offsets - vertical: -3, horizontal: -3
+BARLINES: Drawing per-measure barline type=single at x=316.8 for system 0 with top_y=102, bottom_y=206
+BARLINE_NUMBERS: Positioned barline number 1 at (313.8, 99.0) with vertical_shift=0
+BARLINES: Drawing per-measure barline type=single at x=423.6 for system 0 with top_y=102, bottom_y=206
+BARLINE_NUMBERS: Positioned barline number 2 at (420.6, 99.0) with vertical_shift=0
+BARLINES: Drawing per-measure barline type=single at x=530.4 for system 0 with top_y=102, bottom_y=206
+BARLINE_NUMBERS: Positioned barline number 3 at (527.4, 99.0) with vertical_shift=0
+BARLINES: Drawing per-measure barline type=single at x=637.2 for system 0 with top_y=102, bottom_y=206
+BARLINE_NUMBERS: Positioned barline number 4 at (634.2, 99.0) with vertical_shift=0

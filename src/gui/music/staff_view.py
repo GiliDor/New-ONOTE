@@ -1035,14 +1035,11 @@ class StaffView(QWidget):
     
     def _ensure_initial_barline_1(self):
         """
-        Create initial measure #1 with final barline automatically when entering edit mode.
-        According to ONOTE model:
-        - Measure #1 is created automatically when entering edit mode 
-        - Default barline type is 'final' (end bar)
-        - Positioned at right margin of document page
-        - This determines the visual size of measure #1 (full page width)
+\\        Create the initial state in edit mode according to Preferences:
+        - If Initial MPS is enabled, BarlineTemporalBridge.enter_edit_mode handles first-system fill.
+        - If disabled, create a single compact measure with final barline.
         """
-        print("STAFFVIEW: Creating initial measure #1 (with final barline) for edit mode")
+        print("STAFFVIEW: Preparing initial edit-mode state per Initial MPS preference")
         
         # Safety checks
         if not self.document:
@@ -1059,33 +1056,12 @@ class StaffView(QWidget):
             print(f"STAFFVIEW: Document already has {measures_count} measures - skipping initial measure creation")
             return
         
-        # Create initial measure #1 directly (don't use splitting logic)
+        # Defer to temporal bridge enter_edit_mode for actual creation logic
         try:
-            print("STAFFVIEW: Creating initial measure #1 with final barline")
-            
-            # Use the temporal bridge's proper method for creating initial measures
-            if hasattr(self.temporal_bridge, 'measure_manager') and self.temporal_bridge.measure_manager:
-                # Use measure manager for proper layout
-                self.temporal_bridge._ensure_initial_measure_via_manager()
-                print("STAFFVIEW: ✓ Successfully created initial measure #1 via MeasureManager")
-            else:
-                # Fallback to atomic method
-                self.temporal_bridge.create_initial_measure()
-                print("STAFFVIEW: ✓ Successfully created initial measure #1 via atomic method")
-                
-            # Verify the measure was created
-            if hasattr(self.document, 'measures') and self.document.measures:
-                measures_count = len(self.document.measures)
-                print(f"STAFFVIEW: Document now has {measures_count} measures after initial creation")
-                
-                # Set the initial measure to have a 'final' barline type
-                if 1 in self.document.measures:
-                    initial_measure = self.document.measures[1]
-                    initial_measure.barline_type = 'final'
-                    print("STAFFVIEW: Set initial measure #1 barline type to 'final' (end bar)")
-                
+            if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
+                self.temporal_bridge.enter_edit_mode()
         except Exception as e:
-            print(f"STAFFVIEW: Error creating initial measure #1: {e}")
+            print(f"STAFFVIEW: Error initializing initial measures: {e}")
             import traceback
             traceback.print_exc()
     

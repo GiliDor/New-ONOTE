@@ -1507,3 +1507,20 @@ class DesktopWindow(QMainWindow):
         if self.music_page and hasattr(self.music_page, 'staff_view'):
             return self.music_page.staff_view.apply_setup_options(options)
         return False 
+
+
+def main() -> int:
+    """Application entry point for the ONOTE Desktop shell."""
+    app = QApplication(sys.argv)
+    app.setApplicationName("ONOTE")
+    app.setOrganizationName("ONOTE")
+    window = DesktopWindow()
+    # Ensure the window is brought to the front on macOS
+    window.show()
+    window.raise_()
+    window.activateWindow()
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

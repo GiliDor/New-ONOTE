@@ -1,0 +1,502 @@
+Unknown property background-size
+Unknown property background-size
+Unknown property background-size
+Loaded notation constants from /Users/gilidor/.onote/notation_constants.json
+DOCUMENT_INIT: Loaded notation/max_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded layout/default_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/show_measure_numbers = True (type: bool)
+DOCUMENT_INIT: Loaded notation/measure_number_frequency = Every Measure (type: str)
+DOCUMENT_INIT: Loaded notation/measure_number_position = Center (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical = Above System (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_custom_interval = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_size = 12 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical_offset = 17 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_horizontal_offset = 3 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_color = #e8161a (type: str)
+DOCUMENT_INIT: Loaded notation/barline_numbering = True (type: bool)
+DOCUMENT_INIT: Loaded notation/barline_number_font_size = 10 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_vertical_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_horizontal_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_numbers_font_color = #229c00 (type: str)
+DOCUMENT_INIT: Barline color from QSettings: #229c00
+DOCUMENT_INIT: Barline vertical offset from QSettings: -3
+DOCUMENT_INIT: Barline horizontal offset from QSettings: -3
+DOCUMENT: Initialized empty document - no automatic measures and loaded settings from QSettings
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+DOCUMENT_INIT: Applied layout._update_positions() with preferences-based margins and page size
+RENDERER: Warning - Could not load Bravura font from fonts/Bravura.otf
+RENDERER: load_notation_settings() called, document: None
+RENDERER: Using preference setting notation/staff_name_font_size = 15 (default: 10)
+RENDERER: Using preference setting notation/staff_name_vertical = 3 (default: -8)
+RENDERER: Using preference setting notation/staff_name_horizontal = -22 (default: -50)
+RENDERER: Using preference setting notation/staff_name_font_color = #0e4ba0 (default: #000000)
+RENDERER: Using preference setting notation/section_name_font_size = 16 (default: 12)
+RENDERER: Using preference setting notation/section_name_vertical = -6 (default: -10)
+RENDERER: Using preference setting notation/section_name_horizontal = -31 (default: -60)
+RENDERER: Using preference setting notation/section_name_font_color = #d67d10 (default: #000000)
+RENDERER: Using preference setting notation/clef_font_size = 32 (default: 32)
+RENDERER: Using preference setting notation/clef_vertical = 2 (default: 0)
+RENDERER: Using preference setting notation/clef_horizontal = -2 (default: 0)
+RENDERER: Using preference setting notation/clef_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/time_sig_font_size = 25 (default: 24)
+RENDERER: Using preference setting notation/time_sig_vertical = 1 (default: 0)
+RENDERER: Using preference setting notation/time_sig_horizontal = -10 (default: 40)
+RENDERER: Using preference setting notation/time_sig_spacing = 15 (default: 18)
+RENDERER: Using preference setting notation/time_sig_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/key_sig_font_size = 14 (default: 14)
+RENDERER: Using preference setting notation/key_sig_vertical = 0 (default: 0)
+RENDERER: Using preference setting notation/key_sig_horizontal = 75 (default: 75)
+RENDERER: Using preference setting notation/key_sig_accidental_spacing = 13 (default: 12)
+RENDERER: Using preference setting notation/key_sig_font_color = #000000 (default: #000000)
+RENDERER: Using preference setting notation/directions_font_size = 10 (default: 11)
+RENDERER: Using preference setting notation/directions_vertical = 10 (default: 30)
+RENDERER: Using preference setting notation/measure_numbers_font_size = 12 (default: 8)
+RENDERER: Using preference setting notation/measure_numbers_font_color = #e8161a (default: #000000)
+RENDERER: Using preference setting notation/barline_number_font_size = 10 (default: 7)
+RENDERER: Using preference setting notation/barline_numbers_font_color = #229c00 (default: #000000)
+RENDERER: Loaded notation settings - staff_name_color: #0e4ba0, section_name_color: #d67d10, clef_color: #000000, time_sig_color: #000000, key_sig_color: #000000
+RENDERER: Color settings loaded - clef: #000000, time_sig: #000000, key_sig: #000000
+RENDERER: Document settings available: None
+RENDERER DEBUG: staff_name_font_color attribute exists: #0e4ba0
+RENDERER DEBUG: section_name_font_color attribute exists: #d67d10
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = True (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 10 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = -20 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 0 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #000000 (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 10, color: #000000, h_offset: 0, v_offset: -20
+RENDERER: Initialized measure number manager with document: None
+RENDERER: Settings loaded: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=-20, horizontal_offset=0, font_size=10, font_color='#000000', enabled=True)
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = True (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 10 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = -20 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 0 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #000000 (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 10, color: #000000, h_offset: 0, v_offset: -20
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 10, color: #000000, h_offset: 0, v_offset: -20
+RENDERER: Settings after refresh: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=-20, horizontal_offset=0, font_size=10, font_color='#000000', enabled=True)
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = True (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 10 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = -20 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 0 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #000000 (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 10, color: #000000, h_offset: 0, v_offset: -20
+RENDERER: Initialized measure number manager with document: None
+RENDERER: Settings loaded: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=-20, horizontal_offset=0, font_size=10, font_color='#000000', enabled=True)
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: False
+MEASURE_NUMBERS: Using QSettings for notation/show_measure_numbers = True (default: True)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_custom_interval = 5 (default: 5)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical = Above System (default: Above System)
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_size = 10 (default: 10)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_vertical_offset = -20 (default: -20)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_horizontal_offset = 0 (default: 0)
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_font_color = #000000 (default: #000000)
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 10, color: #000000, h_offset: 0, v_offset: -20
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 10, color: #000000, h_offset: 0, v_offset: -20
+RENDERER: Settings after refresh: MeasureNumberSettings(frequency=<MeasureNumberFrequency.EVERY_MEASURE: 'Every Measure'>, custom_interval=5, position=<MeasureNumberPosition.CENTER: 'Center'>, vertical_position=<MeasureNumberVerticalPosition.ABOVE_SYSTEM: 'Above System'>, vertical_offset=-20, horizontal_offset=0, font_size=10, font_color='#000000', enabled=True)
+BRIDGE: Calculated staff end position - page_width=800, right_margin=50, staff_end=750
+BRIDGE: Using dynamic END_BARLINE_X = 750.0 for barline alignment
+BRIDGE: Loaded measures per system: 4
+BRIDGE: Loaded layout settings - auto_justify: True, dynamic_width: False
+BRIDGE: Score starts with NO measures (only barline 0) - per ONOTE specification
+BRIDGE: Measures will be created when user first inserts a barline
+BRIDGE: BarlineTemporalBridge initialized - ready for user barline creation
+DOCUMENT_INIT: Loaded notation/max_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded layout/default_measures_per_system = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/show_measure_numbers = True (type: bool)
+DOCUMENT_INIT: Loaded notation/measure_number_frequency = Every Measure (type: str)
+DOCUMENT_INIT: Loaded notation/measure_number_position = Center (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical = Above System (type: str)
+DOCUMENT_INIT: Loaded notation/measure_numbers_custom_interval = 5 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_size = 12 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_vertical_offset = 17 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_horizontal_offset = 3 (type: int)
+DOCUMENT_INIT: Loaded notation/measure_numbers_font_color = #e8161a (type: str)
+DOCUMENT_INIT: Loaded notation/barline_numbering = True (type: bool)
+DOCUMENT_INIT: Loaded notation/barline_number_font_size = 10 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_vertical_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_number_horizontal_offset = -3 (type: int)
+DOCUMENT_INIT: Loaded notation/barline_numbers_font_color = #229c00 (type: str)
+DOCUMENT_INIT: Barline color from QSettings: #229c00
+DOCUMENT_INIT: Barline vertical offset from QSettings: -3
+DOCUMENT_INIT: Barline horizontal offset from QSettings: -3
+DOCUMENT: Initialized empty document - no automatic measures and loaded settings from QSettings
+LAYOUT: Sections before sorting:
+LAYOUT: Sorted sections for rendering:
+LAYOUT: Combined elements for rendering in order:
+LAYOUT: Final section positions after layout:
+LAYOUT: Final rendering order:
+DOCUMENT_INIT: Applied layout._update_positions() with preferences-based margins and page size
+STAFFVIEW: Created minimal ScoreDocument
+MEASURE_MANAGER: Using document layout - page_width=800.0, right_margin=49
+MEASURE_MANAGER: Initializing with document: ScoreDocument(layout=<src.gui.music.staff_types.ScoreLayout object at 0x114a63d70>, filename=None, is_modified=False, view_mode='page', zoom_level=1.0)
+MEASURE_MANAGER: Available width: 714.0px (page=800.0, margins=L37+R49)
+MEASURE_MANAGER: Document already has measures or document is None
+STAFFVIEW: Document measures before check: {}
+STAFFVIEW: Measure manager initialized - no automatic measures (created on first user click)
+STAFFVIEW: Initialized measure manager - ready for user-created barlines
+STAFFVIEW: Connected temporal bridge to MeasureManager for responsive layout
+STAFFVIEW: Connected temporal bridge with MeasureManager integration
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+Unknown property background-size
+Unknown property background-size
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+RENDERER: Refreshed measure number settings for new document
+RENDERER: Updated page size to 793x1122
+BRIDGE: Forcing layout refresh...
+BRIDGE: Updated END_BARLINE_X from 750.0 to 750.0 (page_width=800.0 - right_margin=50.0)
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: No measures to layout
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Emitted layout change signals
+RENDERER: Triggered layout refresh for margin change
+RENDERER: Applied document layout to renderer (size 793x1122, margins={'left': 37, 'right': 49, 'top': 102, 'bottom': 75})
+STAFFVIEW: Updated temporal bridge with new document reference
+STAFFVIEW_RESIZE_DEBUG: StaffView resizeEvent called - size: 800x1100
+STAFFVIEW_RESIZE: Forcing backup layout refresh for widget resize to 800x1100
+BRIDGE: Forcing layout refresh...
+BRIDGE: Got page_width from staff_view renderer: 793
+BRIDGE: Got right_margin from document layout: 49
+BRIDGE: Updated END_BARLINE_X from 750.0 to 744.0 (page_width=793.0 - right_margin=49.0)
+LAYOUT_ENGINE: Starting complete layout recalculation
+LAYOUT_ENGINE: No measures to layout
+BRIDGE: Triggered measure manager layout recalculation
+BRIDGE: Forced staff view update
+BRIDGE: Emitted layout change signals
+STAFFVIEW_RESIZE: Forced update after resize
+DOCUMENT_SAVE: Saving 16 document settings with file
+STAFFVIEW: Switching to SETUP mode (pink)
+STAFFVIEW: Explicitly set document layout to SETUP mode
+STAFFVIEW: Entered setup mode
+STAFFVIEW: Toggle button should now say 'Edit Mode'
+STAFFVIEW: Built added_staves in proper display order with 0 staves
+STAFFVIEW: Updated dialog_settings with 0 staves
+STAFFVIEW: Updated section_map with 0 sections
+STAFFVIEW: Updated dialog_settings with 0 section display orders
+STAFFVIEW: Updated plugin_map with 0 plugins
+STAFFVIEW: dialog_settings present: True
+STAFFVIEW: dialog has_unapplied_changes: False
+STAFFVIEW: dialog has 0 sections
+STAFFVIEW: dialog has 0 staves
+STAFFVIEW: dialog has 0 section display orders
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+[DEBUG] DesktopWindow creating ScoreSetupDialog, parent type: <class 'src.gui.desktop_window.DesktopWindow'>
+[DEBUG] ScoreSetupDialog __init__ called, id=4641725392
+=== SCORE_SETUP_DIALOG: Constructor called ===
+=== SCORE_SETUP_DIALOG: Parent type: <class 'src.gui.desktop_window.DesktopWindow'> ===
+STAFF_COUNT: Updated label to show 0 staves
+[DEBUG] Connecting signals for ScoreSetupWidget id=4641732592
+[DEBUG] Dialog id: 4641725392
+[DEBUG] Dialog on_staff_added method: <bound method ScoreSetupDialog.on_staff_added of <src.gui.music.score_setup_dialog.ScoreSetupDialog object at 0x114ab1bd0>>
+[DEBUG] Connected staff_added signal
+[DEBUG] staff_added signal connected successfully
+[DEBUG] Connected staff_removed signal
+[DEBUG] Connected staff_visibility_changed signal
+[DEBUG] Connected staff_options_changed signal
+[DEBUG] Connected staff_reordered signal
+[DEBUG] Connected setup_completed signal
+Dialog init: Starting staff population
+POPULATE: No staves found in dialog_settings, attempting to populate from document structure
+POPULATE: Got document from desktop window's music page staff view
+Populating staff list from document structure...
+Retrieved 0 sections from document
+Dialog init: Population complete, staff count = 0
+[DEBUG] ScoreSetupDialog __init__ complete, id=4641725392
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+PAINT: Drawing SETUP mode pink background
+PAGE_RENDER: Rendering in page down mode
+🔄 BARLINE_FIX: Cleared barline number tracking for fresh render
+MEASURE_NUMBERS: Force refreshing settings from QSettings
+MEASURE_NUMBERS: Loading settings with document: True
+MEASURE_NUMBERS: Using document setting for notation/show_measure_numbers = True
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_frequency = Every Measure (default: Every Measure)
+MEASURE_NUMBERS: Set frequency to: Every Measure
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_custom_interval = 5
+MEASURE_NUMBERS: Using QSettings for notation/measure_numbers_position = Center (default: Center)
+MEASURE_NUMBERS: Set position to: Center
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical = Above System
+MEASURE_NUMBERS: Set vertical position to: Above System
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_size = 12
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_vertical_offset = 17
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_horizontal_offset = 3
+MEASURE_NUMBERS: Using document setting for notation/measure_numbers_font_color = #e8161a
+MEASURE_NUMBERS: Final settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+MEASURE_NUMBERS: Refreshed settings - enabled: True, freq: Every Measure, pos: Center, v_pos: Above System, font_size: 12, color: #e8161a, h_offset: 3, v_offset: 17
+Dynamic offsets: Name space: 50px, Barline 0: 50px (longest name: '' 0px, longest section: '' 0px)
+RENDERER: Drawing setup mode pink background
+
+RENDERER: Beginning score rendering
+
+RENDERER: No sections found in document, only rendering ungrouped staves
+
+RENDERER: Ungrouped staves:
+
+RENDERER: Final rendering order based on y_position:
+BARLINES: Rendering connecting barlines
+RENDERER: Score rendering completed successfully
+===== DIALOG DONE: Handling dialog completion with result 0 =====
+===== DIALOG DONE: Dialog was REJECTED, keeping setup mode =====

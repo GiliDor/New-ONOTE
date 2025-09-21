@@ -1,17 +1,24 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    "version": "0.2.0",
-    "configurations": [
-        
-
-
-        {
-            "name": "Launch ONOTE",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/run.py",
-            "console": "integratedTerminal"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ONOTE: Run Dev (Music UI)",
+      "type": "python",
+      "request": "launch",
+      "module": "src.gui.music.main",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "ONOTE: Run Packaged Executable",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_onote_bin.py",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
 } 

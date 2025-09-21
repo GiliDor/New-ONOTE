@@ -26,8 +26,23 @@ if sys.platform == 'darwin':
 project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
-# Import and run the main function
-from src.main import main
+# Import and run the main function with robust path handling
+try:
+    # Primary: new entry under music package
+    from src.gui.music.main import main
+except ModuleNotFoundError:
+    try:
+        # Secondary: older location
+        from src.main import main
+    except ModuleNotFoundError:
+        # Fallback: add src/ directly and import package path
+        src_path = os.path.join(project_root, 'src')
+        if src_path not in sys.path:
+            sys.path.insert(0, src_path)
+        try:
+            from gui.music.main import main
+        except ModuleNotFoundError:
+            from music.main import main
 
 if __name__ == "__main__":
     print("Starting ONOTE application...")

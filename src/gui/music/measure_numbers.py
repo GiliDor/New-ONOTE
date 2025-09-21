@@ -129,7 +129,7 @@ class MeasureNumberRenderer:
             
         return False
     
-    def calculate_position(self, measure_x: float, measure_width: float, staff_y: float, measure_number: int = 1) -> Tuple[float, float]:
+    def calculate_position(self, measure_x: float, measure_width: float, staff_y: float, measure_number: int = 1, fallback_width: Optional[float] = None) -> Tuple[float, float]:
         """Calculate the position for a measure number"""
         # CRITICAL FIX: The measure_x parameter represents the START of the measure (where the measure begins)
         # The position setting determines where within the measure the number appears
@@ -149,7 +149,16 @@ class MeasureNumberRenderer:
             # Position relative to the nearest barline center:
             # We model the barline as infinitely thin and place the number centered between
             # the start and end barlines of this measure, then apply the user offset.
-            center_x = measure_x + (measure_width / 2)
+            # If width is extremely small (e.g., last measure coinciding with final bar),
+            # use a fallback typical width for centering to avoid sitting on the barline.
+            effective_width = measure_width
+            if effective_width is None or effective_width < 10.0:
+                if fallback_width is not None and fallback_width > 0:
+                    effective_width = fallback_width
+                else:
+                    # Conservative minimum visual width
+                    effective_width = 40.0
+            center_x = measure_x + (effective_width / 2)
             x = center_x + self.settings.horizontal_offset
             print(f"MEASURE_NUMBERS: Measure {measure_number} positioned at CENTER: x={measure_x} + width/2={measure_width/2} + offset={self.settings.horizontal_offset} = {x}")
         elif self.settings.position == MeasureNumberPosition.END:
@@ -211,7 +220,16 @@ class MeasureNumberRenderer:
             
             if self.should_display_number(measure_number, system_start_measure):
                 print(f"MEASURE_NUMBERS: Should display measure {measure_number}: True")
-                x, y = self.calculate_position(measure_x, measure_width, staff_y, measure_number)
+                # Provide fallback width as the average of observed widths for robustness
+                fallback = None
+                try:
+                    if len(measures) > 1:
+                        widths = [mw for _, _, mw in measures if mw and mw > 0]
+                        if widths:
+                            fallback = sum(widths) / len(widths)
+                except Exception:
+                    fallback = None
+                x, y = self.calculate_position(measure_x, measure_width, staff_y, measure_number, fallback_width=fallback)
                 
                 # Draw the measure number
                 text = str(measure_number)
@@ -354,9 +372,20 @@ class MeasureNumberManager:
         
     def render_for_staff(self, painter: QPainter, staff_name: str, measures: List, staff_y: float, system_index: int = 0):
         """Render measure numbers for a specific staff using LIVE document coordinates"""
-        # RESTRUCTURE: Skip rendering if no measures exist (empty document)
+        # Skip rendering if no measures or no staves exist (e.g., entering Edit with no parts)
         if not measures:
             print(f"MEASURE_NUMBERS: No measures in document - skipping (empty document)")
+            return
+        # Ensure there is at least one staff to anchor vertical positioning
+        try:
+            has_staffs = bool(self.document and hasattr(self.document, 'layout') and (
+                (hasattr(self.document.layout, 'ungrouped_staves') and self.document.layout.ungrouped_staves) or
+                (hasattr(self.document.layout, 'sections') and any(getattr(sec, 'staves', []) for sec in self.document.layout.sections))
+            ))
+        except Exception:
+            has_staffs = False
+        if not has_staffs:
+            print("MEASURE_NUMBERS: No staves present - skipping measure number rendering")
             return
             
         print(f"MEASURE_NUMBERS: Called for staff {staff_name}, system {system_index}")
