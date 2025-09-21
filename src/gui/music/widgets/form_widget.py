@@ -1827,35 +1827,15 @@ class FormWidget(QWidget):
         # Update the selected barline
         self.selected_barline = barline
         
-        # Update UI to match the selected barline's properties
-        if hasattr(barline, 'barline_type'):
-            # Set sync flag to prevent modification during UI update
-            self._syncing_ui_to_selection = True
-            print(f"FORM_WIDGET: Setting sync flag to True, updating UI to match barline type: {barline.barline_type}")
-            
-            # Find and check the corresponding radio button
-            for button in self.barline_button_group.buttons():
-                if button.property("barline_type") == barline.barline_type:
-                    # Temporarily disconnect signal to avoid recursion
-                    self.barline_button_group.buttonClicked.disconnect()
-                    button.setChecked(True)
-                    # Reconnect signal
-                    self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
-                    print(f"FORM_WIDGET: Set button {barline.barline_type} to checked")
-                    break
-            
-            # Clear sync flag after UI update
-            self._syncing_ui_to_selection = False
-            print(f"FORM_WIDGET: Cleared sync flag")
+        # IMPORTANT: Do NOT auto-select any barline type radio when selecting a barline
+        # Radio buttons should reflect explicit user choice only
+        # We only adjust repeat count visibility based on current type when a radio is selected later
         
         # Update preview
         self.update_barline_preview()
         
-        # Show repeat count if it's a repeat barline
-        if hasattr(barline, 'barline_type') and 'repeat' in barline.barline_type:
-            self.repeat_count_spin.show()
-        else:
-            self.repeat_count_spin.hide()
+        # Keep repeat count hidden unless user explicitly selects a repeat barline type via radio
+        self.repeat_count_spin.hide()
     
     def on_barline_removed(self, barline):
         """Handle barline removal from staff view"""

@@ -1909,6 +1909,12 @@ class StaffView(QWidget):
                     else:
                         # Normal click: select only this barline (single select)
                         self.select_barline(existing_barline)
+                        # Do NOT auto-select any barline type in the Form when selecting in score
+                        try:
+                            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                                self.main_window.form_widget._deselect_all_radio_buttons()
+                        except Exception:
+                            pass
                 else:
                     # No existing barline found
                     if not shift_pressed:
