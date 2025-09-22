@@ -2649,10 +2649,19 @@ class FormWidget(QWidget):
         measure_manager = None
         
         if self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
-            if hasattr(self.main_window_ref.staff_view, 'temporal_bridge'):
-                temporal_bridge = self.main_window_ref.staff_view.temporal_bridge
-            if hasattr(self.main_window_ref.staff_view.document, 'measure_manager'):
-                measure_manager = self.main_window_ref.staff_view.document.measure_manager
+            staff_view = self.main_window_ref.staff_view
+            if hasattr(staff_view, 'temporal_bridge'):
+                temporal_bridge = staff_view.temporal_bridge
+                # Ensure temporal bridge has the document reference
+                if temporal_bridge:
+                    if hasattr(staff_view, 'document') and staff_view.document:
+                        temporal_bridge.document = staff_view.document
+                        print(f"FORM_WIDGET: Set temporal bridge document reference")
+                    elif hasattr(self, 'document') and self.document:
+                        temporal_bridge.document = self.document
+                        print(f"FORM_WIDGET: Set temporal bridge document from form widget")
+            if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'measure_manager'):
+                measure_manager = staff_view.document.measure_manager
         
         if not temporal_bridge and not measure_manager:
             print("FORM_WIDGET: No temporal bridge or measure manager available for batch insertion")

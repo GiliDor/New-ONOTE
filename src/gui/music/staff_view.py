@@ -2350,6 +2350,10 @@ class StaffView(QWidget):
             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                 barline_type = self.main_window.form_widget.get_selected_barline_type()
                 print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+            else:
+                print("BARLINE_CREATE: No form widget found on main_window")
+        else:
+            print("BARLINE_CREATE: No main_window reference found")
 
         # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
@@ -3600,6 +3604,10 @@ class StaffView(QWidget):
             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                 barline_type = self.main_window.form_widget.get_selected_barline_type()
                 print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+            else:
+                print("BARLINE_CREATE: No form widget found on main_window")
+        else:
+            print("BARLINE_CREATE: No main_window reference found")
         
         # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
@@ -4828,6 +4836,10 @@ class StaffView(QWidget):
             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                 barline_type = self.main_window.form_widget.get_selected_barline_type()
                 print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+            else:
+                print("BARLINE_CREATE: No form widget found on main_window")
+        else:
+            print("BARLINE_CREATE: No main_window reference found")
         
         # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:

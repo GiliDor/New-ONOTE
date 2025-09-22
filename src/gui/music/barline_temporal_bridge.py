@@ -307,7 +307,10 @@ class BarlineTemporalBridge(QObject):
                 return created
             count = int(count)
 
-            # Ensure containers
+            # Ensure containers - handle None document case
+            if not self.document:
+                print("BRIDGE: insert_measures_batch error - no document available")
+                return created
             if not hasattr(self.document, 'measures') or self.document.measures is None:
                 self.document.measures = {}
 
