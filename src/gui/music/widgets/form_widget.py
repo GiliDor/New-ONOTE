@@ -714,6 +714,7 @@ class FormWidget(QWidget):
         
         # CRITICAL FIX: Track actual selection state independently of QButtonGroup
         self._actual_selected_barline_type = None
+        print(f"FORM_WIDGET: Form widget created at {id(self)}")
         
         # Create radio buttons for each barline type with SMuFL symbols
         barline_types = [
@@ -799,7 +800,10 @@ class FormWidget(QWidget):
         self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
         
         # Set default selection to Single
-        self.barline_button_group.buttons()[0].setChecked(True)
+        first_button = self.barline_button_group.buttons()[0]
+        print(f"FORM_WIDGET: Setting default selection to first button: '{first_button.text()}'")
+        first_button.setChecked(True)
+        print(f"FORM_WIDGET: Default selection set - checkedButton() now returns: {self.barline_button_group.checkedButton()}")
         
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
