@@ -775,8 +775,27 @@ class BarlineTemporalBridge(QObject):
                     print(f"BRIDGE: Click left of first measure; targeting measure #1 for split")
                 elif x_position >= rightmost_end:
                     print(f"BRIDGE: Position {x_position} is beyond rightmost measure (end={rightmost_end})")
-                    print(f"BRIDGE: Not creating new measure - clicking beyond last measure should not append")
-                    return None
+                    print(f"BRIDGE: Creating new measure at end - user clicked beyond last measure")
+                    # Create new measure at the end
+                    new_measure_number = len(sorted_measures) + 1
+                    new_measure = self._create_measure_object(
+                        measure_number=new_measure_number,
+                        x_position=rightmost_end,
+                        end_x=x_position,
+                        barline_type=barline_type
+                    )
+                    self.document.measures[new_measure_number] = new_measure
+                    print(f"BRIDGE: Created new measure #{new_measure_number} at end")
+                    
+                    # Re-justify all measures
+                    self._ensure_all_measures_justified()
+                    
+                    # Force form widget sync and emit signals
+                    self._force_form_widget_sync()
+                    self.temporal_structure_changed.emit()
+                    self.measure_layout_changed.emit()
+                    
+                    return new_measure
             
             print(f"BRIDGE: No existing measure contains position {x_position} - invalid position")
             return None
