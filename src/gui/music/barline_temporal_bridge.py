@@ -257,6 +257,11 @@ class BarlineTemporalBridge(QObject):
         print(f"\n=== BARLINE CREATION ===")
         print(f"Click position: {x_position}, type: {barline_type}")
 
+        # CRITICAL: Do not create barlines when no type is selected
+        if barline_type is None:
+            print("BRIDGE: No barline type selected - refusing to create barline")
+            return None
+
         # SPECIAL CASE: Graphical dashed barline does NOT create a measure
         if str(barline_type).lower() == "dashed":
             try:
