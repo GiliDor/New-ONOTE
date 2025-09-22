@@ -886,15 +886,13 @@ class BarlineTemporalBridge(QObject):
             else:
                 print(f"BRIDGE: ✗ Position {x_position} NOT in measure #{measure_num} (x={start_x} to {end_x})")
         
-        # CRITICAL FIX: Allow insertion at any position beyond current measures
-        # Instead of extending the rightmost measure, return None to trigger new measure creation
+        # CRITICAL FIX: Do NOT append at end via clicking; require split inside measure
         rightmost_measure = sorted_measures[-1]
         rightmost_end = getattr(rightmost_measure, 'end_x', self.END_BARLINE_X)
         
-        if (rightmost_end + tolerance) < x_position <= self.END_BARLINE_X + 200:  # Only if clearly beyond last end
-            print(f"BRIDGE: Position {x_position} is beyond rightmost measure (end={rightmost_end})")
-            print(f"BRIDGE: ✓ Position allows NEW MEASURE creation - returning None to trigger insertion")
-            return None  # This will trigger new measure creation instead of extending existing
+        if (rightmost_end + tolerance) < x_position:
+            print(f"BRIDGE: Position {x_position} is beyond rightmost (end={rightmost_end}); per spec, no append on click. Returning None.")
+            return None
         
         print(f"BRIDGE: Position {x_position} is not within any measure boundaries or reasonable staff bounds")
         return None
