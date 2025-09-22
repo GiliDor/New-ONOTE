@@ -863,6 +863,7 @@ class BarlineTemporalBridge(QObject):
             print(f"BRIDGE: Position {x_position} is before notation area (starts at {self.LEFTMOST_NOTE_X})")
             return None
         
+        tolerance = 8.0  # pixels; allow slight overshoot/undershoot to still count as inside
         for i, measure in enumerate(sorted_measures):
             measure_num = getattr(measure, 'measure_number', 1)
             
@@ -879,7 +880,7 @@ class BarlineTemporalBridge(QObject):
             print(f"  Checking measure #{measure_num}: x={start_x} to {end_x}")
             
             # Position is in measure if start_x <= position <= end_x
-            if start_x <= x_position <= end_x:
+            if (start_x - tolerance) <= x_position <= (end_x + tolerance):
                 print(f"BRIDGE: ✓ Position {x_position} is in measure #{measure_num} (x={start_x} to {end_x})")
                 return measure
             else:
@@ -890,7 +891,7 @@ class BarlineTemporalBridge(QObject):
         rightmost_measure = sorted_measures[-1]
         rightmost_end = getattr(rightmost_measure, 'end_x', self.END_BARLINE_X)
         
-        if rightmost_end < x_position <= self.END_BARLINE_X + 200:  # Allow some extension beyond staff bounds
+        if (rightmost_end + tolerance) < x_position <= self.END_BARLINE_X + 200:  # Only if clearly beyond last end
             print(f"BRIDGE: Position {x_position} is beyond rightmost measure (end={rightmost_end})")
             print(f"BRIDGE: ✓ Position allows NEW MEASURE creation - returning None to trigger insertion")
             return None  # This will trigger new measure creation instead of extending existing
