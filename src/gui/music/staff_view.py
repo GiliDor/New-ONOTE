@@ -6207,4 +6207,58 @@ class StaffBarTool(QWidget):
                 if hasattr(staff, attr):
                     element = getattr(staff, attr)
                     if element and hasattr(element, 'selected'):
-                        element.selected = False 
+                        element.selected = False
+
+    def keyPressEvent(self, event):
+        """Handle key press events for barline deletion and other operations"""
+        if event.key() == Qt.Key.Key_Delete or event.key() == Qt.Key.Key_Backspace:
+            # Find selected barlines
+            selected_barlines = []
+            if hasattr(self, 'document') and self.document and hasattr(self.document, 'measures'):
+                for measure_num, measure in self.document.measures.items():
+                    if hasattr(measure, 'selected') and measure.selected:
+                        selected_barlines.append(measure)
+            
+            if selected_barlines:
+                print(f"KEY_DELETE: Found {len(selected_barlines)} selected barlines to delete")
+                for barline in selected_barlines:
+                    self._handle_barline_delete(barline)
+                self.update()
+            else:
+                print("KEY_DELETE: No selected barlines to delete")
+        else:
+            super().keyPressEvent(event)
+
+    def _handle_barline_delete(self, barline):
+        """Handle barline deletion with overlay support"""
+        if not barline:
+            return
+        
+        print(f"BARLINE_DELETE: Processing deletion of barline at measure {getattr(barline, 'measure_number', 'unknown')}")
+        
+        # Check if this barline has an overlay
+        overlay_type = getattr(barline, 'overlay_type', None)
+        if overlay_type:
+            # First delete: remove overlay, reveal single barline
+            print(f"BARLINE_DELETE: Removing overlay '{overlay_type}' from barline")
+            barline.overlay_type = None
+            barline.barline_type = 'single'
+            print(f"BARLINE_DELETE: Overlay removed, barline is now 'single'")
+            return
+        
+        # Second delete: remove the barline entirely and merge measures
+        print(f"BARLINE_DELETE: Removing barline entirely and merging measures")
+        
+        # Use temporal bridge for proper deletion
+        if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
+            measure_num = getattr(barline, 'measure_number', None)
+            if measure_num:
+                success = self.temporal_bridge.remove_barline(measure_num)
+                if success:
+                    print(f"BARLINE_DELETE: Successfully removed barline at measure {measure_num}")
+                else:
+                    print(f"BARLINE_DELETE: Failed to remove barline at measure {measure_num}")
+            else:
+                print(f"BARLINE_DELETE: No measure number found for barline")
+        else:
+            print(f"BARLINE_DELETE: No temporal bridge available for deletion") 
