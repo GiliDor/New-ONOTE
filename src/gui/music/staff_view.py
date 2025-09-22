@@ -5300,8 +5300,8 @@ class StaffView(QWidget):
         """Global event filter to route mouse clicks to StaffView"""
         if event.type() == QEvent.Type.MouseButtonPress:
             # Check if the click is within our geometry
-            if self.geometry().contains(event.globalPos()):
-                print(f"EVENT_HOOK: Routed global click at {event.pos().x()}, {event.pos().y()}")
+            if self.geometry().contains(event.globalPosition().toPoint()):
+                print(f"EVENT_HOOK: Routed global click at {event.position().x()}, {event.position().y()}")
                 # Route to our mousePressEvent
                 self.mousePressEvent(event)
                 return True
