@@ -1042,10 +1042,20 @@ class FormWidget(QWidget):
         self.tab_widget.addTab(tab, "🎵 Barlines")
 
     def showEvent(self, event):
-        """Ensure default 'Single' is selected when Form opens."""
+        """Ensure default 'Single' is selected when Form opens and title is dynamic."""
         try:
             if self.barline_button_group.buttons():
                 self.barline_button_group.buttons()[0].setChecked(True)
+            # Dynamic title with document name
+            doc_title = "Untitled"
+            try:
+                if hasattr(self.main_window_ref, 'windowTitle'):
+                    t = self.main_window_ref.windowTitle()
+                    if t:
+                        doc_title = t
+            except Exception:
+                pass
+            self.setWindowTitle(f"Musical Form — {doc_title}")
         except Exception:
             pass
         super().showEvent(event)
@@ -2922,6 +2932,13 @@ class FormWidget(QWidget):
                 print("FORM_WIDGET: Clicked on Barline tab area - deselecting all radio buttons")
                 self._deselect_all_radio_buttons()
             return True
+
+        # When the Barline tab gains focus (mouse enters), deselect radios for safety
+        if hasattr(self, 'barline_tab_widget') and obj == self.barline_tab_widget and event.type() == QEvent.Type.Enter:
+            try:
+                self._deselect_all_radio_buttons()
+            except Exception:
+                pass
             
         # Handle clicks on scroll areas and their content
         if isinstance(obj, QScrollArea) and event.type() == QEvent.Type.MouseButtonPress:

@@ -1908,21 +1908,32 @@ class StaffView(QWidget):
                         self.update()
                     else:
                         # Normal click on an existing barline
-                        # If Form has an active barline type selection, change this barline's type instead of just selecting
-                        try:
-                            if self.is_form_widget_active() and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                        # If Form has an active barline type selection, change this barline's type; otherwise just select it
+                        changed = False
+                        if hasattr(self, 'main_window') and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                            try:
                                 selected_type = self.main_window.form_widget.get_selected_barline_type()
-                                if selected_type:
-                                    if hasattr(existing_barline, 'barline_type'):
-                                        existing_barline.barline_type = selected_type
-                                        # Selecting it for visual feedback
-                                        self.select_barline(existing_barline)
-                                        self.update()
-                                        return
+                                if selected_type and hasattr(existing_barline, 'barline_type'):
+                                    existing_barline.barline_type = selected_type
+                                    changed = True
+                            except Exception:
+                                pass
+                        self.select_barline(existing_barline)
+                        # If Form is not open, open it and show the linked document title
+                        try:
+                            if hasattr(self.main_window, 'form_widget'):
+                                fw = self.main_window.form_widget
+                                if not fw.isVisible():
+                                    self.main_window.show_form()
+                            # Ensure title reflects current document
+                            if hasattr(self.main_window, 'form_widget') and hasattr(self.main_window, 'windowTitle'):
+                                doc_title = self.main_window.windowTitle() or "Untitled"
+                                self.main_window.form_widget.setWindowTitle(f"Musical Form — {doc_title}")
                         except Exception:
                             pass
-                        # Otherwise just select it
-                        self.select_barline(existing_barline)
+                        if changed:
+                            self.update()
+                        return
                 else:
                     # No existing barline found
                     if not shift_pressed:
@@ -4786,7 +4797,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 60  # Widest threshold for easier selection
+        selection_threshold = 90  # Extra-wide to ensure selection near margins
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
