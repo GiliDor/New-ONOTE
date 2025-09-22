@@ -1184,6 +1184,10 @@ class FormWidget(QWidget):
     
     def select_barline(self, barline):
         """Select a barline in the score"""
+        print(f"FORM_WIDGET: select_barline called with barline: {barline}")
+        if barline:
+            print(f"FORM_WIDGET: select_barline - barline type: {getattr(barline, 'barline_type', 'unknown')}")
+        
         if self.selected_barline:
             # Deselect previous barline
             self.selected_barline.selected = False
@@ -1195,6 +1199,7 @@ class FormWidget(QWidget):
             # Update UI to match selected barline
             for button in self.barline_button_group.buttons():
                 if button.property("barline_type") == barline.barline_type:
+                    print(f"FORM_WIDGET: select_barline - automatically selecting button: {button.text()}")
                     button.setChecked(True)
                     break
             
