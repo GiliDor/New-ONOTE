@@ -2688,14 +2688,17 @@ class FormWidget(QWidget):
         # Perform batch insertion
         try:
             created_measures = []
+            print(f"FORM_WIDGET: Attempting batch insertion - temporal_bridge={temporal_bridge is not None}, measure_manager={measure_manager is not None}")
             if temporal_bridge and hasattr(temporal_bridge, 'insert_measures_batch'):
+                print(f"FORM_WIDGET: Calling temporal_bridge.insert_measures_batch({count}, {insertion_position})")
                 created_measures = temporal_bridge.insert_measures_batch(count, insertion_position)
-                print(f"FORM_WIDGET: Used temporal bridge for batch insertion")
+                print(f"FORM_WIDGET: Used temporal bridge for batch insertion - got {len(created_measures)} measures")
             elif measure_manager and hasattr(measure_manager, 'insert_measures_batch'):
+                print(f"FORM_WIDGET: Calling measure_manager.insert_measures_batch({count}, {insertion_position})")
                 created_measures = measure_manager.insert_measures_batch(count, insertion_position)
-                print(f"FORM_WIDGET: Used measure manager for batch insertion")
+                print(f"FORM_WIDGET: Used measure manager for batch insertion - got {len(created_measures)} measures")
             else:
-                print(f"FORM_WIDGET: No batch insertion method available")
+                print(f"FORM_WIDGET: No batch insertion method available - temporal_bridge={temporal_bridge}, measure_manager={measure_manager}")
                 return
             print(f"FORM_WIDGET: Successfully created {len(created_measures)} measures in batch")
             

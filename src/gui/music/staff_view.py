@@ -2346,24 +2346,22 @@ class StaffView(QWidget):
         
         # Get barline type from form widget - CRITICAL: No default, respect deselection
         barline_type = None
-        if hasattr(self, 'main_window') and self.main_window:
-            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                barline_type = self.main_window.form_widget.get_selected_barline_type()
-                print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
-            else:
-                print("BARLINE_CREATE: No form widget found on main_window")
+        form_widget = self.get_form_widget()
+        if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+            barline_type = form_widget.get_selected_barline_type()
+            print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
         else:
-            print("BARLINE_CREATE: No main_window reference found")
+            print("BARLINE_CREATE: No form widget found or no get_selected_barline_type method")
 
-        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
         if barline_type is None:
-            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
-            return None
+            barline_type = 'single'
+            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
         
-        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
         if barline_type is None:
-            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
-            return None
+            barline_type = 'single'
+            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -3615,19 +3613,17 @@ class StaffView(QWidget):
         
         # Get barline type from form widget - CRITICAL: No default, respect deselection
         barline_type = None
-        if hasattr(self, 'main_window') and self.main_window:
-            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                barline_type = self.main_window.form_widget.get_selected_barline_type()
-                print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
-            else:
-                print("BARLINE_CREATE: No form widget found on main_window")
+        form_widget = self.get_form_widget()
+        if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+            barline_type = form_widget.get_selected_barline_type()
+            print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
         else:
-            print("BARLINE_CREATE: No main_window reference found")
+            print("BARLINE_CREATE: No form widget found or no get_selected_barline_type method")
         
-        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
         if barline_type is None:
-            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
-            return None
+            barline_type = 'single'
+            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -4862,19 +4858,17 @@ class StaffView(QWidget):
         
         # Get barline type from form widget - CRITICAL: No default, respect deselection
         barline_type = None
-        if hasattr(self, 'main_window') and self.main_window:
-            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                barline_type = self.main_window.form_widget.get_selected_barline_type()
-                print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
-            else:
-                print("BARLINE_CREATE: No form widget found on main_window")
+        form_widget = self.get_form_widget()
+        if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+            barline_type = form_widget.get_selected_barline_type()
+            print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
         else:
-            print("BARLINE_CREATE: No main_window reference found")
+            print("BARLINE_CREATE: No form widget found or no get_selected_barline_type method")
         
-        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
         if barline_type is None:
-            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
-            return None
+            barline_type = 'single'
+            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
