@@ -1870,7 +1870,28 @@ class StaffView(QWidget):
             # Check for shift key modifier for multi-selection
             shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
             
-            # Check if we're in a valid area for barline operations
+            # Determine current barline creation intent (radio selection)
+            selected_type = None
+            try:
+                if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                    selected_type = self.main_window.form_widget.get_selected_barline_type()
+            except Exception:
+                selected_type = None
+
+            # If no radio is selected, prioritize selection anywhere by nearest-x and open Form
+            if not selected_type:
+                nearest = self.find_nearest_barline_by_x(click_pos.x())
+                if nearest is not None:
+                    self.select_barline(nearest)
+                    try:
+                        if hasattr(self.main_window, 'form_widget'):
+                            if not self.main_window.form_widget.isVisible():
+                                self.main_window.show_form()
+                    except Exception:
+                        pass
+                    return
+
+            # Otherwise, with a radio selected, proceed with creation only in valid area
             if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
                 # Try to find existing barline first
                 existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
@@ -1941,11 +1962,8 @@ class StaffView(QWidget):
                         self.deselect_all_barlines()
                     # Only create a new barline when Form is active AND a radio is selected
                     can_create = False
-                    selected_type = None
                     try:
-                        if self.is_form_widget_active() and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                            selected_type = self.main_window.form_widget.get_selected_barline_type()
-                            can_create = bool(selected_type)
+                        can_create = bool(selected_type) and self.is_form_widget_active()
                     except Exception:
                         can_create = False
                     if can_create:
@@ -3535,10 +3553,7 @@ class StaffView(QWidget):
     
     def find_barline_at_position(self, x, y):
         """Find a barline at the given position"""
-        if not self.is_position_valid_for_barline(x, y):
-            print(f"BARLINE_SELECTION: Position x={x}, y={y} not valid for barline operations")
-            return None
-        
+        # Selection should not be blocked by area gating; use nearest-x
         # Since barlines are vertical and span the system, use horizontal distance only
         closest = None
         min_distance = float('inf')
@@ -3567,6 +3582,26 @@ class StaffView(QWidget):
         
         print("BARLINE_SELECTION: No barlines available to select")
         return None
+
+    def find_nearest_barline_by_x(self, x):
+        """Find nearest barline by x only, ignoring y guards (for selection)."""
+        closest = None
+        min_distance = float('inf')
+        if hasattr(self.document, 'measures') and self.document.measures:
+            measures_iter = self.document.measures.values() if isinstance(self.document.measures, dict) else self.document.measures
+            for m in measures_iter:
+                if hasattr(m, 'end_x'):
+                    d = abs(float(m.end_x) - float(x))
+                    if d < min_distance:
+                        min_distance = d
+                        closest = m
+        if hasattr(self.document, 'graphical_dashed_barlines'):
+            for dashed in getattr(self.document, 'graphical_dashed_barlines', []):
+                d = abs(float(getattr(dashed, 'x_position', 0.0)) - float(x))
+                if d < min_distance:
+                    min_distance = d
+                    closest = dashed
+        return closest
     
     def create_barline_at_position(self, x, y):
         """Create a barline at the specified position"""
