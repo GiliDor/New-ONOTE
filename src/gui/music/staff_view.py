@@ -2367,9 +2367,14 @@ class StaffView(QWidget):
             print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
             return None
         
-        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
-        if barline_type is None:
-            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+        # CRITICAL FIX: Only allow "single" barline type for measure creation
+        if barline_type != "single":
+            print(f"BARLINE_CREATE: Barline type '{barline_type}' is not 'single' - not creating measure")
+            return None
+        
+        # CRITICAL FIX: Only allow "single" barline type for measure creation
+        if barline_type != "single":
+            print(f"BARLINE_CREATE: Barline type '{barline_type}' is not 'single' - not creating measure")
             return None
         
         # Use temporal bridge for barline creation
@@ -3643,6 +3648,11 @@ class StaffView(QWidget):
             print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
             return None
         
+        # CRITICAL FIX: Only allow "single" barline type for measure creation
+        if barline_type != "single":
+            print(f"BARLINE_CREATE: Barline type '{barline_type}' is not 'single' - not creating measure")
+            return None
+        
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
             print("BARLINE_CREATE: Using temporal bridge for barline creation")
@@ -4895,6 +4905,11 @@ class StaffView(QWidget):
         # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
             print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
+        
+        # CRITICAL FIX: Only allow "single" barline type for measure creation
+        if barline_type != "single":
+            print(f"BARLINE_CREATE: Barline type '{barline_type}' is not 'single' - not creating measure")
             return None
         
         # Use temporal bridge for barline creation

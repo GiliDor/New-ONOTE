@@ -712,6 +712,9 @@ class FormWidget(QWidget):
         self.barline_button_group.setExclusive(True)
         print("FORM_WIDGET: Created barline_button_group with exclusive=True")
         
+        # CRITICAL FIX: Track actual selection state independently of QButtonGroup
+        self._actual_selected_barline_type = None
+        
         # Create radio buttons for each barline type with SMuFL symbols
         barline_types = [
             ("Single Barline", "single", "\uE030"),
