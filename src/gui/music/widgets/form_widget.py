@@ -1205,6 +1205,7 @@ class FormWidget(QWidget):
             for button in self.barline_button_group.buttons():
                 if button.property("barline_type") == barline.barline_type:
                     print(f"FORM_WIDGET: select_barline - automatically selecting button: {button.text()}")
+                    print(f"FORM_WIDGET: select_barline - calling setChecked(True) on button: {button.text()}")
                     button.setChecked(True)
                     break
             
@@ -1870,6 +1871,7 @@ class FormWidget(QWidget):
                 if button.property("barline_type") == barline.barline_type:
                     # Temporarily disconnect signal to avoid recursion
                     self.barline_button_group.buttonClicked.disconnect()
+                    print(f"FORM_WIDGET: setChecked(True) method - calling setChecked(True) on button: {button.text()}")
                     button.setChecked(True)
                     # Reconnect signal
                     self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
@@ -2148,6 +2150,7 @@ class FormWidget(QWidget):
         if hasattr(self, 'barline_button_group'):
             for button in self.barline_button_group.buttons():
                 if button.property("barline_type") == measure.barline_type:
+                    print(f"FORM_WIDGET: restore_measure_state - calling setChecked(True) on button: {button.text()}")
                     button.setChecked(True)
                     break
         
