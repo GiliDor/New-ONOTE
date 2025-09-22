@@ -2204,7 +2204,10 @@ class FormWidget(QWidget):
         """Get the currently selected barline type"""
         selected_button = self.barline_button_group.checkedButton()
         if selected_button:
-            return selected_button.property("barline_type")
+            barline_type = selected_button.property("barline_type")
+            print(f"FORM_WIDGET: get_selected_barline_type() returning '{barline_type}' from button '{selected_button.text()}'")
+            return barline_type
+        print(f"FORM_WIDGET: get_selected_barline_type() returning None - no button selected")
         return None  # Return None when no radio button is selected (after deselection)
     
     def create_barline_at_position(self, x_position: float):
@@ -2881,6 +2884,13 @@ class FormWidget(QWidget):
             self._deselecting_radio_buttons = False
             
             print("FORM_WIDGET: All barline radio buttons deselected - ready for new selection")
+            
+            # Verify deselection worked
+            selected_button = self.barline_button_group.checkedButton()
+            if selected_button:
+                print(f"FORM_WIDGET: WARNING - Button '{selected_button.text()}' is still selected after deselection!")
+            else:
+                print("FORM_WIDGET: Confirmed - no buttons are selected after deselection")
             
             # Update status to indicate deselection
             self.update_status("Barline types deselected - select a type and click on staff to create barlines")
