@@ -2235,7 +2235,8 @@ class StaffView(QWidget):
     def is_position_valid_for_barline(self, x, y):
         """Check if the click position is valid for barline placement/selection"""
         # Don't allow barlines too far to the left (before clef/key/time signature area)
-        if x < LEFT_MARGIN + INITIAL_BARLINE_OFFSET + 100:  # Allow some space for signatures
+        # Use minimal padding so clicks in measure 1 right half are allowed
+        if x < LEFT_MARGIN + INITIAL_BARLINE_OFFSET + 10:
             return False
                 
         # FIXED: For barline selection, accept ANY y position within the system
