@@ -1936,47 +1936,30 @@ class StaffView(QWidget):
                         return
                 else:
                     # No existing barline found
+                    # Always deselect current selection unless Shift
                     if not shift_pressed:
-                        # Normal click: deselect all barlines first
                         self.deselect_all_barlines()
-                    
-                    # CRITICAL FIX: Only create barlines when form widget is active
-                    # This prevents automatic barline creation on regular clicks that causes undo reversion
-                    if not shift_pressed and self.is_form_widget_active():
-                        # If a barline type is selected and an existing barline is selected (orange), change its type
-                        try:
-                            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                                fw = self.main_window.form_widget
-                                selected_type = fw.get_selected_barline_type()
-                                # If no type selected, do nothing (explicit user action required)
-                                if not selected_type:
-                                    print("BARLINE_CREATE: No barline type selected in Form - no-op")
-                                    return
-                                selected_barlines = self.get_selected_barlines()
-                                if selected_type and selected_barlines:
-                                    # Change type of selected barlines instead of adding
-                                    for bl in selected_barlines:
-                                        if hasattr(bl, 'barline_type'):
-                                            bl.barline_type = selected_type
-                                    self.update()
-                                    return
-                        except Exception:
-                            pass
-                        # Otherwise, create a new barline according to selected type
+                    # Only create a new barline when Form is active AND a radio is selected
+                    can_create = False
+                    selected_type = None
+                    try:
+                        if self.is_form_widget_active() and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                            selected_type = self.main_window.form_widget.get_selected_barline_type()
+                            can_create = bool(selected_type)
+                    except Exception:
+                        can_create = False
+                    if can_create:
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
-                            # Only emit signal for actual MeasureObjects, not graphical dashed barlines
                             from .measure_object import MeasureObject
                             if isinstance(new_barline, MeasureObject):
-                                # Emit signal for form widget (if available)
                                 self.barline_created.emit(new_barline)
-                            # Update display
                             self.update()
                             print(f"BARLINE_CREATE: Created barline at x={click_pos.x()}")
                         else:
                             print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
-                    elif not shift_pressed:
-                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                    else:
+                        print("BARLINE_CREATE: Form inactive or no radio selected - no-op")
             else:
                 # Click outside valid area
                 if not shift_pressed:
@@ -2385,15 +2368,14 @@ class StaffView(QWidget):
             return None
         
         # Get barline type from form widget
-        barline_type = "single"  # Default
-        if hasattr(self, 'main_window') and self.main_window:
-            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-                barline_type = self.main_window.form_widget.get_selected_barline_type()
-                print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
-                # Guard: if no radio selected, do not create measures
-                if not barline_type:
-                    print("BARLINE_CREATE: No barline type selected - no-op")
-                    return None
+        barline_type = None
+        if hasattr(self, 'main_window') and self.main_window and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+            barline_type = self.main_window.form_widget.get_selected_barline_type()
+            print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+        # Guard: if no radio selected, do not create measures
+        if not barline_type:
+            print("BARLINE_CREATE: No barline type selected - no-op")
+            return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
