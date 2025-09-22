@@ -805,6 +805,10 @@ class FormWidget(QWidget):
         first_button.setChecked(True)
         print(f"FORM_WIDGET: Default selection set - checkedButton() now returns: {self.barline_button_group.checkedButton()}")
         
+        # Add debugging to track any button state changes
+        for button in self.barline_button_group.buttons():
+            button.toggled.connect(lambda checked, btn=button: print(f"FORM_WIDGET: Button '{btn.text()}' toggled to {checked}"))
+        
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
         
@@ -1057,7 +1061,8 @@ class FormWidget(QWidget):
     def on_barline_type_changed(self, button):
         """Handle barline type selection changes"""
         barline_type = button.property("barline_type")
-        print(f"FORM_WIDGET: on_barline_type_changed called with type: {barline_type}")
+        print(f"FORM_WIDGET: on_barline_type_changed called with type: {barline_type} from button: {button.text()}")
+        print(f"FORM_WIDGET: on_barline_type_changed - button isChecked: {button.isChecked()}")
         
         # CRITICAL FIX: Re-enable exclusive mode when a button is selected
         if not self.barline_button_group.exclusive():
