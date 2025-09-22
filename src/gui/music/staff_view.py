@@ -1917,7 +1917,13 @@ class StaffView(QWidget):
                     
                     # CRITICAL FIX: Only create barlines when form widget is active
                     # This prevents automatic barline creation on regular clicks that causes undo reversion
-                    if not shift_pressed and self.is_form_widget_active():
+                    # Check if a barline type is selected
+                    form_widget = self.get_form_widget()
+                    barline_type = None
+                    if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+                        barline_type = form_widget.get_selected_barline_type()
+                    
+                    if not shift_pressed and self.is_form_widget_active() and barline_type:
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
                             # Only emit signal for actual MeasureObjects, not graphical dashed barlines
@@ -1931,7 +1937,10 @@ class StaffView(QWidget):
                         else:
                             print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
                     elif not shift_pressed:
-                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        if not self.is_form_widget_active():
+                            print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        elif not barline_type:
+                            print(f"CLICK: No barline type selected (deselected radios), not creating barline at x={click_pos.x()}")
             else:
                 # Click outside valid area
                 if not shift_pressed:
@@ -2353,15 +2362,15 @@ class StaffView(QWidget):
         else:
             print("BARLINE_CREATE: No form widget found or no get_selected_barline_type method")
 
-        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
-            barline_type = 'single'
-            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
         
-        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
-            barline_type = 'single'
-            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -3233,7 +3242,13 @@ class StaffView(QWidget):
                     
                     # CRITICAL FIX: Only create barlines when form widget is active
                     # This prevents automatic barline creation on regular clicks that causes undo reversion
-                    if not shift_pressed and self.is_form_widget_active():
+                    # Check if a barline type is selected
+                    form_widget = self.get_form_widget()
+                    barline_type = None
+                    if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+                        barline_type = form_widget.get_selected_barline_type()
+                    
+                    if not shift_pressed and self.is_form_widget_active() and barline_type:
                         # Check if a barline type is selected
                         selected_type = None
                         try:
@@ -3270,7 +3285,10 @@ class StaffView(QWidget):
                         else:
                             print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
                     elif not shift_pressed:
-                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        if not self.is_form_widget_active():
+                            print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        elif not barline_type:
+                            print(f"CLICK: No barline type selected (deselected radios), not creating barline at x={click_pos.x()}")
             else:
                 # Click outside valid area
                 if not shift_pressed:
@@ -3620,10 +3638,10 @@ class StaffView(QWidget):
         else:
             print("BARLINE_CREATE: No form widget found or no get_selected_barline_type method")
         
-        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
-            barline_type = 'single'
-            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -4501,7 +4519,13 @@ class StaffView(QWidget):
                     
                     # CRITICAL FIX: Only create barlines when form widget is active
                     # This prevents automatic barline creation on regular clicks that causes undo reversion
-                    if not shift_pressed and self.is_form_widget_active():
+                    # Check if a barline type is selected
+                    form_widget = self.get_form_widget()
+                    barline_type = None
+                    if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+                        barline_type = form_widget.get_selected_barline_type()
+                    
+                    if not shift_pressed and self.is_form_widget_active() and barline_type:
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
                             # Only emit signal for actual MeasureObjects, not graphical dashed barlines
@@ -4515,7 +4539,10 @@ class StaffView(QWidget):
                         else:
                             print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
                     elif not shift_pressed:
-                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        if not self.is_form_widget_active():
+                            print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        elif not barline_type:
+                            print(f"CLICK: No barline type selected (deselected radios), not creating barline at x={click_pos.x()}")
             else:
                 # Click outside valid area
                 if not shift_pressed:
@@ -4865,10 +4892,10 @@ class StaffView(QWidget):
         else:
             print("BARLINE_CREATE: No form widget found or no get_selected_barline_type method")
         
-        # CRITICAL FIX: If no barline type selected, default to 'single' for continuous measure creation
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
         if barline_type is None:
-            barline_type = 'single'
-            print("BARLINE_CREATE: No barline type selected - defaulting to 'single' for continuous creation")
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -5725,7 +5752,13 @@ class StaffView(QWidget):
                     
                     # CRITICAL FIX: Only create barlines when form widget is active
                     # This prevents automatic barline creation on regular clicks that causes undo reversion
-                    if not shift_pressed and self.is_form_widget_active():
+                    # Check if a barline type is selected
+                    form_widget = self.get_form_widget()
+                    barline_type = None
+                    if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+                        barline_type = form_widget.get_selected_barline_type()
+                    
+                    if not shift_pressed and self.is_form_widget_active() and barline_type:
                         new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
                         if new_barline:
                             # Only emit signal for actual MeasureObjects, not graphical dashed barlines
@@ -5739,7 +5772,10 @@ class StaffView(QWidget):
                         else:
                             print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
                     elif not shift_pressed:
-                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        if not self.is_form_widget_active():
+                            print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+                        elif not barline_type:
+                            print(f"CLICK: No barline type selected (deselected radios), not creating barline at x={click_pos.x()}")
             else:
                 # Click outside valid area
                 if not shift_pressed:
