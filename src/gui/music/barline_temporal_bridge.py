@@ -70,6 +70,21 @@ class BarlineTemporalBridge(QObject):
         
         print("BRIDGE: BarlineTemporalBridge initialized - ready for user barline creation")
     
+    def _ensure_measures_dict(self):
+        """Ensure document.measures is a dictionary, not a list"""
+        if not hasattr(self.document, 'measures'):
+            self.document.measures = {}
+        elif isinstance(self.document.measures, list):
+            # Convert list to dictionary
+            measures_dict = {}
+            for i, measure in enumerate(self.document.measures):
+                if hasattr(measure, 'measure_number'):
+                    measures_dict[measure.measure_number] = measure
+                else:
+                    measures_dict[i + 1] = measure
+            self.document.measures = measures_dict
+            print(f"BRIDGE: Converted measures from list to dictionary with {len(measures_dict)} measures")
+
     def _load_layout_preferences(self):
         """Load layout preferences for measure spacing"""
         from PyQt6.QtCore import QSettings
@@ -286,6 +301,9 @@ class BarlineTemporalBridge(QObject):
         # Always reload layout preferences to get latest measures per system
         self._load_layout_preferences()
         
+        # Ensure measures is a dictionary
+        self._ensure_measures_dict()
+        
         # INTEGRATION: Use MeasureManager if available for proper responsive layout
         if self.measure_manager:
             return self._create_barline_via_manager(x_position, barline_type)
@@ -311,8 +329,9 @@ class BarlineTemporalBridge(QObject):
             if not self.document:
                 print("BRIDGE: insert_measures_batch error - no document available")
                 return created
-            if not hasattr(self.document, 'measures') or self.document.measures is None:
-                self.document.measures = {}
+            
+            # Ensure measures is a dictionary
+            self._ensure_measures_dict()
 
             # Get current ordered measures
             current_measures = [m for m in self._get_current_measures()]
@@ -721,10 +740,15 @@ class BarlineTemporalBridge(QObject):
         print(f"Click position: {x_position}, type: {barline_type}")
         
         # STEP 0: Validate document state
-        if not self.document or not hasattr(self.document, 'measures'):
-            print("BRIDGE: No document or measures collection - creating initial measure")
-            if not hasattr(self.document, 'measures'):
-                self.document.measures = {}
+        if not self.document:
+            print("BRIDGE: No document available")
+            return None
+        
+        # Ensure measures is a dictionary
+        self._ensure_measures_dict()
+        
+        if not self.document.measures:
+            print("BRIDGE: No measures collection - creating initial measure")
             first_measure = self.create_initial_measure()
             return first_measure
         

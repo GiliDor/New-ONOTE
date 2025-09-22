@@ -1019,6 +1019,12 @@ class FormWidget(QWidget):
             }
         """)
         self.batch_insert_btn.clicked.connect(self.on_batch_insert_measures)
+        print(f"FORM_WIDGET: Connected batch insert button to on_batch_insert_measures method")
+        
+        # Test connection with a simple method
+        def test_button():
+            print("FORM_WIDGET: TEST - Button click detected!")
+        self.batch_insert_btn.clicked.connect(test_button)
         batch_measures_layout.addWidget(self.batch_insert_btn)
         batch_measures_layout.addStretch()
         
