@@ -794,9 +794,8 @@ class FormWidget(QWidget):
         # Connect signals
         self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
         
-        # Default selection: Single barline (per spec)
-        if self.barline_button_group.buttons():
-            self.barline_button_group.buttons()[0].setChecked(True)
+        # Set default selection to Single
+        self.barline_button_group.buttons()[0].setChecked(True)
         
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
@@ -1041,25 +1040,6 @@ class FormWidget(QWidget):
         tab.setLayout(layout)
         self.tab_widget.addTab(tab, "🎵 Barlines")
 
-    def showEvent(self, event):
-        """Ensure default 'Single' is selected when Form opens and title is dynamic."""
-        try:
-            if self.barline_button_group.buttons():
-                self.barline_button_group.buttons()[0].setChecked(True)
-            # Dynamic title with document name
-            doc_title = "Untitled"
-            try:
-                if hasattr(self.main_window_ref, 'windowTitle'):
-                    t = self.main_window_ref.windowTitle()
-                    if t:
-                        doc_title = t
-            except Exception:
-                pass
-            self.setWindowTitle(f"Musical Form — {doc_title}")
-        except Exception:
-            pass
-        super().showEvent(event)
-
     def on_barline_type_changed(self, button):
         """Handle barline type selection changes"""
         barline_type = button.property("barline_type")
@@ -1098,8 +1078,21 @@ class FormWidget(QWidget):
                 
                 for barline in selected_barlines:
                     old_type = getattr(barline, 'barline_type', 'single')
-                    barline.barline_type = barline_type
-                    print(f"FORM_WIDGET: Changed barline {getattr(barline, 'measure_number', 'unknown')} from '{old_type}' to '{barline_type}'")
+                    old_overlay = getattr(barline, 'overlay_type', None)
+                    
+                    # Implement overlay model: single base + overlay
+                    if barline_type == 'single':
+                        barline.barline_type = 'single'
+                        barline.overlay_type = None
+                    elif barline_type in ['final', 'double']:
+                        barline.barline_type = 'single'
+                        barline.overlay_type = barline_type
+                    else:
+                        # For repeat types, keep as barline_type for now
+                        barline.barline_type = barline_type
+                        barline.overlay_type = None
+                    
+                    print(f"FORM_WIDGET: Changed barline {getattr(barline, 'measure_number', 'unknown')} from '{old_type}' to '{barline_type}' (overlay: {getattr(barline, 'overlay_type', None)})")
                     
                     # Update repeat count for repeat barlines
                     if 'repeat' in barline_type:
@@ -1837,15 +1830,35 @@ class FormWidget(QWidget):
         # Update the selected barline
         self.selected_barline = barline
         
-        # IMPORTANT: Do NOT auto-select any barline type radio when selecting a barline
-        # Radio buttons should reflect explicit user choice only
-        # We only adjust repeat count visibility based on current type when a radio is selected later
+        # Update UI to match the selected barline's properties
+        if hasattr(barline, 'barline_type'):
+            # Set sync flag to prevent modification during UI update
+            self._syncing_ui_to_selection = True
+            print(f"FORM_WIDGET: Setting sync flag to True, updating UI to match barline type: {barline.barline_type}")
+            
+            # Find and check the corresponding radio button
+            for button in self.barline_button_group.buttons():
+                if button.property("barline_type") == barline.barline_type:
+                    # Temporarily disconnect signal to avoid recursion
+                    self.barline_button_group.buttonClicked.disconnect()
+                    button.setChecked(True)
+                    # Reconnect signal
+                    self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
+                    print(f"FORM_WIDGET: Set button {barline.barline_type} to checked")
+                    break
+            
+            # Clear sync flag after UI update
+            self._syncing_ui_to_selection = False
+            print(f"FORM_WIDGET: Cleared sync flag")
         
         # Update preview
         self.update_barline_preview()
         
-        # Keep repeat count hidden unless user explicitly selects a repeat barline type via radio
-        self.repeat_count_spin.hide()
+        # Show repeat count if it's a repeat barline
+        if hasattr(barline, 'barline_type') and 'repeat' in barline.barline_type:
+            self.repeat_count_spin.show()
+        else:
+            self.repeat_count_spin.hide()
     
     def on_barline_removed(self, barline):
         """Handle barline removal from staff view"""
@@ -2379,12 +2392,7 @@ class FormWidget(QWidget):
         return measure
     
     def apply_changes(self):
-        """Apply button behavior: In Barlines tab it does nothing (per spec)."""
-        current_tab = self.tab_widget.tabText(self.tab_widget.currentIndex()) if hasattr(self, 'tab_widget') else ""
-        if str(current_tab).strip() == "🎵 Barlines" or str(current_tab).lower().startswith("barline"):
-            print("FORM_WIDGET: Apply pressed on Barlines tab - no-op as per spec")
-            return
-        # For other tabs, keep the default apply behavior if needed later
+        """Apply all changes and notify document"""
         self.emit_structure_changed()
         self.update_status("Changes applied to document")
     
@@ -2636,15 +2644,19 @@ class FormWidget(QWidget):
         
         print(f"FORM_WIDGET: Batch inserting {count} measures at {position_text}")
         
-        # Get references to measure manager or temporal bridge fallback
-        measure_manager = None
+        # Get references to temporal bridge (preferred) or measure manager
         temporal_bridge = None
+        measure_manager = None
+        
         if self.main_window_ref and hasattr(self.main_window_ref, 'staff_view'):
-            sv = self.main_window_ref.staff_view
-            if hasattr(sv.document, 'measure_manager'):
-                measure_manager = sv.document.measure_manager
-            if hasattr(sv, 'temporal_bridge'):
-                temporal_bridge = sv.temporal_bridge
+            if hasattr(self.main_window_ref.staff_view, 'temporal_bridge'):
+                temporal_bridge = self.main_window_ref.staff_view.temporal_bridge
+            if hasattr(self.main_window_ref.staff_view.document, 'measure_manager'):
+                measure_manager = self.main_window_ref.staff_view.document.measure_manager
+        
+        if not temporal_bridge and not measure_manager:
+            print("FORM_WIDGET: No temporal bridge or measure manager available for batch insertion")
+            return
         
         # Determine insertion position
         insertion_position = None
@@ -2663,13 +2675,16 @@ class FormWidget(QWidget):
         
         # Perform batch insertion
         try:
-            if measure_manager and hasattr(measure_manager, 'insert_measures_batch'):
-                created_measures = measure_manager.insert_measures_batch(count, insertion_position)
-            elif temporal_bridge and hasattr(temporal_bridge, 'insert_measures_batch'):
+            created_measures = []
+            if temporal_bridge and hasattr(temporal_bridge, 'insert_measures_batch'):
                 created_measures = temporal_bridge.insert_measures_batch(count, insertion_position)
+                print(f"FORM_WIDGET: Used temporal bridge for batch insertion")
+            elif measure_manager and hasattr(measure_manager, 'insert_measures_batch'):
+                created_measures = measure_manager.insert_measures_batch(count, insertion_position)
+                print(f"FORM_WIDGET: Used measure manager for batch insertion")
             else:
-                created_measures = []
-                print("FORM_WIDGET: No batch API available; skipping")
+                print(f"FORM_WIDGET: No batch insertion method available")
+                return
             print(f"FORM_WIDGET: Successfully created {len(created_measures)} measures in batch")
             
             # Update the display
@@ -2932,13 +2947,6 @@ class FormWidget(QWidget):
                 print("FORM_WIDGET: Clicked on Barline tab area - deselecting all radio buttons")
                 self._deselect_all_radio_buttons()
             return True
-
-        # When the Barline tab gains focus (mouse enters), deselect radios for safety
-        if hasattr(self, 'barline_tab_widget') and obj == self.barline_tab_widget and event.type() == QEvent.Type.Enter:
-            try:
-                self._deselect_all_radio_buttons()
-            except Exception:
-                pass
             
         # Handle clicks on scroll areas and their content
         if isinstance(obj, QScrollArea) and event.type() == QEvent.Type.MouseButtonPress:

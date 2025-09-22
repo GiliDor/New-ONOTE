@@ -33,8 +33,8 @@ class MeasureObject:
         self.layout_info = MeasureLayoutInfo()
         
         # Barline properties
-        self.barline_type = barline_type  # Underlying structural barline (single)
-        self.overlay_type: Optional[str] = None  # Visual overlay: final/double/repeat_*
+        self.barline_type = barline_type  # Use provided barline type
+        self.overlay_type = None  # Overlay type for final/double/repeat (None = no overlay)
         self.barline_thickness = 1
         self.selected = False  # Track selection state
         
@@ -98,8 +98,8 @@ class MeasureObject:
             'width': self.width,
             'x_position': self.x_position,
             'barline_type': self.barline_type,
-            'barline_thickness': self.barline_thickness,
             'overlay_type': self.overlay_type,
+            'barline_thickness': self.barline_thickness,
             'selected': self.selected,
             'repeat_count': self.repeat_count,
             'is_repeat_start': self.is_repeat_start,
@@ -136,8 +136,8 @@ class MeasureObject:
         measure.width = data.get('width', 160)
         measure.x_position = data.get('x_position', 0.0)
         measure.barline_type = data.get('barline_type', 'single')
+        measure.overlay_type = data.get('overlay_type', None)
         measure.barline_thickness = data.get('barline_thickness', 1)
-        measure.overlay_type = data.get('overlay_type')
         measure.selected = data.get('selected', False)
         measure.repeat_count = data.get('repeat_count', 2)
         measure.is_repeat_start = data.get('is_repeat_start', False)

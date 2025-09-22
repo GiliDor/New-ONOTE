@@ -2,20 +2,6 @@ import sys
 import os
 from PyQt6.QtCore import QCoreApplication
 from PyQt6.QtWidgets import QApplication
-
-def _print_dev_banner():
-    try:
-        import subprocess
-        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        rev = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root, text=True).strip()
-    except Exception:
-        rev = "unknown"
-    try:
-        from . import staff_view as _sv
-        sv_path = getattr(_sv, "__file__", "<no file>")
-    except Exception:
-        sv_path = "<import failed>"
-    print(f"ONOTE Dev (Music UI): commit={rev} | staff_view={sv_path}")
 from .main_window import MainWindow
 
 def main():
@@ -59,9 +45,6 @@ def main():
             app.setOrganizationDomain("onote.app")
     except Exception:
         pass
-
-    # Dev banner to verify running code path
-    _print_dev_banner()
 
     # Start with the welcome/desktop-style window to mirror the packaged app UX
     window = MainWindow(is_welcome_window=True)

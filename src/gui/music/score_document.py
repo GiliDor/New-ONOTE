@@ -680,100 +680,36 @@ class ScoreDocument:
 
     # Measure Management Methods
     def set_measures(self, measures):
-        """Set measure objects, accepting list/dict of MeasureObject or dicts.
-        Normalizes to a dict keyed by measure_number → MeasureObject.
-        """
-        normalized = {}
-        try:
-            from .measure_object import MeasureObject
-        except Exception:
-            MeasureObject = None
-
-        if isinstance(measures, dict):
-            # Ensure values are MeasureObject-like
-            for k, v in measures.items():
-                if isinstance(v, dict) and MeasureObject is not None:
-                    mnum = int(v.get('measure_number', k))
-                    m = MeasureObject(mnum)
-                    if 'barline_type' in v:
-                        m.barline_type = v['barline_type']
-                    if 'end_x' in v:
-                        m.end_x = v['end_x']
-                    if 'x_position' in v:
-                        m.x_position = v['x_position']
-                    normalized[int(mnum)] = m
-                else:
-                    num = int(getattr(v, 'measure_number', k))
-                    normalized[num] = v
-        elif isinstance(measures, list):
-            for i, item in enumerate(measures, start=1):
-                if hasattr(item, 'measure_number'):
-                    num = int(getattr(item, 'measure_number', i))
-                    normalized[num] = item
-                else:
-                    # Dict or unknown payload
-                    if isinstance(item, dict) and MeasureObject is not None:
-                        num = int(item.get('measure_number', i))
-                        m = MeasureObject(num)
-                        if 'barline_type' in item:
-                            m.barline_type = item['barline_type']
-                        if 'end_x' in item:
-                            m.end_x = item['end_x']
-                        if 'x_position' in item:
-                            m.x_position = item['x_position']
-                        normalized[num] = m
-                    else:
-                        # Fallback: store as-is under enumerated key
-                        normalized[i] = item
-        else:
-            print(f"[WARN] set_measures received unsupported type: {type(measures)}; keeping existing measures")
-            normalized = getattr(self, 'measures', {}) or {}
-
-        self.measures = normalized
-        self.num_measures = len(self.measures)
+        """Set the measure objects from Form Widget"""
+        self.measures = measures
+        self.num_measures = len(measures)
         self.is_modified = True
-        print(f"Document updated with {self.num_measures} measure objects (normalized dict)")
+        print(f"Document updated with {len(measures)} measure objects")
         
     def get_measures(self):
-        """Get all measure objects as a list in measure_number order"""
-        if isinstance(self.measures, dict):
-            return [self.measures[k] for k in sorted(self.measures.keys())]
-        return list(self.measures) if self.measures else []
+        """Get all measure objects"""
+        return self.measures
         
     def get_measure_count(self):
         """Get the current number of measures"""
-        if isinstance(self.measures, dict):
-            return len(self.measures)
-        return len(self.measures) if self.measures else int(getattr(self, 'num_measures', 0))
+        return len(self.measures) if self.measures else self.num_measures
         
     def get_measure_at_index(self, index):
-        """Get measure object at specific 0-based index in order"""
-        measures = self.get_measures()
-        if 0 <= index < len(measures):
-            return measures[index]
+        """Get measure object at specific index"""
+        if 0 <= index < len(self.measures):
+            return self.measures[index]
         return None
         
     def update_measure(self, measure_number, properties):
         """Update a specific measure with new properties"""
-        if isinstance(self.measures, dict):
-            m = self.measures.get(int(measure_number))
-            if m is None:
-                return False
-            for prop, value in properties.items():
-                if hasattr(m, prop):
-                    setattr(m, prop, value)
-            self.is_modified = True
-            print(f"Updated measure {measure_number}: {properties}")
-            return True
-        else:
-            for measure in (self.measures or []):
-                if hasattr(measure, 'measure_number') and int(measure.measure_number) == int(measure_number):
-                    for prop, value in properties.items():
-                        if hasattr(measure, prop):
-                            setattr(measure, prop, value)
-                    self.is_modified = True
-                    print(f"Updated measure {measure_number}: {properties}")
-                    return True
+        for measure in self.measures:
+            if hasattr(measure, 'measure_number') and measure.measure_number == measure_number:
+                for prop, value in properties.items():
+                    if hasattr(measure, prop):
+                        setattr(measure, prop, value)
+                self.is_modified = True
+                print(f"Updated measure {measure_number}: {properties}")
+                return True
         return False
         
     def get_measures_in_range(self, start_measure, end_measure):

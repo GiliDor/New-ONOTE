@@ -257,11 +257,6 @@ class BarlineTemporalBridge(QObject):
         print(f"\n=== BARLINE CREATION ===")
         print(f"Click position: {x_position}, type: {barline_type}")
 
-        # CRITICAL: Do not create barlines when no type is selected
-        if barline_type is None:
-            print("BRIDGE: No barline type selected - refusing to create barline")
-            return None
-
         # SPECIAL CASE: Graphical dashed barline does NOT create a measure
         if str(barline_type).lower() == "dashed":
             try:
@@ -296,44 +291,112 @@ class BarlineTemporalBridge(QObject):
             return self._create_barline_via_manager(x_position, barline_type)
         else:
             return self._create_barline_atomic(x_position, barline_type)
-
-    def insert_measures_batch(self, count: int, insertion_after_measure: Optional[int] = None) -> list:
-        """Insert multiple measures in a batch.
-        - If insertion_after_measure is None, append at end of score.
-        - Otherwise, insert after the given measure number by repeatedly splitting to the right of it.
-        Returns list of created MeasureObjects.
+    
+    def insert_measures_batch(self, count: int, insertion_position: Optional[int] = None) -> List[MeasureObject]:
         """
-        created: list = []
+        Insert multiple measures in one operation.
+        - If insertion_position is None, append at end
+        - Otherwise insert starting at the given 1-based measure index, shifting existing measures to the right
+        Returns the list of created MeasureObject instances in numeric order.
+        """
+        print(f"BRIDGE: insert_measures_batch count={count}, insertion_position={insertion_position}")
+        created: List[MeasureObject] = []
         try:
-            self._load_layout_preferences()
-            current = self._get_current_measures() or []
-            if not current:
-                # Create the very first measure, then keep appending
+            if count is None or int(count) <= 0:
+                print("BRIDGE: insert_measures_batch ignored (non-positive count)")
+                return created
+            count = int(count)
+
+            # Ensure containers
+            if not hasattr(self.document, 'measures') or self.document.measures is None:
+                self.document.measures = {}
+
+            # Get current ordered measures
+            current_measures = [m for m in self._get_current_measures()]
+            current_measures.sort(key=lambda m: getattr(m, 'measure_number', 0))
+
+            # If no measures yet, create the very first, then reduce remaining
+            if not current_measures:
                 first = self.create_initial_measure()
                 if first:
                     created.append(first)
-                current = self._get_current_measures() or []
+                    count -= 1
+                    if count <= 0:
+                        # Normalize barline types
+                        try:
+                            ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+                            if ordered:
+                                last_num = ordered[-1]
+                                for num in ordered:
+                                    m = self.document.measures.get(num)
+                                    if not m:
+                                        continue
+                                    m.barline_type = 'final' if num == last_num else 'single'
+                        except Exception as e:
+                            print(f"BRIDGE: Error normalizing types after initial create: {e}")
+                        return created
+                # Refresh list
+                current_measures = [m for m in self._get_current_measures()]
+                current_measures.sort(key=lambda m: getattr(m, 'measure_number', 0))
 
-            def _rightmost_end_x(measures):
-                return max(float(getattr(m, 'end_x', 0.0)) for m in measures if hasattr(m, 'end_x'))
-
-            # Compute base x for insertion loop
-            if insertion_after_measure is None:
-                base_x = _rightmost_end_x(current) + 1.0
+            # Determine insert index (1-based)
+            if insertion_position is None:
+                insert_at = int(getattr(current_measures[-1], 'measure_number', len(current_measures))) + 1
             else:
-                # Insert after a specific measure: click just to the right of its end
-                m = next((m for m in current if getattr(m, 'measure_number', -1) == insertion_after_measure), None)
-                base_x = float(getattr(m, 'end_x', _rightmost_end_x(current))) + 1.0
+                insert_at = max(1, int(insertion_position))
 
-            for i in range(int(max(0, count))):
-                m = self._create_barline_atomic(base_x, 'single')
-                if m:
-                    created.append(m)
-                # Advance base_x to the new rightmost after each add
-                cur = self._get_current_measures() or []
-                base_x = _rightmost_end_x(cur) + 1.0
+            print(f"BRIDGE: Batch insert position resolved to {insert_at}")
 
-            # Normalize barline types so only the last is 'final'
+            # Shift existing measures to make room when inserting not at end
+            if insert_at <= int(getattr(current_measures[-1], 'measure_number', len(current_measures))):
+                # Build new mapping with shifts
+                new_map = {}
+                all_nums = sorted([getattr(m, 'measure_number', 0) for m in current_measures])
+                for num in all_nums:
+                    m = self.document.measures.get(num)
+                    if not m:
+                        continue
+                    if num >= insert_at:
+                        new_num = num + count
+                        try:
+                            setattr(m, 'measure_number', new_num)
+                        except Exception:
+                            pass
+                        new_map[new_num] = m
+                    else:
+                        new_map[num] = m
+                self.document.measures = new_map
+                print(f"BRIDGE: Shifted measures >= {insert_at} by +{count}")
+
+            # Determine a reasonable start x for the inserted sequence
+            left_x = self.LEFTMOST_NOTE_X
+            try:
+                prev_num = insert_at - 1
+                if prev_num >= 1 and prev_num in self.document.measures:
+                    prev = self.document.measures[prev_num]
+                    left_x = getattr(prev, 'end_x', self.LEFTMOST_NOTE_X)
+            except Exception:
+                left_x = self.LEFTMOST_NOTE_X
+
+            # Create measures sequentially with temporary end_x; justification will fix widths
+            next_x = float(left_x)
+            for i in range(count):
+                mnum = insert_at + i
+                # Temporary small width so ordering is preserved prior to justification
+                temp_end = next_x + max(1.0, getattr(self, 'minimum_practical_space', 80.0) / 10.0)
+                new_m = self._create_measure_object(
+                    measure_number=mnum,
+                    x_position=next_x,
+                    end_x=temp_end,
+                    barline_type='single'
+                )
+                self.document.measures[mnum] = new_m
+                created.append(new_m)
+                next_x = temp_end
+                print(f"BRIDGE: Created inserted measure #{mnum} (temp start={new_m.x_position}, temp end={new_m.end_x})")
+
+            # Re-justify and normalize barline types
+            self._ensure_all_measures_justified()
             try:
                 ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
                 if ordered:
@@ -343,18 +406,21 @@ class BarlineTemporalBridge(QObject):
                         if not m:
                             continue
                         m.barline_type = 'final' if num == last_num else 'single'
-            except Exception:
-                pass
+                    print(f"BRIDGE: Normalized barline types so only measure #{last_num} is 'final' after batch insert")
+            except Exception as e:
+                print(f"BRIDGE: Error normalizing barline types after batch insert: {e}")
 
-            # Trigger refresh
+            # Notify
             self._force_form_widget_sync()
             self.temporal_structure_changed.emit()
             self.measure_layout_changed.emit()
+
+            print(f"BRIDGE: insert_measures_batch completed; created {len(created)} measures")
             return created
         except Exception as e:
             print(f"BRIDGE: insert_measures_batch error: {e}")
             return created
-    
+
     def _create_barline_via_manager(self, x_position: float, barline_type: str) -> Optional[MeasureObject]:
         """
         Create barline using MeasureManager implementing ONOTE index inheritance model.
@@ -424,12 +490,7 @@ class BarlineTemporalBridge(QObject):
                 barline_type='single'
             )
             
-            # Add to document (ensure dict)
-            if not isinstance(getattr(self.document, 'measures', {}), dict):
-                try:
-                    self.document.set_measures(self.document.get_measures())
-                except Exception:
-                    self.document.measures = {}
+            # Add to document
             self.document.measures[new_measure_number] = new_measure
             print(f"BRIDGE: Created new measure #{new_measure_number} at position {x_position}")
             
@@ -691,9 +752,11 @@ class BarlineTemporalBridge(QObject):
             
             print(f"  Checking measure #{measure_num}: x={measure_start} to {measure_end}")
             
-            if measure_start <= x_position < measure_end:
+            # Use ±8px tolerance for "inside measure" hit test
+            tolerance = 8.0
+            if (measure_start - tolerance) <= x_position <= (measure_end + tolerance):
                 target_measure = measure
-                print(f"BRIDGE: ✓ Position {x_position} is in measure #{measure_num} (x={measure_start} to {measure_end})")
+                print(f"BRIDGE: ✓ Position {x_position} is in measure #{measure_num} (x={measure_start} to {measure_end} ±{tolerance}px)")
                 break
             else:
                 print(f"BRIDGE: ✗ Position {x_position} NOT in measure #{measure_num} (x={measure_start} to {measure_end})")
@@ -709,53 +772,8 @@ class BarlineTemporalBridge(QObject):
                     print(f"BRIDGE: Click left of first measure; targeting measure #1 for split")
                 elif x_position >= rightmost_end:
                     print(f"BRIDGE: Position {x_position} is beyond rightmost measure (end={rightmost_end})")
-                    print(f"BRIDGE: Creating new measure at end")
-                    
-                    # Create a new measure at the end
-                    new_measure_number = len(sorted_measures) + 1
-                    new_measure = self._create_measure_object(
-                        measure_number=new_measure_number,
-                        x_position=rightmost_end,
-                        end_x=x_position,
-                        barline_type='single'
-                    )
-                    
-                    # Add to document (ensure dict)
-                    if not isinstance(getattr(self.document, 'measures', {}), dict):
-                        try:
-                            self.document.set_measures(self.document.get_measures())
-                        except Exception:
-                            self.document.measures = {}
-                    self.document.measures[new_measure_number] = new_measure
-                    print(f"BRIDGE: Created new measure #{new_measure_number} at position {x_position}")
-                    
-                    # Apply justified positioning across all systems
-                    self._ensure_all_measures_justified()
-                    
-                    # Normalize barline types so only the last measure is 'final'
-                    try:
-                        ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
-                        if ordered:
-                            last_num = ordered[-1]
-                            for num in ordered:
-                                m = self.document.measures.get(num)
-                                if m is None:
-                                    continue
-                                if num == last_num:
-                                    m.barline_type = 'final'
-                                else:
-                                    if getattr(m, 'barline_type', 'single') == 'final':
-                                        m.barline_type = 'single'
-                            print(f"BRIDGE: Normalized barline types so only measure #{last_num} is 'final' after append")
-                    except Exception as e:
-                        print(f"BRIDGE: Error normalizing barline types after append: {e}")
-                    
-                    # Force updates
-                    self._force_form_widget_sync()
-                    self.temporal_structure_changed.emit()
-                    self.measure_layout_changed.emit()
-                    
-                    return new_measure
+                    print(f"BRIDGE: Not creating new measure - clicking beyond last measure should not append")
+                    return None
             
             print(f"BRIDGE: No existing measure contains position {x_position} - invalid position")
             return None
@@ -868,7 +886,6 @@ class BarlineTemporalBridge(QObject):
             print(f"BRIDGE: Position {x_position} is before notation area (starts at {self.LEFTMOST_NOTE_X})")
             return None
         
-        tolerance = 8.0  # pixels; allow slight overshoot/undershoot to still count as inside
         for i, measure in enumerate(sorted_measures):
             measure_num = getattr(measure, 'measure_number', 1)
             
@@ -885,19 +902,21 @@ class BarlineTemporalBridge(QObject):
             print(f"  Checking measure #{measure_num}: x={start_x} to {end_x}")
             
             # Position is in measure if start_x <= position <= end_x
-            if (start_x - tolerance) <= x_position <= (end_x + tolerance):
+            if start_x <= x_position <= end_x:
                 print(f"BRIDGE: ✓ Position {x_position} is in measure #{measure_num} (x={start_x} to {end_x})")
                 return measure
             else:
                 print(f"BRIDGE: ✗ Position {x_position} NOT in measure #{measure_num} (x={start_x} to {end_x})")
         
-        # CRITICAL FIX: Do NOT append at end via clicking; require split inside measure
+        # CRITICAL FIX: Allow insertion at any position beyond current measures
+        # Instead of extending the rightmost measure, return None to trigger new measure creation
         rightmost_measure = sorted_measures[-1]
         rightmost_end = getattr(rightmost_measure, 'end_x', self.END_BARLINE_X)
         
-        if (rightmost_end + tolerance) < x_position:
-            print(f"BRIDGE: Position {x_position} is beyond rightmost (end={rightmost_end}); per spec, no append on click. Returning None.")
-            return None
+        if rightmost_end < x_position <= self.END_BARLINE_X + 200:  # Allow some extension beyond staff bounds
+            print(f"BRIDGE: Position {x_position} is beyond rightmost measure (end={rightmost_end})")
+            print(f"BRIDGE: ✓ Position allows NEW MEASURE creation - returning None to trigger insertion")
+            return None  # This will trigger new measure creation instead of extending existing
         
         print(f"BRIDGE: Position {x_position} is not within any measure boundaries or reasonable staff bounds")
         return None

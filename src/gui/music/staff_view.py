@@ -447,18 +447,6 @@ class StaffView(QWidget):
         
         # Set focus policy to ensure we can receive keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        # Install global event filter so clicks inside StaffView always reach our handler
-        try:
-            app = QApplication.instance()
-            if app is not None:
-                app.installEventFilter(self)
-                self._global_click_hook_enabled = True
-                print("EVENT_HOOK: Installed global eventFilter for StaffView")
-            else:
-                self._global_click_hook_enabled = False
-        except Exception as e:
-            self._global_click_hook_enabled = False
-            print(f"EVENT_HOOK: Failed to install global eventFilter: {e}")
         
     def set_document(self, document):
         """Set the document to display"""
@@ -1860,6 +1848,98 @@ class StaffView(QWidget):
         """Set whether the staff dialog is open"""
         self.staff_dialog_open = is_open
         
+    def mousePressEvent(self, event):
+        """Handle mouse press for gesture tracking, page dragging, and barline creation"""
+        # CRITICAL: Ensure this widget has focus to receive key events
+        self.setFocus()
+        
+        # Track gesture start
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.gesture_start_pos = event.position()
+            self.gesture_start_zoom = self.zoom_factor
+            self.is_gesturing = False
+            
+            # Start page dragging
+            self.is_dragging_page = True
+            self.drag_start_pos = event.position()
+            self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
+            
+            # Check for barline operations
+            click_pos = event.position().toPoint()
+            
+            # Check for shift key modifier for multi-selection
+            shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            
+            # Check if we're in a valid area for barline operations
+            if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
+                # Try to find existing barline first
+                existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
+                
+                if existing_barline:
+                    # Select the existing barline
+                    if shift_pressed:
+                        # Shift-click: toggle selection of this barline (multi-select)
+                        if hasattr(existing_barline, 'selected') and existing_barline.selected:
+                            existing_barline.selected = False
+                            print(f"SHIFT_CLICK: Deselected barline at measure {getattr(existing_barline, 'measure_number', 'unknown')}")
+                            
+                            # Check if any barlines are still selected
+                            selected_barlines = self.get_selected_barlines()
+                            if not selected_barlines:
+                                # No barlines selected, release keyboard grab
+                                try:
+                                    self.releaseKeyboard()
+                                    print("SHIFT_CLICK: Released keyboard grab - no barlines selected")
+                                except:
+                                    pass
+                        else:
+                            existing_barline.selected = True
+                            # Grab keyboard for delete key handling
+                            self.grabKeyboard()
+                            print(f"SHIFT_CLICK: Added barline at measure {getattr(existing_barline, 'measure_number', 'unknown')} to selection, keyboard grabbed")
+                        
+                        # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                        from .measure_object import MeasureObject
+                        if isinstance(existing_barline, MeasureObject):
+                            # Emit selection signal for form widget
+                            self.barline_selected.emit(existing_barline)
+                        
+                        # Update display to show selection changes
+                        self.update()
+                    else:
+                        # Normal click: select only this barline (single select)
+                        self.select_barline(existing_barline)
+                else:
+                    # No existing barline found
+                    if not shift_pressed:
+                        # Normal click: deselect all barlines first
+                        self.deselect_all_barlines()
+                    
+                    # CRITICAL FIX: Only create barlines when form widget is active
+                    # This prevents automatic barline creation on regular clicks that causes undo reversion
+                    if not shift_pressed and self.is_form_widget_active():
+                        new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
+                        if new_barline:
+                            # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                            from .measure_object import MeasureObject
+                            if isinstance(new_barline, MeasureObject):
+                                # Emit signal for form widget (if available)
+                                self.barline_created.emit(new_barline)
+                            # Update display
+                            self.update()
+                            print(f"BARLINE_CREATE: Created barline at x={click_pos.x()}")
+                        else:
+                            print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
+                    elif not shift_pressed:
+                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+            else:
+                # Click outside valid area
+                if not shift_pressed:
+                    # Normal click outside: deselect all barlines
+                    self.deselect_all_barlines()
+                # Shift-click outside: do nothing (preserve current selection)
+        
+        super().mousePressEvent(event)
     
     def mouseDoubleClickEvent(self, event):
         """Handle double-click events - no longer used for barline removal"""
@@ -2126,9 +2206,16 @@ class StaffView(QWidget):
 
     def is_position_valid_for_barline(self, x, y):
         """Check if the click position is valid for barline placement/selection"""
-        # Don't allow barlines too far to the left (before clef/key/time signature area)
-        # Use minimal padding so clicks in measure 1 right half are allowed
-        if x < LEFT_MARGIN + INITIAL_BARLINE_OFFSET + 10:
+        # More permissive left bound: use temporal bridge LEFTMOST_NOTE_X if available
+        left_bound = None
+        try:
+            if hasattr(self, 'temporal_bridge') and self.temporal_bridge and hasattr(self.temporal_bridge, 'LEFTMOST_NOTE_X'):
+                left_bound = float(self.temporal_bridge.LEFTMOST_NOTE_X)
+        except Exception:
+            left_bound = None
+        if left_bound is None:
+            left_bound = max(0, LEFT_MARGIN + INITIAL_BARLINE_OFFSET)
+        if x < left_bound:
             return False
                 
         # FIXED: For barline selection, accept ANY y position within the system
@@ -2163,16 +2250,13 @@ class StaffView(QWidget):
                 
                 print(f"BARLINE_POSITION: y={y} within system bounds (top={system_top}, bottom={system_bottom}) - VALID")
                 return True
-        
-        # Fallback to old behavior if no layout information available
-        # Check if y coordinate is within any valid staff area
-        staff_index = self.get_staff_index_at_y(y)
-        if staff_index is None:
-            print(f"BARLINE_POSITION: No staff found at y={y} - INVALID")
-            return False
-            
-        print(f"BARLINE_POSITION: Staff {staff_index} found at y={y} - VALID (fallback)")
-        return True
+
+        # Fallback: be permissive so clicks anywhere on rendered staff areas work
+        # Accept any y within the viewport as valid when layout info is missing
+        if 0 <= y <= self.height():
+            print(f"BARLINE_POSITION: No detailed layout; accepting y={y} within widget height {self.height()} - VALID")
+            return True
+        return False
     
     def find_barline_at_position(self, x, y):
         """Find a barline at the given position"""
@@ -2240,7 +2324,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 60  # Widest threshold to ensure reliable selection on empty scores
+        selection_threshold = 25  # Increased threshold for easier selection
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
@@ -2260,14 +2344,21 @@ class StaffView(QWidget):
             print("BARLINE_CREATE: In setup mode - barline creation disabled")
             return None
         
-        # Get barline type from form widget
+        # Get barline type from form widget - CRITICAL: No default, respect deselection
         barline_type = None
-        if hasattr(self, 'main_window') and self.main_window and hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
-            barline_type = self.main_window.form_widget.get_selected_barline_type()
-            print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
-        # Guard: if no radio selected, do not create measures
-        if not barline_type:
-            print("BARLINE_CREATE: No barline type selected - no-op")
+        if hasattr(self, 'main_window') and self.main_window:
+            if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
+                barline_type = self.main_window.form_widget.get_selected_barline_type()
+                print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        if barline_type is None:
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
+        
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        if barline_type is None:
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
             return None
         
         # Use temporal bridge for barline creation
@@ -3056,6 +3147,121 @@ class StaffView(QWidget):
                 self.next_page()
             event.accept()
     
+    def mousePressEvent(self, event):
+        """Handle mouse press for gesture tracking, page dragging, and barline creation"""
+        # CRITICAL: Ensure this widget has focus to receive key events
+        self.setFocus()
+        
+        # Track gesture start
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.gesture_start_pos = event.position()
+            self.gesture_start_zoom = self.zoom_factor
+            self.is_gesturing = False
+            
+            # Start page dragging
+            self.is_dragging_page = True
+            self.drag_start_pos = event.position()
+            self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
+            
+            # Check for barline operations
+            click_pos = event.position().toPoint()
+            
+            # Check for shift key modifier for multi-selection
+            shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            
+            # Check if we're in a valid area for barline operations
+            if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
+                # Try to find existing barline first
+                existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
+                
+                if existing_barline:
+                    # Select the existing barline
+                    if shift_pressed:
+                        # Shift-click: toggle selection of this barline (multi-select)
+                        if hasattr(existing_barline, 'selected') and existing_barline.selected:
+                            existing_barline.selected = False
+                            print(f"SHIFT_CLICK: Deselected barline at measure {getattr(existing_barline, 'measure_number', 'unknown')}")
+                            
+                            # Check if any barlines are still selected
+                            selected_barlines = self.get_selected_barlines()
+                            if not selected_barlines:
+                                # No barlines selected, release keyboard grab
+                                try:
+                                    self.releaseKeyboard()
+                                    print("SHIFT_CLICK: Released keyboard grab - no barlines selected")
+                                except:
+                                    pass
+                        else:
+                            existing_barline.selected = True
+                            # Grab keyboard for delete key handling
+                            self.grabKeyboard()
+                            print(f"SHIFT_CLICK: Added barline at measure {getattr(existing_barline, 'measure_number', 'unknown')} to selection, keyboard grabbed")
+                        
+                        # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                        from .measure_object import MeasureObject
+                        if isinstance(existing_barline, MeasureObject):
+                            # Emit selection signal for form widget
+                            self.barline_selected.emit(existing_barline)
+                        
+                        # Update display to show selection changes
+                        self.update()
+                    else:
+                        # Normal click: select only this barline (single select)
+                        self.select_barline(existing_barline)
+                else:
+                    # No existing barline found
+                    if not shift_pressed:
+                        # Normal click: deselect all barlines first
+                        self.deselect_all_barlines()
+                    
+                    # CRITICAL FIX: Only create barlines when form widget is active
+                    # This prevents automatic barline creation on regular clicks that causes undo reversion
+                    if not shift_pressed and self.is_form_widget_active():
+                        # Check if a barline type is selected
+                        selected_type = None
+                        try:
+                            form_widget = self.get_form_widget()
+                            if form_widget and hasattr(form_widget, 'get_selected_barline_type'):
+                                selected_type = form_widget.get_selected_barline_type()
+                        except Exception:
+                            selected_type = None
+                        
+                        if selected_type is None:
+                            # No barline type selected - check if we're clicking on a barline to select it
+                            existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
+                            if existing_barline:
+                                # Select the barline and open Form if closed
+                                self.select_barline(existing_barline)
+                                if form_widget and not form_widget.isVisible():
+                                    # Open Form widget if it's closed
+                                    if hasattr(self.main_window_ref, 'show_form'):
+                                        self.main_window_ref.show_form()
+                                print(f"BARLINE_SELECT: Selected existing barline and opened Form")
+                            else:
+                                print(f"BARLINE_CREATE: No barline type selected and no barline to select at x={click_pos.x()}")
+                            return
+                        new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
+                        if new_barline:
+                            # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                            from .measure_object import MeasureObject
+                            if isinstance(new_barline, MeasureObject):
+                                # Emit signal for form widget (if available)
+                                self.barline_created.emit(new_barline)
+                            # Update display
+                            self.update()
+                            print(f"BARLINE_CREATE: Created barline at x={click_pos.x()}")
+                        else:
+                            print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
+                    elif not shift_pressed:
+                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+            else:
+                # Click outside valid area
+                if not shift_pressed:
+                    # Normal click outside: deselect all barlines
+                    self.deselect_all_barlines()
+                # Shift-click outside: do nothing (preserve current selection)
+        
+        super().mousePressEvent(event)
     
     def mouseDoubleClickEvent(self, event):
         """Handle double-click events - no longer used for barline removal"""
@@ -3327,55 +3533,57 @@ class StaffView(QWidget):
     
     def find_barline_at_position(self, x, y):
         """Find a barline at the given position"""
-        # Selection should not be blocked by area gating; use nearest-x
-        # Since barlines are vertical and span the system, use horizontal distance only
-        closest = None
+        if not self.is_position_valid_for_barline(x, y):
+            print(f"BARLINE_SELECTION: Position x={x}, y={y} not valid for barline operations")
+            return None
+            
+        # Since barlines span the entire system, we only need to check horizontal distance
+        # The y-coordinate validation is already done in is_position_valid_for_barline
+        
+        # Find the closest barline by horizontal distance only
+        closest_measure = None
         min_distance = float('inf')
         
-        # Gather all barlines from measures
-        if hasattr(self.document, 'measures') and self.document.measures:
-            measures_iter = self.document.measures.values() if isinstance(self.document.measures, dict) else self.document.measures
-            for m in measures_iter:
-                if hasattr(m, 'end_x'):
-                    d = abs(float(m.end_x) - float(x))
-                    if d < min_distance:
-                        min_distance = d
-                        closest = m
+        # Check if document has measures
+        if not (hasattr(self.document, 'measures') and self.document.measures):
+            print("BARLINE_SELECTION: No measures found in document")
+            return None
         
-        # Include graphical dashed barlines
-        if hasattr(self.document, 'graphical_dashed_barlines') and self.document.graphical_dashed_barlines:
-            for dashed in self.document.graphical_dashed_barlines:
-                d = abs(float(getattr(dashed, 'x_position', 0.0)) - float(x))
-                if d < min_distance:
-                    min_distance = d
-                    closest = dashed
+        # Check regular measures collection
+        measures = self.document.measures  # Reset iterator
+        if isinstance(measures, dict):
+            measures = measures.values()
         
-        if closest is not None:
-            print(f"BARLINE_SELECTION: Selected nearest barline (distance={min_distance}px)")
-            return closest
+        for measure in measures:
+            if hasattr(measure, 'end_x'):
+                distance = abs(measure.end_x - x)
+                print(f"BARLINE_SELECTION: Measure {getattr(measure, 'measure_number', 'unknown')} at x={measure.end_x}, distance={distance}")
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_measure = measure
         
-        print("BARLINE_SELECTION: No barlines available to select")
-        return None
-
-    def find_nearest_barline_by_x(self, x):
-        """Find nearest barline by x only, ignoring y guards (for selection)."""
-        closest = None
-        min_distance = float('inf')
-        if hasattr(self.document, 'measures') and self.document.measures:
-            measures_iter = self.document.measures.values() if isinstance(self.document.measures, dict) else self.document.measures
-            for m in measures_iter:
-                if hasattr(m, 'end_x'):
-                    d = abs(float(m.end_x) - float(x))
-                    if d < min_distance:
-                        min_distance = d
-                        closest = m
+        # ALSO CHECK GRAPHICAL DASHED BARLINES COLLECTION
         if hasattr(self.document, 'graphical_dashed_barlines'):
-            for dashed in getattr(self.document, 'graphical_dashed_barlines', []):
-                d = abs(float(getattr(dashed, 'x_position', 0.0)) - float(x))
-                if d < min_distance:
-                    min_distance = d
-                    closest = dashed
-        return closest
+            print(f"BARLINE_SELECTION: Checking {len(self.document.graphical_dashed_barlines)} graphical dashed barlines")
+            for dashed_barline in self.document.graphical_dashed_barlines:
+                distance = abs(dashed_barline.x_position - x)
+                print(f"BARLINE_SELECTION: Dashed barline at x={dashed_barline.x_position}, distance={distance}, contains={dashed_barline.contains_x_position(x)}")
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_measure = dashed_barline
+                    print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
+        
+        # Return the closest barline if within threshold
+        selection_threshold = 25  # Increased threshold for easier selection
+        if closest_measure and min_distance < selection_threshold:
+            barline_type = getattr(closest_measure, 'barline_type', 'unknown')
+            measure_id = getattr(closest_measure, 'measure_number', 'unknown')
+            print(f"BARLINE_SELECTION: Found {barline_type} barline at {measure_id}, distance={min_distance}px")
+            return closest_measure
+        else:
+            print(f"BARLINE_SELECTION: No barline found within {selection_threshold}px threshold (closest was {min_distance}px)")
+            
+        return None
     
     def create_barline_at_position(self, x, y):
         """Create a barline at the specified position"""
@@ -3386,12 +3594,17 @@ class StaffView(QWidget):
             print("BARLINE_CREATE: In setup mode - barline creation disabled")
             return None
         
-        # Get barline type from form widget
-        barline_type = "single"  # Default
+        # Get barline type from form widget - CRITICAL: No default, respect deselection
+        barline_type = None
         if hasattr(self, 'main_window') and self.main_window:
             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                 barline_type = self.main_window.form_widget.get_selected_barline_type()
                 print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+        
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        if barline_type is None:
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -4185,6 +4398,98 @@ class StaffView(QWidget):
                 self.next_page()
             event.accept()
     
+    def mousePressEvent(self, event):
+        """Handle mouse press for gesture tracking, page dragging, and barline creation"""
+        # CRITICAL: Ensure this widget has focus to receive key events
+        self.setFocus()
+        
+        # Track gesture start
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.gesture_start_pos = event.position()
+            self.gesture_start_zoom = self.zoom_factor
+            self.is_gesturing = False
+            
+            # Start page dragging
+            self.is_dragging_page = True
+            self.drag_start_pos = event.position()
+            self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
+            
+            # Check for barline operations
+            click_pos = event.position().toPoint()
+            
+            # Check for shift key modifier for multi-selection
+            shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            
+            # Check if we're in a valid area for barline operations
+            if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
+                # Try to find existing barline first
+                existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
+                
+                if existing_barline:
+                    # Select the existing barline
+                    if shift_pressed:
+                        # Shift-click: toggle selection of this barline (multi-select)
+                        if hasattr(existing_barline, 'selected') and existing_barline.selected:
+                            existing_barline.selected = False
+                            print(f"SHIFT_CLICK: Deselected barline at measure {getattr(existing_barline, 'measure_number', 'unknown')}")
+                            
+                            # Check if any barlines are still selected
+                            selected_barlines = self.get_selected_barlines()
+                            if not selected_barlines:
+                                # No barlines selected, release keyboard grab
+                                try:
+                                    self.releaseKeyboard()
+                                    print("SHIFT_CLICK: Released keyboard grab - no barlines selected")
+                                except:
+                                    pass
+                        else:
+                            existing_barline.selected = True
+                            # Grab keyboard for delete key handling
+                            self.grabKeyboard()
+                            print(f"SHIFT_CLICK: Added barline at measure {getattr(existing_barline, 'measure_number', 'unknown')} to selection, keyboard grabbed")
+                        
+                        # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                        from .measure_object import MeasureObject
+                        if isinstance(existing_barline, MeasureObject):
+                            # Emit selection signal for form widget
+                            self.barline_selected.emit(existing_barline)
+                        
+                        # Update display to show selection changes
+                        self.update()
+                    else:
+                        # Normal click: select only this barline (single select)
+                        self.select_barline(existing_barline)
+                else:
+                    # No existing barline found
+                    if not shift_pressed:
+                        # Normal click: deselect all barlines first
+                        self.deselect_all_barlines()
+                    
+                    # CRITICAL FIX: Only create barlines when form widget is active
+                    # This prevents automatic barline creation on regular clicks that causes undo reversion
+                    if not shift_pressed and self.is_form_widget_active():
+                        new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
+                        if new_barline:
+                            # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                            from .measure_object import MeasureObject
+                            if isinstance(new_barline, MeasureObject):
+                                # Emit signal for form widget (if available)
+                                self.barline_created.emit(new_barline)
+                            # Update display
+                            self.update()
+                            print(f"BARLINE_CREATE: Created barline at x={click_pos.x()}")
+                        else:
+                            print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
+                    elif not shift_pressed:
+                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+            else:
+                # Click outside valid area
+                if not shift_pressed:
+                    # Normal click outside: deselect all barlines
+                    self.deselect_all_barlines()
+                # Shift-click outside: do nothing (preserve current selection)
+        
+        super().mousePressEvent(event)
     
     def mouseDoubleClickEvent(self, event):
         """Handle double-click events - no longer used for barline removal"""
@@ -4497,7 +4802,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within threshold
-        selection_threshold = 90  # Extra-wide to ensure selection near margins
+        selection_threshold = 25  # Increased threshold for easier selection
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
@@ -4517,12 +4822,17 @@ class StaffView(QWidget):
             print("BARLINE_CREATE: In setup mode - barline creation disabled")
             return None
         
-        # Get barline type from form widget
-        barline_type = "single"  # Default
+        # Get barline type from form widget - CRITICAL: No default, respect deselection
+        barline_type = None
         if hasattr(self, 'main_window') and self.main_window:
             if hasattr(self.main_window, 'form_widget') and self.main_window.form_widget:
                 barline_type = self.main_window.form_widget.get_selected_barline_type()
                 print(f"BARLINE_CREATE: Got barline type '{barline_type}' from form widget")
+        
+        # CRITICAL FIX: If no barline type selected (deselected radios), do not create
+        if barline_type is None:
+            print("BARLINE_CREATE: No barline type selected (deselected radios) - not creating")
+            return None
         
         # Use temporal bridge for barline creation
         if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
@@ -5295,18 +5605,99 @@ class StaffView(QWidget):
                 self.next_page()
             event.accept()
     
-
-    def eventFilter(self, obj, event):
-        """Global event filter to route mouse clicks to StaffView"""
-        if event.type() == QEvent.Type.MouseButtonPress:
-            # Check if the click is within our geometry
-            if self.geometry().contains(event.globalPosition().toPoint()):
-                print(f"EVENT_HOOK: Routed global click at {event.position().x()}, {event.position().y()}")
-                # Route to our mousePressEvent
-                self.mousePressEvent(event)
-                return True
-        return super().eventFilter(obj, event) if hasattr(super(), 'eventFilter') else False
-
+    def mousePressEvent(self, event):
+        """Handle mouse press for gesture tracking, page dragging, and barline creation"""
+        # CRITICAL: Ensure this widget has focus to receive key events
+        self.setFocus()
+        
+        # Track gesture start
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.gesture_start_pos = event.position()
+            self.gesture_start_zoom = self.zoom_factor
+            self.is_gesturing = False
+            
+            # Start page dragging
+            self.is_dragging_page = True
+            self.drag_start_pos = event.position()
+            self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
+            
+            # Check for barline operations
+            click_pos = event.position().toPoint()
+            
+            # Check for shift key modifier for multi-selection
+            shift_pressed = event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+            
+            # Check if we're in a valid area for barline operations
+            if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
+                # Try to find existing barline first
+                existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
+                
+                if existing_barline:
+                    # Select the existing barline
+                    if shift_pressed:
+                        # Shift-click: toggle selection of this barline (multi-select)
+                        if hasattr(existing_barline, 'selected') and existing_barline.selected:
+                            existing_barline.selected = False
+                            print(f"SHIFT_CLICK: Deselected barline at measure {getattr(existing_barline, 'measure_number', 'unknown')}")
+                            
+                            # Check if any barlines are still selected
+                            selected_barlines = self.get_selected_barlines()
+                            if not selected_barlines:
+                                # No barlines selected, release keyboard grab
+                                try:
+                                    self.releaseKeyboard()
+                                    print("SHIFT_CLICK: Released keyboard grab - no barlines selected")
+                                except:
+                                    pass
+                        else:
+                            existing_barline.selected = True
+                            # Grab keyboard for delete key handling
+                            self.grabKeyboard()
+                            print(f"SHIFT_CLICK: Added barline at measure {getattr(existing_barline, 'measure_number', 'unknown')} to selection, keyboard grabbed")
+                        
+                        # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                        from .measure_object import MeasureObject
+                        if isinstance(existing_barline, MeasureObject):
+                            # Emit selection signal for form widget
+                            self.barline_selected.emit(existing_barline)
+                        
+                        # Update display to show selection changes
+                        self.update()
+                    else:
+                        # Normal click: select only this barline (single select)
+                        self.select_barline(existing_barline)
+                else:
+                    # No existing barline found
+                    if not shift_pressed:
+                        # Normal click: deselect all barlines first
+                        self.deselect_all_barlines()
+                    
+                    # CRITICAL FIX: Only create barlines when form widget is active
+                    # This prevents automatic barline creation on regular clicks that causes undo reversion
+                    if not shift_pressed and self.is_form_widget_active():
+                        new_barline = self.create_barline_at_position(click_pos.x(), click_pos.y())
+                        if new_barline:
+                            # Only emit signal for actual MeasureObjects, not graphical dashed barlines
+                            from .measure_object import MeasureObject
+                            if isinstance(new_barline, MeasureObject):
+                                # Emit signal for form widget (if available)
+                                self.barline_created.emit(new_barline)
+                            # Update display
+                            self.update()
+                            print(f"BARLINE_CREATE: Created barline at x={click_pos.x()}")
+                        else:
+                            print(f"BARLINE_CREATE: Failed to create barline at x={click_pos.x()}")
+                    elif not shift_pressed:
+                        print(f"CLICK: Form widget not active, not creating barline at x={click_pos.x()}")
+            else:
+                # Click outside valid area
+                if not shift_pressed:
+                    # Normal click outside: deselect all barlines
+                    self.deselect_all_barlines()
+                # Shift-click outside: do nothing (preserve current selection)
+        
+        super().mousePressEvent(event)
+    
     def mouseMoveEvent(self, event):
         """Handle mouse move for gesture tracking and page dragging"""
         # Call original mouse move handler first
@@ -5380,11 +5771,6 @@ class StaffView(QWidget):
     def event(self, event):
         """Handle touch and native gesture events for pinch/zoom gestures"""
         try:
-            # Route global mouse presses from eventFilter when needed
-            if event.type() == QEvent.Type.MouseButtonPress:
-                # Let mousePressEvent handle selection/creation
-                self.mousePressEvent(event)
-                return True
             # Handle Qt gesture framework (pinch)
             if event.type() == QEvent.Type.Gesture:
                 pinch = event.gesture(Qt.GestureType.PinchGesture)
@@ -5694,4 +6080,74 @@ class StaffBarTool(QWidget):
         enable_buttons = count > 0
         self.clef_btn.setEnabled(enable_buttons)
         self.key_btn.setEnabled(enable_buttons)
-        self.time_btn.setEnabled(enable_buttons) 
+        self.time_btn.setEnabled(enable_buttons)
+    
+    def find_score_element_at_position(self, x, y):
+        """Find score elements (clefs, key signatures, time signatures) at the given position"""
+        if not self.document or not hasattr(self.document, 'layout'):
+            return None
+        
+        # Check all staves for elements
+        all_staves = []
+        if hasattr(self.document.layout, 'ungrouped_staves'):
+            all_staves.extend(self.document.layout.ungrouped_staves)
+        if hasattr(self.document.layout, 'sections'):
+            for section in self.document.layout.sections:
+                if hasattr(section, 'staves'):
+                    all_staves.extend(section.staves)
+        
+        for staff in all_staves:
+            if not hasattr(staff, 'y_position'):
+                continue
+                
+            staff_y = staff.y_position
+            staff_height = 32  # Standard staff height
+            
+            # Check if click is within this staff's vertical bounds
+            if staff_y <= y <= staff_y + staff_height:
+                # Check for clef
+                if hasattr(staff, 'clef') and staff.clef:
+                    clef_x = getattr(staff.clef, 'x_position', 50)
+                    if abs(x - clef_x) < 20:  # 20px tolerance
+                        return staff.clef
+                
+                # Check for key signature
+                if hasattr(staff, 'key_signature') and staff.key_signature:
+                    key_x = getattr(staff.key_signature, 'x_position', 100)
+                    if abs(x - key_x) < 30:  # 30px tolerance for key signatures
+                        return staff.key_signature
+                
+                # Check for time signature
+                if hasattr(staff, 'time_signature') and staff.time_signature:
+                    time_x = getattr(staff.time_signature, 'x_position', 150)
+                    if abs(x - time_x) < 25:  # 25px tolerance
+                        return staff.time_signature
+                
+                # Check for staff name
+                if hasattr(staff, 'staff_name') and staff.staff_name:
+                    name_x = getattr(staff.staff_name, 'x_position', 20)
+                    if abs(x - name_x) < 50:  # 50px tolerance for staff names
+                        return staff.staff_name
+        
+        return None
+    
+    def deselect_all_elements(self):
+        """Deselect all score elements"""
+        if not self.document or not hasattr(self.document, 'layout'):
+            return
+        
+        # Deselect elements in all staves
+        all_staves = []
+        if hasattr(self.document.layout, 'ungrouped_staves'):
+            all_staves.extend(self.document.layout.ungrouped_staves)
+        if hasattr(self.document.layout, 'sections'):
+            for section in self.document.layout.sections:
+                if hasattr(section, 'staves'):
+                    all_staves.extend(section.staves)
+        
+        for staff in all_staves:
+            for attr in ['clef', 'key_signature', 'time_signature', 'staff_name']:
+                if hasattr(staff, attr):
+                    element = getattr(staff, attr)
+                    if element and hasattr(element, 'selected'):
+                        element.selected = False 
