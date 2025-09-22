@@ -2537,3 +2537,92 @@ class StaffView(QWidget):
         self.barline_creation_enabled = enabled
         print(f"STAFFVIEW: Barline creation {'enabled' if enabled else 'disabled'}")
 
+
+class StaffBarTool(QWidget):
+    staff_changed = pyqtSignal(dict)  # Signal emitted when staff settings change
+    clef_changed = pyqtSignal(dict)   # Signal emitted when clef changes
+    key_changed = pyqtSignal(dict)    # Signal emitted when key signature changes
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent_view = parent
+        self.setup_ui()
+        
+    def setup_ui(self):
+        """Setup the user interface for the staff bar tool"""
+        layout = QVBoxLayout()
+        
+        # Staff management section
+        staff_group = QGroupBox("Staff Management")
+        staff_layout = QVBoxLayout()
+        
+        # Add staff button
+        self.add_staff_btn = QPushButton("Add Staff")
+        self.add_staff_btn.clicked.connect(self.add_staff)
+        staff_layout.addWidget(self.add_staff_btn)
+        
+        # Staff list
+        self.staff_list = QListWidget()
+        self.staff_list.itemSelectionChanged.connect(self.on_staff_selection_changed)
+        staff_layout.addWidget(self.staff_list)
+        
+        staff_group.setLayout(staff_layout)
+        layout.addWidget(staff_group)
+        
+        # Clef selection section
+        clef_group = QGroupBox("Clef Selection")
+        clef_layout = QVBoxLayout()
+        
+        self.clef_combo = QComboBox()
+        self.clef_combo.addItems(["Treble", "Bass", "Alto", "Tenor"])
+        self.clef_combo.currentTextChanged.connect(self.on_clef_changed)
+        clef_layout.addWidget(self.clef_combo)
+        
+        clef_group.setLayout(clef_layout)
+        layout.addWidget(clef_group)
+        
+        # Key signature section
+        key_group = QGroupBox("Key Signature")
+        key_layout = QVBoxLayout()
+        
+        self.key_combo = QComboBox()
+        self.key_combo.addItems(["C Major", "G Major", "D Major", "A Major", "E Major", 
+                                "F Major", "Bb Major", "Eb Major", "Ab Major", "Db Major"])
+        self.key_combo.currentTextChanged.connect(self.on_key_changed)
+        key_layout.addWidget(self.key_combo)
+        
+        key_group.setLayout(key_layout)
+        layout.addWidget(key_group)
+        
+        self.setLayout(layout)
+        
+    def add_staff(self):
+        """Add a new staff to the score"""
+        if self.parent_view:
+            # Emit signal to add staff
+            self.staff_changed.emit({"action": "add"})
+            
+    def on_staff_selection_changed(self):
+        """Handle staff selection change"""
+        current_item = self.staff_list.currentItem()
+        if current_item:
+            staff_id = current_item.text()
+            # Emit signal with selected staff
+            self.staff_changed.emit({"action": "select", "staff_id": staff_id})
+            
+    def on_clef_changed(self, clef_name):
+        """Handle clef change"""
+        clef_type = clef_name.lower()
+        self.clef_changed.emit({"clef_type": clef_type})
+        
+    def on_key_changed(self, key_name):
+        """Handle key signature change"""
+        self.key_changed.emit({"key_signature": key_name})
+        
+    def update_staff_list(self, staffs):
+        """Update the staff list with current staffs"""
+        self.staff_list.clear()
+        for staff in staffs:
+            staff_name = getattr(staff, 'name', f"Staff {staff}")
+            self.staff_list.addItem(staff_name)
+
