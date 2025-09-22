@@ -447,6 +447,18 @@ class StaffView(QWidget):
         
         # Set focus policy to ensure we can receive keyboard events
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        # Install global event filter so clicks inside StaffView always reach our handler
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.installEventFilter(self)
+                self._global_click_hook_enabled = True
+                print("EVENT_HOOK: Installed global eventFilter for StaffView")
+            else:
+                self._global_click_hook_enabled = False
+        except Exception as e:
+            self._global_click_hook_enabled = False
+            print(f"EVENT_HOOK: Failed to install global eventFilter: {e}")
         
     def set_document(self, document):
         """Set the document to display"""
@@ -5779,6 +5791,11 @@ class StaffView(QWidget):
     def event(self, event):
         """Handle touch and native gesture events for pinch/zoom gestures"""
         try:
+            # Route global mouse presses from eventFilter when needed
+            if event.type() == QEvent.Type.MouseButtonPress:
+                # Let mousePressEvent handle selection/creation
+                self.mousePressEvent(event)
+                return True
             # Handle Qt gesture framework (pinch)
             if event.type() == QEvent.Type.Gesture:
                 pinch = event.gesture(Qt.GestureType.PinchGesture)
