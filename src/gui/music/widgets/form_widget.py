@@ -2656,10 +2656,13 @@ class FormWidget(QWidget):
                 if temporal_bridge:
                     if hasattr(staff_view, 'document') and staff_view.document:
                         temporal_bridge.document = staff_view.document
-                        print(f"FORM_WIDGET: Set temporal bridge document reference")
+                        print(f"FORM_WIDGET: Set temporal bridge document reference to staff_view.document")
                     elif hasattr(self, 'document') and self.document:
                         temporal_bridge.document = self.document
                         print(f"FORM_WIDGET: Set temporal bridge document from form widget")
+                    else:
+                        print(f"FORM_WIDGET: Warning - no document found for temporal bridge")
+                        temporal_bridge = None
             if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'measure_manager'):
                 measure_manager = staff_view.document.measure_manager
         

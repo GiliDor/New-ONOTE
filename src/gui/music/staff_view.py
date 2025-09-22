@@ -2403,6 +2403,21 @@ class StaffView(QWidget):
             if hasattr(self.main_window, 'form_widget'):
                 return self.main_window.form_widget
         
+        # Method 3: Search through parent chain
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'form_widget') and parent.form_widget:
+                return parent.form_widget
+            parent = parent.parent()
+        
+        # Method 4: Search for any visible FormWidget globally
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            for widget in app.allWidgets():
+                if widget.__class__.__name__ == 'FormWidget' and widget.isVisible():
+                    return widget
+        
         return None
     
     def remove_barline(self, barline):
@@ -3652,6 +3667,21 @@ class StaffView(QWidget):
             if hasattr(self.main_window, 'form_widget'):
                 return self.main_window.form_widget
         
+        # Method 3: Search through parent chain
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'form_widget') and parent.form_widget:
+                return parent.form_widget
+            parent = parent.parent()
+        
+        # Method 4: Search for any visible FormWidget globally
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            for widget in app.allWidgets():
+                if widget.__class__.__name__ == 'FormWidget' and widget.isVisible():
+                    return widget
+        
         return None
     
     def remove_barline(self, barline):
@@ -4883,6 +4913,21 @@ class StaffView(QWidget):
         if hasattr(self, 'main_window') and self.main_window:
             if hasattr(self.main_window, 'form_widget'):
                 return self.main_window.form_widget
+        
+        # Method 3: Search through parent chain
+        parent = self.parent()
+        while parent:
+            if hasattr(parent, 'form_widget') and parent.form_widget:
+                return parent.form_widget
+            parent = parent.parent()
+        
+        # Method 4: Search for any visible FormWidget globally
+        from PyQt6.QtWidgets import QApplication
+        app = QApplication.instance()
+        if app:
+            for widget in app.allWidgets():
+                if widget.__class__.__name__ == 'FormWidget' and widget.isVisible():
+                    return widget
         
         return None
     
