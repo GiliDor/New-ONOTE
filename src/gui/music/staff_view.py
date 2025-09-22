@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                            QComboBox, QSpinBox, QDialog, QDialogButtonBox, QFormLayout,
                            QTabWidget, QSizePolicy, QFrame, QLineEdit, QTreeWidgetItem,
                            QApplication, QCheckBox, QGroupBox, QScrollArea, QGridLayout,
-                           QButtonGroup, QRadioButton)
+                           QButtonGroup, QRadioButton, QListWidget)
 from PyQt6.QtCore import Qt, QRectF, QPointF, QRect, QPoint, QTimer, QObject, QEvent
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont, QPainterPath, QBrush, QFontMetrics, QKeyEvent
 from PyQt6.QtWidgets import QPinchGesture
