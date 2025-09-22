@@ -1052,6 +1052,11 @@ class FormWidget(QWidget):
         barline_type = button.property("barline_type")
         print(f"FORM_WIDGET: on_barline_type_changed called with type: {barline_type}")
         
+        # CRITICAL FIX: Re-enable exclusive mode when a button is selected
+        if not self.barline_button_group.exclusive():
+            print(f"FORM_WIDGET: Re-enabling exclusive mode for button selection")
+            self.barline_button_group.setExclusive(True)
+        
         # CRITICAL FIX: Don't process during deselection
         if hasattr(self, '_deselecting_radio_buttons') and self._deselecting_radio_buttons:
             print(f"FORM_WIDGET: Deselecting radio buttons - NOT processing type change")
@@ -2872,15 +2877,19 @@ class FormWidget(QWidget):
             buttons = self.barline_button_group.buttons()
             print(f"FORM_WIDGET: Found {len(buttons)} radio buttons")
             
+            # CRITICAL FIX: Disable exclusive mode BEFORE deselecting
+            self.barline_button_group.setExclusive(False)
+            
             # Deselect all buttons by setting each one to unchecked
             for button in buttons:
                 if button.isChecked():
                     print(f"FORM_WIDGET: Deselecting button: {button.text()}")
                     button.setChecked(False)
+                    # Force the button to update its state
+                    button.update()
             
-            # Force the button group to have no selection
-            self.barline_button_group.setExclusive(False)
-            self.barline_button_group.setExclusive(True)
+            # Keep exclusive mode disabled to allow no selection
+            # Don't restore exclusive mode - this allows no buttons to be selected
             
             # Reconnect the signal
             self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
