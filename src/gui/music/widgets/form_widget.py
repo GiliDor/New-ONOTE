@@ -1857,6 +1857,16 @@ class FormWidget(QWidget):
         """Handle barline selection from staff view"""
         print(f"FORM_WIDGET: on_barline_selected called with barline type: {getattr(barline, 'barline_type', 'unknown')}")
         
+        # CRITICAL FIX: Check if user has explicitly deselected all radio buttons
+        current_selection = self.barline_button_group.checkedButton()
+        if current_selection is None:
+            print(f"FORM_WIDGET: No radio buttons selected - user has deselected, NOT auto-selecting {getattr(barline, 'barline_type', 'unknown')}")
+            # Still update the selected barline for highlighting, but don't change radio buttons
+            self.selected_barline = barline
+            return
+        
+        print(f"FORM_WIDGET: Radio buttons are selected, proceeding with auto-selection of {getattr(barline, 'barline_type', 'unknown')}")
+        
         # Update the selected barline
         self.selected_barline = barline
         
