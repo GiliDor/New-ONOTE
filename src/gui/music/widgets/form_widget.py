@@ -710,6 +710,7 @@ class FormWidget(QWidget):
         # Create button group for barline types with improved layout
         self.barline_button_group = QButtonGroup(self)
         self.barline_button_group.setExclusive(True)
+        print("FORM_WIDGET: Created barline_button_group with exclusive=True")
         
         # Create radio buttons for each barline type with SMuFL symbols
         barline_types = [
@@ -2203,6 +2204,13 @@ class FormWidget(QWidget):
     def get_selected_barline_type(self):
         """Get the currently selected barline type"""
         selected_button = self.barline_button_group.checkedButton()
+        print(f"FORM_WIDGET: get_selected_barline_type() - checkedButton() returned: {selected_button}")
+        
+        # Also check all buttons manually
+        all_buttons = self.barline_button_group.buttons()
+        checked_buttons = [btn for btn in all_buttons if btn.isChecked()]
+        print(f"FORM_WIDGET: get_selected_barline_type() - manually found {len(checked_buttons)} checked buttons: {[btn.text() for btn in checked_buttons]}")
+        
         if selected_button:
             barline_type = selected_button.property("barline_type")
             print(f"FORM_WIDGET: get_selected_barline_type() returning '{barline_type}' from button '{selected_button.text()}'")
@@ -2860,10 +2868,6 @@ class FormWidget(QWidget):
             # Temporarily disconnect the signal to prevent interference
             self.barline_button_group.buttonClicked.disconnect()
             
-            # Temporarily disable exclusive mode to allow deselection
-            was_exclusive = self.barline_button_group.exclusive()
-            self.barline_button_group.setExclusive(False)
-            
             # Get all buttons in the group
             buttons = self.barline_button_group.buttons()
             print(f"FORM_WIDGET: Found {len(buttons)} radio buttons")
@@ -2874,8 +2878,9 @@ class FormWidget(QWidget):
                     print(f"FORM_WIDGET: Deselecting button: {button.text()}")
                     button.setChecked(False)
             
-            # Restore exclusive mode
-            self.barline_button_group.setExclusive(was_exclusive)
+            # Force the button group to have no selection
+            self.barline_button_group.setExclusive(False)
+            self.barline_button_group.setExclusive(True)
             
             # Reconnect the signal
             self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
