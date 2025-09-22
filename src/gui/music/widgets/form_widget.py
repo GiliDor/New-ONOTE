@@ -2639,6 +2639,9 @@ class FormWidget(QWidget):
     
     def on_batch_insert_measures(self):
         """Handle batch measure insertion"""
+        print(f"FORM_WIDGET: Batch insert button clicked!")
+        print(f"FORM_WIDGET: Button enabled: {self.batch_insert_btn.isEnabled()}")
+        print(f"FORM_WIDGET: Button visible: {self.batch_insert_btn.isVisible()}")
         count = self.batch_count_spin.value()
         position_text = self.batch_position_combo.currentText()
         
