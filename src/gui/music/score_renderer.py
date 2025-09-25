@@ -870,17 +870,34 @@ class ScoreRenderer:
                         page_start_idx = 0
                         page_end_idx = total_systems
                     # Render per system using top staff y and page-local vertical shift
-                    # Top staff y
-                    top_y = 0.0
-                    if self.document and hasattr(self.document.layout, 'ungrouped_staves') and self.document.layout.ungrouped_staves:
-                        top_y = float(self.document.layout.ungrouped_staves[0].y_position)
+                    # CRITICAL FIX: Only render measure numbers on the TOP STAFF SYSTEM, not on every staff
+                    # Get all staves to identify the top one
+                    all_staves = []
+                    if hasattr(self.document.layout, 'ungrouped_staves'):
+                        all_staves.extend(self.document.layout.ungrouped_staves)
+                    if hasattr(self.document.layout, 'sections'):
+                        for section in self.document.layout.sections:
+                            if hasattr(section, 'staves'):
+                                all_staves.extend(section.staves)
+                    
+                    # Sort staves by y position to find the true top staff
+                    all_staves.sort(key=lambda staff: staff.y_position)
+                    
+                    if all_staves:
+                        top_staff = all_staves[0]  # The topmost staff
+                        top_y = float(top_staff.y_position)
+                        
                     for sys_idx in range(page_start_idx, page_end_idx):
                         start = sys_idx * mps
                         end = min(total, start + mps)
                         sys_measures = measures[start:end]
                         local_idx = sys_idx - page_start_idx
                         system_y = top_y + local_idx * spacing_pref
-                        self.measure_number_manager.render_for_staff(painter, 'ScoreTop', sys_measures, system_y, start + 1)
+                        # Only render measure numbers above the TOP staff system
+                        self.measure_number_manager.render_for_staff(painter, top_staff.name, sys_measures, system_y, start + 1)
+                        print(f"MEASURE_NUMBERS: Rendered for system {sys_idx} on top staff '{top_staff.name}' at y={system_y}")
+                else:
+                    print("MEASURE_NUMBERS: No staves found, skipping measure number rendering")
             except Exception as e:
                 print(f"RENDERER: Error in post-barlines measure number pass: {e}")
 
@@ -1437,6 +1454,39 @@ class ScoreRenderer:
                 except Exception as e:
                     print(f"GRAND_STAFF ERROR: Brace rendering failed for system {system_idx}: {e}")
 
+                # Render part name for this system (only for first system or if needed)
+                try:
+                    print(f"GRAND_STAFF DEBUG: system_idx={system_idx}, hasattr instrument_name={hasattr(staff, 'instrument_name')}")
+                    if hasattr(staff, 'instrument_name'):
+                        print(f"GRAND_STAFF DEBUG: staff.instrument_name='{staff.instrument_name}'")
+                    if system_idx == 0 and hasattr(staff, 'instrument_name') and staff.instrument_name:
+                        from .score_layout import PartNameRenderer
+                        # FIXED: Better positioning for grand staff part names
+                        # Position further right and use proper vertical centering
+                        name_x = max(80, self.margins["left"] + getattr(self, 'staff_name_horizontal_offset', 50))
+                        # Calculate center Y position between top and bottom staves
+                        if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
+                            top_y = staff.top_staff.y_position
+                            bottom_y = staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                            name_y = (top_y + bottom_y) / 2
+                        else:
+                            name_y = staff.instrument_name_y
+                        print(f"GRAND_STAFF DEBUG: About to render part name '{staff.instrument_name}' at ({name_x}, {name_y})")
+                        PartNameRenderer.render_part_name(
+                            painter,
+                            staff.instrument_name,
+                            name_x,
+                            name_y,
+                            is_grand_staff=True
+                        )
+                        print(f"GRAND_STAFF: Rendered part name '{staff.instrument_name}' for system {system_idx}")
+                    else:
+                        print(f"GRAND_STAFF DEBUG: Part name not rendered - system_idx={system_idx}, has_name={hasattr(staff, 'instrument_name')}, name_value='{getattr(staff, 'instrument_name', 'N/A')}'")
+                except Exception as e:
+                    print(f"GRAND_STAFF ERROR: Part name rendering failed for system {system_idx}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
                 # Calculate if this is the final system
                 is_final_system = system_idx == system_info['total_systems'] - 1
 
@@ -1502,6 +1552,39 @@ class ScoreRenderer:
                 self._render_brace(painter, staff)
             except Exception as e:
                 print(f"GRAND_STAFF_SYSTEM ERROR: Brace rendering failed for system {system_idx}: {e}")
+
+            # Render part name for this system (only for first system)
+            try:
+                print(f"GRAND_STAFF_SYSTEM DEBUG: system_idx={system_idx}, hasattr instrument_name={hasattr(staff, 'instrument_name')}")
+                if hasattr(staff, 'instrument_name'):
+                    print(f"GRAND_STAFF_SYSTEM DEBUG: staff.instrument_name='{staff.instrument_name}'")
+                if system_idx == 0 and hasattr(staff, 'instrument_name') and staff.instrument_name:
+                    from .score_layout import PartNameRenderer
+                    # FIXED: Better positioning for grand staff part names
+                    # Position further right and use proper vertical centering
+                    name_x = max(80, self.margins["left"] + getattr(self, 'staff_name_horizontal_offset', 50))
+                    # Calculate center Y position between top and bottom staves
+                    if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
+                        top_y = staff.top_staff.y_position
+                        bottom_y = staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                        name_y = (top_y + bottom_y) / 2
+                    else:
+                        name_y = staff.y_position + ((staff.brace_y_end - staff.brace_y_start) / 2)
+                    print(f"GRAND_STAFF_SYSTEM DEBUG: About to render part name '{staff.instrument_name}' at ({name_x}, {name_y})")
+                    PartNameRenderer.render_part_name(
+                        painter,
+                        staff.instrument_name,
+                        name_x,
+                        name_y,
+                        is_grand_staff=True
+                    )
+                    print(f"GRAND_STAFF_SYSTEM: Rendered part name '{staff.instrument_name}' for system {system_idx}")
+                else:
+                    print(f"GRAND_STAFF_SYSTEM DEBUG: Part name not rendered - system_idx={system_idx}, has_name={hasattr(staff, 'instrument_name')}, name_value='{getattr(staff, 'instrument_name', 'N/A')}'")
+            except Exception as e:
+                print(f"GRAND_STAFF_SYSTEM ERROR: Part name rendering failed for system {system_idx}: {e}")
+                import traceback
+                traceback.print_exc()
 
             # Calculate if this is the final system
             is_final_system = system_idx == system_info['total_systems'] - 1
@@ -2790,24 +2873,211 @@ class ScoreRenderer:
             # Use QLineF to ensure correct types
             painter.drawLine(QLineF(staff_left_x, line_y, staff_end_x, line_y))
 
-        # Draw per-measure vertical barlines for this staff so that empty staves
-        # show the same measure divisions as populated ones. Keep them light; the
-        # connecting pass will reinforce and connect across staves.
+        # ENHANCED: Draw system-aware barlines that span appropriately within their staff systems
+        # This replaces individual staff barlines with system-aware ones
+        self._render_system_aware_barlines(painter, staff, system_idx, is_final_system, 
+                                         first_measure_barline_x, unit_width, 
+                                         num_measures_to_render, staff_y)
+
+        # Note: Barline 0 (full-score connector) is still drawn by _render_connecting_barlines
+        return
+
+    def _render_system_aware_barlines(self, painter, staff, system_idx, is_final_system, 
+                                    first_measure_barline_x, unit_width, 
+                                    num_measures_to_render, staff_y):
+        """
+        Render barlines that span appropriately within their staff systems:
+        - Single staves: barlines span just that staff
+        - Grand staves: barlines span from top staff to bottom staff
+        - Sections: barlines span the entire section
+        """
+        try:
+            # Determine the staff system this staff belongs to and calculate barline span
+            barline_top_y, barline_bottom_y = self._calculate_barline_span_for_staff(staff, staff_y)
+            
+            # Draw barlines for each measure in this system
+            for m_idx in range(1, num_measures_to_render + 1):
+                x = first_measure_barline_x + (m_idx * unit_width)
+                
+                # Only draw if this is the first staff in the system to avoid duplicates
+                if self._is_first_staff_in_system(staff):
+                    # Draw final barline with proper styling if this is the final barline
+                    if is_final_system and m_idx == num_measures_to_render:
+                        # Draw final barline (thin line + thick line)
+                        painter.setPen(QPen(QColor(0, 0, 0), 1))  # Thin line
+                        painter.drawLine(QLineF(x - 6, barline_top_y, x - 6, barline_bottom_y))
+                        painter.setPen(QPen(QColor(0, 0, 0), 4))  # Thick line
+                        painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
+                        print(f"BARLINES: Drew system-aware final barline for {self._get_staff_system_type(staff)} at x={x}")
+                    else:
+                        # Draw normal barline (use same clamped span as final)
+                        painter.setPen(QPen(QColor(0, 0, 0), 1))
+                        painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
+                        print(f"BARLINES: Drew system-aware normal barline for {self._get_staff_system_type(staff)} at x={x}")
+                        
+        except Exception as e:
+            print(f"BARLINES: Error in system-aware barline rendering: {e}")
+            # Fallback to single staff barlines
+            self._render_fallback_barlines(painter, staff_y, first_measure_barline_x, unit_width, 
+                                         num_measures_to_render, is_final_system)
+
+    def _calculate_barline_span_for_staff(self, staff, staff_y):
+        """Calculate the top and bottom Y positions for barlines based on staff system type"""
+        
+        # Case 1: Grand Staff object passed in — derive span using current system y (staff_y)
+        if hasattr(staff, 'is_grand_staff') and staff.is_grand_staff:
+            if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
+                # Use effective grand-staff spacing preference for the inter-staff gap
+                spacing = float(self._get_effective_grand_staff_spacing(staff))
+                top_y = float(staff_y)
+                bottom_y = top_y + self.STAFF_HEIGHT + spacing + self.STAFF_HEIGHT
+                # Clamp 1px to avoid any visual overrun on last/only system
+                bottom_y -= 1.0
+                print(f"BARLINES: Grand staff barline span (from grand): {top_y} to {bottom_y}")
+                return top_y, bottom_y
+        
+        # Case 1b: Check if this staff is part of a grand staff (when top_staff is passed instead)
+        grand_staff = self._find_grand_staff_containing(staff)
+        if grand_staff and hasattr(grand_staff, 'top_staff') and hasattr(grand_staff, 'bottom_staff'):
+            # Compute span relative to whichever child we are rendering using preference spacing
+            spacing = float(self._get_effective_grand_staff_spacing(grand_staff))
+            if staff is grand_staff.top_staff:
+                top_y = float(staff_y)
+            elif staff is grand_staff.bottom_staff:
+                # If called with bottom staff, move up by staff_height + spacing + staff_height to find top baseline
+                top_y = float(staff_y) - (self.STAFF_HEIGHT + spacing)
+            else:
+                # Fallback: assume staff_y is already at the top baseline for this system
+                top_y = float(staff_y)
+            bottom_y = top_y + self.STAFF_HEIGHT + spacing + self.STAFF_HEIGHT
+            bottom_y -= 1.0
+            print(f"BARLINES: Grand staff barline span (via child): {top_y} to {bottom_y}")
+            return top_y, bottom_y
+        
+        # Case 2: Staff in a section - span the entire section
+        staff_section = getattr(staff, 'section', None)
+        if staff_section and hasattr(self.document, 'layout'):
+            section_staves = self._get_section_staves(staff_section)
+            if len(section_staves) > 1:
+                # Multi-staff section - span from first to last staff in section
+                first_staff = section_staves[0]
+                last_staff = section_staves[-1]
+                
+                # Handle grand staves within sections
+                if hasattr(first_staff, 'is_grand_staff') and first_staff.is_grand_staff:
+                    top_y = first_staff.top_staff.y_position
+                else:
+                    top_y = first_staff.y_position
+                    
+                if hasattr(last_staff, 'is_grand_staff') and last_staff.is_grand_staff:
+                    bottom_y = last_staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                else:
+                    bottom_y = last_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                
+                print(f"BARLINES: Section '{staff_section}' barline span: {top_y} to {bottom_y}")
+                return top_y, bottom_y
+        
+        # Case 3: Single staff - span just this staff
+        top_y = staff_y
+        bottom_y = staff_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+        print(f"BARLINES: Single staff barline span: {top_y} to {bottom_y}")
+        return top_y, bottom_y
+
+    def _get_section_staves(self, section_name):
+        """Get all staves in a given section"""
+        section_staves = []
+        
+        if hasattr(self.document, 'layout') and hasattr(self.document.layout, 'sections'):
+            for section in self.document.layout.sections:
+                if section.name == section_name:
+                    section_staves.extend(section.staves)
+                    break
+        
+        # Sort by y position
+        section_staves.sort(key=lambda s: s.y_position)
+        return section_staves
+
+    def _find_grand_staff_containing(self, staff):
+        """Find the grand staff that contains this individual staff"""
+        if not hasattr(self.document, 'layout'):
+            return None
+            
+        # Check ungrouped staves
+        if hasattr(self.document.layout, 'ungrouped_staves'):
+            for grand_staff in self.document.layout.ungrouped_staves:
+                if hasattr(grand_staff, 'is_grand_staff') and grand_staff.is_grand_staff:
+                    if (hasattr(grand_staff, 'top_staff') and grand_staff.top_staff == staff) or \
+                       (hasattr(grand_staff, 'bottom_staff') and grand_staff.bottom_staff == staff):
+                        return grand_staff
+        
+        # Check staves in sections
+        if hasattr(self.document.layout, 'sections'):
+            for section in self.document.layout.sections:
+                if hasattr(section, 'staves'):
+                    for grand_staff in section.staves:
+                        if hasattr(grand_staff, 'is_grand_staff') and grand_staff.is_grand_staff:
+                            if (hasattr(grand_staff, 'top_staff') and grand_staff.top_staff == staff) or \
+                               (hasattr(grand_staff, 'bottom_staff') and grand_staff.bottom_staff == staff):
+                                return grand_staff
+        
+        return None
+
+    def _is_first_staff_in_system(self, staff):
+        """
+        Determine if this staff is the first staff in its system to avoid drawing duplicate barlines
+        """
+        # For grand staves, always render (they manage their own span)
+        if hasattr(staff, 'is_grand_staff') and staff.is_grand_staff:
+            return True
+        
+        # Check if this staff is part of a grand staff
+        grand_staff = self._find_grand_staff_containing(staff)
+        if grand_staff:
+            # Only render barlines when processing the top staff of a grand staff
+            return hasattr(grand_staff, 'top_staff') and grand_staff.top_staff == staff
+            
+        # For section staves, only render if this is the first staff in the section
+        staff_section = getattr(staff, 'section', None)
+        if staff_section:
+            section_staves = self._get_section_staves(staff_section)
+            return len(section_staves) > 0 and section_staves[0] == staff
+        
+        # For single staves, always render
+        return True
+
+    def _get_staff_system_type(self, staff):
+        """Get a description of the staff system type for debugging"""
+        if hasattr(staff, 'is_grand_staff') and staff.is_grand_staff:
+            return "grand staff"
+        elif getattr(staff, 'section', None):
+            section_staves = self._get_section_staves(staff.section)
+            return f"section '{staff.section}' ({len(section_staves)} staves)"
+        else:
+            return "single staff"
+
+    def _render_fallback_barlines(self, painter, staff_y, first_measure_barline_x, unit_width, 
+                                num_measures_to_render, is_final_system):
+        """Fallback to simple single-staff barlines if system-aware rendering fails"""
         try:
             bar_pen = QPen(QColor(0, 0, 0), 1)
             painter.setPen(bar_pen)
             for m_idx in range(1, num_measures_to_render + 1):
                 x = first_measure_barline_x + (m_idx * unit_width)
-                # Do not draw the final bar here; the connecting pass handles it.
-                if not (is_final_system and m_idx == num_measures_to_render):
-                    top_y = staff_y
-                    bottom_y = staff_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                top_y = staff_y
+                bottom_y = staff_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                
+                if is_final_system and m_idx == num_measures_to_render:
+                    # Draw final barline
+                    painter.setPen(QPen(QColor(0, 0, 0), 1))
+                    painter.drawLine(QLineF(x - 6, top_y, x - 6, bottom_y))
+                    painter.setPen(QPen(QColor(0, 0, 0), 4))
                     painter.drawLine(QLineF(x, top_y, x, bottom_y))
-        except Exception:
-            pass
-
-        # System-spanning barlines are drawn by _render_connecting_barlines
-        return
+                else:
+                    # Draw normal barline
+                    painter.setPen(QPen(QColor(0, 0, 0), 1))
+                    painter.drawLine(QLineF(x, top_y, x, bottom_y))
+        except Exception as e:
+            print(f"BARLINES: Error in fallback barline rendering: {e}")
 
     def render_notes(self, painter, staff, notes):
         """Render notes on a staff."""
@@ -2942,87 +3212,75 @@ class ScoreRenderer:
         # Function to draw normal barline with specified parameters
         def draw_normal_barline(x, y_top, y_bottom, extension=0, color_override=None):
             """Draw a single barline with top and bottom extensions"""
-            # Extend top and bottom
+            # Extend top and bottom in logical coordinates; do not force rounding
             actual_y_top = float(y_top) - extension
             actual_y_bottom = float(y_bottom) + extension
             
-            # Use consistent pen settings
             pen_color = color_override if color_override is not None else Qt.GlobalColor.black
             pen = QPen(pen_color, normal_thickness)
-            pen.setCapStyle(Qt.PenCapStyle.FlatCap)  # ENHANCEMENT: Use flat cap for clean edges
+            pen.setCapStyle(Qt.PenCapStyle.FlatCap)
+            pen.setCosmetic(True)
             painter.setPen(pen)
             
-            # Draw barline
-            line = QLineF(x, actual_y_top, x, actual_y_bottom)
+            line = QLineF(float(x), actual_y_top, float(x), actual_y_bottom)
             painter.drawLine(line)
+            return line
             
-            return line  # ENHANCEMENT: Return the line for debugging or further use
-
-        # Function to draw system-spanning final barline (connected across all staves)
+        # DISABLED: Function to draw system-spanning final barline (prevented to avoid unwanted extra barlines)
         def draw_system_final_barline(x, y_top, y_bottom):
-            # Draw thin line then thick line at x across the full system span
-            painter.setPen(QPen(QColor(0, 0, 0), 1))
-            painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))
-            painter.setPen(QPen(QColor(0, 0, 0), 4))
-            painter.drawLine(int(x), int(y_top), int(x), int(y_bottom))
-            print(f"BARLINES: Drew connected final bar (system) at x={x} (y={y_top} to {y_bottom})")
+            # DISABLED: No automatic system final barlines - only measure-based final barlines allowed
+            print(f"BARLINES: draw_system_final_barline called but DISABLED to prevent unwanted extra barlines at x={x} (y={y_top} to {y_bottom})")
+            return  # Do nothing - final barlines are handled by system-aware rendering only
 
-        # Always draw the connected final barline for the active system across all staves
-        final_barline_x = float(self.page_width - self.margins["right"])  # will be clamped by bridge values if present
+        # DISABLED: No automatic final barlines - only measure-based final barlines from system-aware rendering
+        # This prevents unwanted extra final barlines appearing at page edges
+        # final_barline_x = float(self.page_width - self.margins["right"])  # will be clamped by bridge values if present
 
-        # Only draw barline 0 if there are multiple staves or a grand staff
-        if total_actual_staves > 1:
+        # Draw barline 0 if there are multiple staves OR a single grand staff
+        # FIXED: Grand staff should get barline 0 even if it's the only staff system
+        should_draw_barline_0 = (total_actual_staves > 1) or (
+            total_actual_staves == 1 and 
+            len(all_staves) > 0 and 
+            hasattr(all_staves[0], 'is_grand_staff') and 
+            all_staves[0].is_grand_staff
+        )
+        
+        if should_draw_barline_0:
             # CRITICAL FIX: Always get the bounds from the full sorted list of staves
             # The top staff is the first one in the sorted list
             top_staff = all_staves[0]
             # The bottom staff is the last one in the sorted list
             bottom_staff = all_staves[-1]
 
-            # Handle case where top or bottom might be a grand staff
-            if (
-                hasattr(top_staff, "is_grand_staff")
-                and top_staff.is_grand_staff
-                and hasattr(top_staff, "top_staff")
-            ):
-                top_y = top_staff.top_staff.y_position
+            # Handle case where top might be a grand staff
+            if hasattr(top_staff, "is_grand_staff") and top_staff.is_grand_staff and hasattr(top_staff, "top_staff"):
+                top_y = float(top_staff.top_staff.y_position)
             else:
-                top_y = top_staff.y_position
+                top_y = float(top_staff.y_position)
 
-            if (
-                hasattr(bottom_staff, "is_grand_staff")
-                and bottom_staff.is_grand_staff
-                and hasattr(bottom_staff, "bottom_staff")
-            ):
-                bottom_y = bottom_staff.bottom_staff.y_position + (
-                    (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
-                )
+            # Determine top and bottom in staff-coordinate space, then let draw_normal_barline
+            # expand by the current normal barline thickness (0.5px) on each end.
+            first_staff = all_staves[0]
+            if hasattr(first_staff, 'is_grand_staff') and first_staff.is_grand_staff and hasattr(first_staff, 'top_staff'):
+                top_base = float(first_staff.top_staff.y_position)
             else:
-                bottom_y = bottom_staff.y_position + (
-                    (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
-                )
+                top_base = float(first_staff.y_position)
 
-            # Align exactly with staff lines (no extra top-margin shift)
+            last_staff = all_staves[-1]
+            staff_height = (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
+            if hasattr(last_staff, 'is_grand_staff') and last_staff.is_grand_staff and hasattr(last_staff, 'bottom_staff'):
+                bottom_base = float(last_staff.bottom_staff.y_position)
+            else:
+                bottom_base = float(last_staff.y_position)
+            bottom_base = bottom_base + staff_height
 
-            # CRITICAL FIX: Ensure barline 0 doesn't extend beyond staff lines
-            # For grand staff, barline should span from top staff to bottom staff exactly
-            if len(all_staves) > 1:
-                # Multi-staff: span from first to last staff
-                first_staff = all_staves[0]
-                last_staff = all_staves[-1]
-                
-                if hasattr(first_staff, 'is_grand_staff') and first_staff.is_grand_staff:
-                    # Grand staff: use top_staff and bottom_staff positions
-                    top_y = first_staff.top_staff.y_position
-                    bottom_y = first_staff.bottom_staff.y_position + 32  # 4 staff lines * 8px
-                elif hasattr(last_staff, 'is_grand_staff') and last_staff.is_grand_staff:
-                    # Last staff is grand staff
-                    bottom_y = last_staff.bottom_staff.y_position + 32
-                else:
-                    # Regular multi-staff: span from first to last
-                    top_y = first_staff.y_position
-                    bottom_y = last_staff.y_position + 32
-
-            print(f"BARLINES: Drawing barline 0 at x={barline_0_x} from y={top_y} to y={bottom_y}")
+            # Compute exact baselines for barline 0 (no insets). Draw ONCE globally so
+            # barline 0 spans the entire score (as specified) and is consistent across systems.
+            top_y = float(top_base)
+            bottom_y = float(bottom_base)
+            if bottom_y < top_y:
+                bottom_y = top_y
+            print(f"BARLINES: Drawing GLOBAL barline 0 at x={barline_0_x} top={top_y} bottom={bottom_y}")
             draw_normal_barline(barline_0_x, top_y, bottom_y)
             # Always render barline 0 number if enabled
             try:
@@ -3030,9 +3288,10 @@ class ScoreRenderer:
             except Exception:
                 pass
 
-        # Removed unconditional system final barline draw here.
-        # Final barline is now drawn ONLY per-system for the last system below,
-        # aligned to the last measure's end_x, to avoid duplicate finals at the page margin.
+        # DISABLED: All automatic system final barlines removed.
+        # Final barlines are now drawn ONLY by the system-aware barline rendering in _render_measures_impl
+        # when a measure has barline_type="final". This prevents unwanted extra final barlines at page edges.
+        # The system-aware rendering ensures final barlines span appropriately within their staff systems.
 
         # Legacy conditional final-bar drawing disabled; handled unconditionally above
         if False and (not is_setup_mode) and all_staves:
@@ -3398,27 +3657,42 @@ class ScoreRenderer:
                     top_y = g_top.y_position + vertical_shift
                     bottom_y = g_bottom.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
                 elif hasattr(group, 'is_grand_staff') and getattr(group, 'is_grand_staff', False) and hasattr(group, 'top_staff') and hasattr(group, 'bottom_staff'):
-                    top_y = group.top_staff.y_position + vertical_shift
-                    bottom_y = group.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
+                    # Use exact baselines for grand staff
+                    top_y = float(group.top_staff.y_position) + vertical_shift
+                    bottom_y = float(group.bottom_staff.y_position) + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
                 else:
                     top_y = group.y_position + vertical_shift
                     bottom_y = group.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
 
+                # Clamp grand-staff measure barlines to stop exactly at the bass-staff bottom line
+                try:
+                    if hasattr(group, 'is_grand_staff') and getattr(group, 'is_grand_staff', False):
+                        # Subtract 1px to counter feathering and ensure no overrun
+                        bottom_y = float(group.bottom_staff.y_position) + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift - 1.0
+                except Exception:
+                    pass
+
             if is_setup_mode:
                 # Suppress barline 0 in setup for single-staff scores
                 if not is_single_staff_score:
-                    draw_normal_barline(barline_0_x, top_y, bottom_y)
-                    if not barline0_number_drawn:
-                        self._render_barline_0_number(painter, barline_0_x, [group])
-                        barline0_number_drawn = True
+                    # Skip drawing here to avoid double-rendering; global draw already done
+                    pass
+                    # DISABLED: Barline 0 number is rendered once globally, not per group
+                    # This prevents duplicate barline 0 numbers on multiple staves
+                    # if not barline0_number_drawn:
+                    #     self._render_barline_0_number(painter, barline_0_x, [group])
+                    #     barline0_number_drawn = True
             else:
                 # Draw barline 0 for EACH wrapped system when there are multiple staves
                 # This ensures grand staff wraps always start with barline 0
                 if not is_single_staff_score:
-                    draw_normal_barline(barline_0_x, top_y, bottom_y)
-                    if not barline0_number_drawn:
-                        self._render_barline_0_number(painter, barline_0_x, [group])
-                        barline0_number_drawn = True
+                    # Skip drawing here to avoid double-rendering; global draw already done
+                    pass
+                    # DISABLED: Barline 0 number is rendered once globally, not per group
+                    # This prevents duplicate barline 0 numbers on multiple staves
+                    # if not barline0_number_drawn:
+                    #     self._render_barline_0_number(painter, barline_0_x, [group])
+                    #     barline0_number_drawn = True
 
                 # Per-measure barlines for this system (skip drawing single at final x on last system,
                 # but still render the green number at that x so numbering is complete)

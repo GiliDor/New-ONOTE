@@ -710,11 +710,6 @@ class FormWidget(QWidget):
         # Create button group for barline types with improved layout
         self.barline_button_group = QButtonGroup(self)
         self.barline_button_group.setExclusive(True)
-        print("FORM_WIDGET: Created barline_button_group with exclusive=True")
-        
-        # CRITICAL FIX: Track actual selection state independently of QButtonGroup
-        self._actual_selected_barline_type = None
-        print(f"FORM_WIDGET: Form widget created at {id(self)}")
         
         # Create radio buttons for each barline type with SMuFL symbols
         barline_types = [
@@ -800,14 +795,7 @@ class FormWidget(QWidget):
         self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
         
         # Set default selection to Single
-        first_button = self.barline_button_group.buttons()[0]
-        print(f"FORM_WIDGET: Setting default selection to first button: '{first_button.text()}'")
-        first_button.setChecked(True)
-        print(f"FORM_WIDGET: Default selection set - checkedButton() now returns: {self.barline_button_group.checkedButton()}")
-        
-        # Add debugging to track any button state changes
-        for button in self.barline_button_group.buttons():
-            button.toggled.connect(lambda checked, btn=button: print(f"FORM_WIDGET: Button '{btn.text()}' toggled to {checked}"))
+        self.barline_button_group.buttons()[0].setChecked(True)
         
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
@@ -1061,13 +1049,7 @@ class FormWidget(QWidget):
     def on_barline_type_changed(self, button):
         """Handle barline type selection changes"""
         barline_type = button.property("barline_type")
-        print(f"FORM_WIDGET: on_barline_type_changed called with type: {barline_type} from button: {button.text()}")
-        print(f"FORM_WIDGET: on_barline_type_changed - button isChecked: {button.isChecked()}")
-        
-        # CRITICAL FIX: Re-enable exclusive mode when a button is selected
-        if not self.barline_button_group.exclusive():
-            print(f"FORM_WIDGET: Re-enabling exclusive mode for button selection")
-            self.barline_button_group.setExclusive(True)
+        print(f"FORM_WIDGET: on_barline_type_changed called with type: {barline_type}")
         
         # CRITICAL FIX: Don't process during deselection
         if hasattr(self, '_deselecting_radio_buttons') and self._deselecting_radio_buttons:
@@ -1189,10 +1171,6 @@ class FormWidget(QWidget):
     
     def select_barline(self, barline):
         """Select a barline in the score"""
-        print(f"FORM_WIDGET: select_barline called with barline: {barline}")
-        if barline:
-            print(f"FORM_WIDGET: select_barline - barline type: {getattr(barline, 'barline_type', 'unknown')}")
-        
         if self.selected_barline:
             # Deselect previous barline
             self.selected_barline.selected = False
@@ -1204,8 +1182,6 @@ class FormWidget(QWidget):
             # Update UI to match selected barline
             for button in self.barline_button_group.buttons():
                 if button.property("barline_type") == barline.barline_type:
-                    print(f"FORM_WIDGET: select_barline - automatically selecting button: {button.text()}")
-                    print(f"FORM_WIDGET: select_barline - calling setChecked(True) on button: {button.text()}")
                     button.setChecked(True)
                     break
             
@@ -1857,40 +1833,15 @@ class FormWidget(QWidget):
         """Handle barline selection from staff view"""
         print(f"FORM_WIDGET: on_barline_selected called with barline type: {getattr(barline, 'barline_type', 'unknown')}")
         
-        # CRITICAL FIX: Check if user has explicitly deselected all radio buttons
-        current_selection = self.barline_button_group.checkedButton()
-        if current_selection is None:
-            print(f"FORM_WIDGET: No radio buttons selected - user has deselected, NOT auto-selecting {getattr(barline, 'barline_type', 'unknown')}")
-            # Still update the selected barline for highlighting, but don't change radio buttons
-            self.selected_barline = barline
-            return
-        
-        print(f"FORM_WIDGET: Radio buttons are selected, proceeding with auto-selection of {getattr(barline, 'barline_type', 'unknown')}")
-        
         # Update the selected barline
         self.selected_barline = barline
         
         # Update UI to match the selected barline's properties
         if hasattr(barline, 'barline_type'):
-            # Set sync flag to prevent modification during UI update
-            self._syncing_ui_to_selection = True
-            print(f"FORM_WIDGET: Setting sync flag to True, updating UI to match barline type: {barline.barline_type}")
-            
-            # Find and check the corresponding radio button
-            for button in self.barline_button_group.buttons():
-                if button.property("barline_type") == barline.barline_type:
-                    # Temporarily disconnect signal to avoid recursion
-                    self.barline_button_group.buttonClicked.disconnect()
-                    print(f"FORM_WIDGET: setChecked(True) method - calling setChecked(True) on button: {button.text()}")
-                    button.setChecked(True)
-                    # Reconnect signal
-                    self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
-                    print(f"FORM_WIDGET: Set button {barline.barline_type} to checked")
-                    break
-            
-            # Clear sync flag after UI update
-            self._syncing_ui_to_selection = False
-            print(f"FORM_WIDGET: Cleared sync flag")
+            # Do not change radio button selection on barline selection.
+            # Keeping radio buttons untouched prevents re-arming insertion when user only selects.
+            # Still allow other UI updates (preview, repeat count, etc.).
+            pass
         
         # Update preview
         self.update_barline_preview()
@@ -2160,7 +2111,6 @@ class FormWidget(QWidget):
         if hasattr(self, 'barline_button_group'):
             for button in self.barline_button_group.buttons():
                 if button.property("barline_type") == measure.barline_type:
-                    print(f"FORM_WIDGET: restore_measure_state - calling setChecked(True) on button: {button.text()}")
                     button.setChecked(True)
                     break
         
@@ -2239,18 +2189,8 @@ class FormWidget(QWidget):
     def get_selected_barline_type(self):
         """Get the currently selected barline type"""
         selected_button = self.barline_button_group.checkedButton()
-        print(f"FORM_WIDGET: get_selected_barline_type() - checkedButton() returned: {selected_button}")
-        
-        # Also check all buttons manually
-        all_buttons = self.barline_button_group.buttons()
-        checked_buttons = [btn for btn in all_buttons if btn.isChecked()]
-        print(f"FORM_WIDGET: get_selected_barline_type() - manually found {len(checked_buttons)} checked buttons: {[btn.text() for btn in checked_buttons]}")
-        
         if selected_button:
-            barline_type = selected_button.property("barline_type")
-            print(f"FORM_WIDGET: get_selected_barline_type() returning '{barline_type}' from button '{selected_button.text()}'")
-            return barline_type
-        print(f"FORM_WIDGET: get_selected_barline_type() returning None - no button selected")
+            return selected_button.property("barline_type")
         return None  # Return None when no radio button is selected (after deselection)
     
     def create_barline_at_position(self, x_position: float):
@@ -2903,23 +2843,22 @@ class FormWidget(QWidget):
             # Temporarily disconnect the signal to prevent interference
             self.barline_button_group.buttonClicked.disconnect()
             
+            # Temporarily disable exclusive mode to allow deselection
+            was_exclusive = self.barline_button_group.exclusive()
+            self.barline_button_group.setExclusive(False)
+            
             # Get all buttons in the group
             buttons = self.barline_button_group.buttons()
             print(f"FORM_WIDGET: Found {len(buttons)} radio buttons")
-            
-            # CRITICAL FIX: Disable exclusive mode BEFORE deselecting
-            self.barline_button_group.setExclusive(False)
             
             # Deselect all buttons by setting each one to unchecked
             for button in buttons:
                 if button.isChecked():
                     print(f"FORM_WIDGET: Deselecting button: {button.text()}")
                     button.setChecked(False)
-                    # Force the button to update its state
-                    button.update()
             
-            # Keep exclusive mode disabled to allow no selection
-            # Don't restore exclusive mode - this allows no buttons to be selected
+            # Restore exclusive mode
+            self.barline_button_group.setExclusive(was_exclusive)
             
             # Reconnect the signal
             self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
@@ -2928,13 +2867,6 @@ class FormWidget(QWidget):
             self._deselecting_radio_buttons = False
             
             print("FORM_WIDGET: All barline radio buttons deselected - ready for new selection")
-            
-            # Verify deselection worked
-            selected_button = self.barline_button_group.checkedButton()
-            if selected_button:
-                print(f"FORM_WIDGET: WARNING - Button '{selected_button.text()}' is still selected after deselection!")
-            else:
-                print("FORM_WIDGET: Confirmed - no buttons are selected after deselection")
             
             # Update status to indicate deselection
             self.update_status("Barline types deselected - select a type and click on staff to create barlines")
