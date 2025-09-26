@@ -18,6 +18,8 @@ class ScoreDocument:
         self.layout = ScoreLayout()
         self.layout.set_setup_mode(True)  # Start in setup mode
         self.section_map = {}  # Initialize section_map to store instrument-to-section mapping
+        # Snapshot of last-saved Full Score Options (fonts/layout/notation only)
+        self.last_saved_options: Dict[str, Any] = {}
         
         # Initialize measure system
         self.measures = {}  # FIXED: Dict of MeasureObject instances {measure_number: MeasureObject}
@@ -351,6 +353,11 @@ class ScoreDocument:
         if hasattr(self, 'settings') and self.settings:
             data['settings'] = self.settings
             print(f"DOCUMENT_SAVE: Saving {len(self.settings)} document settings with file")
+            # Update last_saved_options snapshot on successful save
+            try:
+                self.last_saved_options = self._extract_full_score_options(self.settings)
+            except Exception:
+                pass
             
         # Include measures data if present (serialize properly)
         if hasattr(self, 'measures') and self.measures:
@@ -589,6 +596,11 @@ class ScoreDocument:
         if 'settings' in data:
             document.settings = data['settings']
             print(f"DOCUMENT_LOAD: Restored {len(document.settings)} document settings from file")
+            # Create a snapshot for Reset to Saved (fonts/layout/notation only)
+            try:
+                document.last_saved_options = document._extract_full_score_options(document.settings)
+            except Exception:
+                document.last_saved_options = {}
         else:
             # If settings missing, load from QSettings
             from PyQt6.QtCore import QSettings
@@ -1056,6 +1068,38 @@ class ScoreDocument:
         self.zoom_level = state.get('zoom_level', 1.0)
         
         print(f"UNDO_SYSTEM: Restored document state with {len(self.measures)} measures and {len(getattr(self, 'graphical_dashed_barlines', []))} dashed barlines")
+
+    # --- Full Score Options snapshot helpers ---
+    def _extract_full_score_options(self, settings: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a filtered copy containing only Full Score Options namespaces.
+        Includes: fonts/*, layout/*, notation/* relevant to the dialog.
+        """
+        include_prefixes = (
+            'fonts/',
+            'layout/',
+            'notation/',
+        )
+        result: Dict[str, Any] = {}
+        for k, v in settings.items():
+            if any(k.startswith(pfx) for pfx in include_prefixes):
+                result[k] = v
+        return result
+
+    def reset_full_score_options_to_saved(self) -> bool:
+        """Reset only Full Score Options (fonts/layout/notation) to last saved state."""
+        if not self.last_saved_options:
+            print("RESET_TO_SAVED: No saved options snapshot available")
+            return False
+        try:
+            # Merge keys back into document.settings
+            for k, v in self.last_saved_options.items():
+                self.settings[k] = v
+            self.is_modified = True
+            print(f"RESET_TO_SAVED: Restored {len(self.last_saved_options)} options from snapshot")
+            return True
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Failed - {e}")
+            return False
     
     def can_undo(self):
         """Check if undo is available

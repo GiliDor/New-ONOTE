@@ -190,7 +190,23 @@ class FullScoreOptionsDialog(QDialog):
             close_button = button_box.addButton(QDialogButtonBox.StandardButton.Close)
             close_button.clicked.connect(self.close)
             
-            main_layout.addWidget(button_box)
+            # Add Reset to Saved button
+            self.reset_to_saved_button = QPushButton("Reset to Saved")
+            self.reset_to_saved_button.setMinimumWidth(150)
+            self.reset_to_saved_button.setToolTip("Revert Fonts/Layout/Notation options to the last saved state for this document")
+            self.reset_to_saved_button.clicked.connect(self.on_reset_to_saved)
+            # Disable if no snapshot available
+            has_snapshot = bool(getattr(self.document, 'last_saved_options', {})) if self.document else False
+            self.reset_to_saved_button.setEnabled(has_snapshot)
+            # Place it to the left of Close
+            layout_for_buttons = QHBoxLayout()
+            layout_for_buttons.addWidget(self.reset_to_saved_button)
+            layout_for_buttons.addStretch(1)
+            layout_for_buttons.addWidget(button_box)
+
+            container = QWidget()
+            container.setLayout(layout_for_buttons)
+            main_layout.addWidget(container)
             
             print("[DEBUG] setup_ui() completed successfully")
             
@@ -218,6 +234,59 @@ class FullScoreOptionsDialog(QDialog):
         
 
         
+    def on_reset_to_saved(self):
+        """Reset only Full Score Options to the document's last-saved snapshot."""
+        try:
+            if not self.document:
+                QMessageBox.warning(self, "Reset to Saved", "No active document.")
+                return
+            if not getattr(self.document, 'last_saved_options', {}):
+                QMessageBox.information(self, "Reset to Saved", "No saved options found for this document.")
+                return
+            
+            # Ask for confirmation with Cancel button
+            reply = QMessageBox.question(
+                self,
+                "Reset to Saved",
+                "Are you sure you want to reset all layout and notation settings to the last saved state?\n\n"
+                "This will revert Fonts, Layout, and Notation settings to when the document was last saved.\n"
+                "Musical content will not be affected.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+                
+            ok = self.document.reset_full_score_options_to_saved()
+            if not ok:
+                QMessageBox.warning(self, "Reset to Saved", "Could not reset to saved options.")
+                return
+            
+            # Reload controls from document.settings
+            self.load_current_settings()
+            
+            # Force immediate re-render by triggering temporal bridge signals
+            try:
+                if hasattr(self.parent(), 'staff_view') and hasattr(self.parent().staff_view, 'document'):
+                    doc = self.parent().staff_view.document
+                    # If temporal bridge exists, notify it
+                    if hasattr(doc, 'temporal_bridge') and doc.temporal_bridge:
+                        try:
+                            doc.temporal_bridge.temporal_structure_changed.emit()
+                            doc.temporal_bridge.measure_layout_changed.emit()
+                        except Exception:
+                            pass
+                    # Also force staff view update
+                    if hasattr(self.parent().staff_view, 'update'):
+                        self.parent().staff_view.update()
+            except Exception:
+                pass
+                
+            QMessageBox.information(self, "Reset to Saved", "Layout/Notation/Fonts restored to last saved state.")
+        except Exception as e:
+            print(f"RESET_TO_SAVED ERROR: {e}")
+            import traceback; traceback.print_exc()
     def setup_font_tab(self):
         """Set up the Font tab with font selection options"""
         layout = QVBoxLayout(self.font_tab)
@@ -2162,15 +2231,21 @@ class FullScoreOptionsDialog(QDialog):
         settings.sync()
         print("SET_AS_DEFAULTS: Forced QSettings sync to ensure immediate persistence")
         
-        # Show confirmation to user
-        QMessageBox.information(
+        # Show confirmation to user with Cancel button
+        reply = QMessageBox.question(
             self,
             "Settings Saved",
             "Current notation settings have been saved as defaults for new documents.\n\n"
             "These settings will be used when creating new scores and can be found in:\n"
-            "Edit → Preferences → Default Notation Setup",
+            "Edit → Preferences → Default Notation Setup\n\n"
+            "Continue?",
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Ok
         )
+        
+        if reply != QMessageBox.StandardButton.Ok:
+            print("SET_AS_DEFAULTS: User cancelled confirmation")
+            return
 
     def _sync_with_preferences_dialog(self):
         """Sync current settings with any open Preferences dialog"""
@@ -2406,12 +2481,36 @@ class FullScoreOptionsDialog(QDialog):
             # Apply the reset settings immediately
             self.update_score()
             
-            QMessageBox.information(
+            # Force immediate re-render by triggering temporal bridge signals
+            try:
+                if hasattr(self.parent(), 'staff_view') and hasattr(self.parent().staff_view, 'document'):
+                    doc = self.parent().staff_view.document
+                    # If temporal bridge exists, notify it
+                    if hasattr(doc, 'temporal_bridge') and doc.temporal_bridge:
+                        try:
+                            doc.temporal_bridge.temporal_structure_changed.emit()
+                            doc.temporal_bridge.measure_layout_changed.emit()
+                        except Exception:
+                            pass
+                    # Also force staff view update
+                    if hasattr(self.parent().staff_view, 'update'):
+                        self.parent().staff_view.update()
+            except Exception:
+                pass
+            
+            # Show confirmation with Cancel button
+            reply = QMessageBox.question(
                 self,
                 "Settings Reset",
-                "All notation settings have been reset to the current Preferences defaults.",
+                "All notation settings have been reset to the current Preferences defaults.\n\n"
+                "Continue?",
+                QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
                 QMessageBox.StandardButton.Ok
             )
+            
+            if reply != QMessageBox.StandardButton.Ok:
+                print("RESET_TO_DEFAULTS: User cancelled confirmation")
+                return
 
     def load_settings(self):
         """Load settings from document and QSettings"""
