@@ -232,7 +232,50 @@ class FullScoreOptionsDialog(QDialog):
         self.addAction(redo_action)
         # Remove any conflicting shortcut for Zoom Presets (handled in main window/menu, not here)
         
+        # Create initial snapshot for new documents if none exists
+        self._ensure_snapshot_exists()
 
+        
+    def _ensure_snapshot_exists(self):
+        """Create initial snapshot for new documents if none exists."""
+        try:
+            if not self.document:
+                return
+            if not hasattr(self.document, 'last_saved_options'):
+                self.document.last_saved_options = {}
+            if not self.document.last_saved_options:
+                # Create initial snapshot from current document settings
+                if hasattr(self.document, 'settings') and self.document.settings:
+                    self.document.last_saved_options = self.document._extract_full_score_options(self.document.settings)
+                    print(f"RESET_TO_SAVED: Created initial snapshot with {len(self.document.last_saved_options)} options")
+                else:
+                    # Create empty snapshot for completely new documents
+                    self.document.last_saved_options = {}
+                    print("RESET_TO_SAVED: Created empty initial snapshot for new document")
+            # Update button state
+            if hasattr(self, 'reset_to_saved_button'):
+                has_snapshot = bool(self.document.last_saved_options)
+                self.reset_to_saved_button.setEnabled(has_snapshot)
+                print(f"RESET_TO_SAVED: Button enabled = {has_snapshot}")
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Error creating snapshot - {e}")
+            import traceback; traceback.print_exc()
+    
+    def _update_snapshot_after_change(self):
+        """Update the snapshot after any setting change to enable Reset to Saved."""
+        try:
+            if not self.document or not hasattr(self.document, 'settings'):
+                return
+            # Create/update snapshot from current document settings
+            if self.document.settings:
+                self.document.last_saved_options = self.document._extract_full_score_options(self.document.settings)
+                print(f"RESET_TO_SAVED: Updated snapshot with {len(self.document.last_saved_options)} options")
+            # Update button state
+            if hasattr(self, 'reset_to_saved_button'):
+                has_snapshot = bool(self.document.last_saved_options)
+                self.reset_to_saved_button.setEnabled(has_snapshot)
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Error updating snapshot - {e}")
         
     def on_reset_to_saved(self):
         """Reset only Full Score Options to the document's last-saved snapshot."""
@@ -2855,6 +2898,9 @@ class FullScoreOptionsDialog(QDialog):
         if parameter_key == 'staff_name_font_size':
             self._push_undo_state()
         print(f"ISOLATED_PARAM: Updating {parameter_key} = {value} with complete isolation")
+        
+        # Update snapshot after any setting change
+        self._update_snapshot_after_change()
         
         # Save ONLY the specific parameter to document settings
         if hasattr(self, 'document') and self.document:
