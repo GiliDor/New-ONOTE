@@ -190,8 +190,8 @@ class FullScoreOptionsDialog(QDialog):
             close_button = button_box.addButton(QDialogButtonBox.StandardButton.Close)
             close_button.clicked.connect(self.close)
             
-            # Add Reset to Saved button
-            self.reset_to_saved_button = QPushButton("Reset to Saved")
+            # Add Revert to Saved button
+            self.reset_to_saved_button = QPushButton("Revert to Saved")
             self.reset_to_saved_button.setMinimumWidth(150)
             self.reset_to_saved_button.setToolTip("Revert Fonts/Layout/Notation options to the last saved state for this document")
             self.reset_to_saved_button.clicked.connect(self.on_reset_to_saved)
@@ -234,29 +234,53 @@ class FullScoreOptionsDialog(QDialog):
         
         # Create initial snapshot for new documents if none exists
         self._ensure_snapshot_exists()
+        
+        # Update title to show filename
+        self._update_title()
 
         
     def _ensure_snapshot_exists(self):
-        """Create initial snapshot for new documents if none exists."""
+        """Create or maintain snapshot for Full Score Options revert functionality."""
         try:
             if not self.document:
                 return
             if not hasattr(self.document, 'last_saved_options'):
                 self.document.last_saved_options = {}
+            
+            # Check if this is a saved file or new file
+            is_saved_file = hasattr(self.document, 'filename') and self.document.filename
+            
             if not self.document.last_saved_options:
-                # Create initial snapshot from current document settings
-                if hasattr(self.document, 'settings') and self.document.settings:
-                    self.document.last_saved_options = self.document._extract_full_score_options(self.document.settings)
-                    print(f"RESET_TO_SAVED: Created initial snapshot with {len(self.document.last_saved_options)} options")
+                if is_saved_file:
+                    # For saved files: snapshot should come from file load (already handled in from_dict)
+                    # If we get here, something went wrong during load
+                    if hasattr(self.document, 'settings') and self.document.settings:
+                        self.document.last_saved_options = self.document._extract_full_score_options(self.document.settings)
+                        print(f"RESET_TO_SAVED: Recreated snapshot for saved file with {len(self.document.last_saved_options)} options")
+                    else:
+                        self.document.last_saved_options = {}
+                        print("RESET_TO_SAVED: Created empty snapshot for saved file with no settings")
                 else:
-                    # Create empty snapshot for completely new documents
-                    self.document.last_saved_options = {}
-                    print("RESET_TO_SAVED: Created empty initial snapshot for new document")
+                    # For new files: create snapshot from current Preferences defaults
+                    from PyQt6.QtCore import QSettings
+                    qsettings = QSettings("ONOTE", "Preferences")
+                    prefs_settings = {}
+                    
+                    # Extract Full Score Options keys from Preferences
+                    for key in qsettings.allKeys():
+                        if key.startswith(('fonts/', 'layout/', 'notation/')):
+                            prefs_settings[key] = qsettings.value(key)
+                    
+                    self.document.last_saved_options = self.document._extract_full_score_options(prefs_settings)
+                    print(f"RESET_TO_SAVED: Created snapshot from Preferences for new file with {len(self.document.last_saved_options)} options")
+            else:
+                print(f"RESET_TO_SAVED: Using existing snapshot with {len(self.document.last_saved_options)} options")
+            
             # Update button state
             if hasattr(self, 'reset_to_saved_button'):
                 has_snapshot = bool(self.document.last_saved_options)
                 self.reset_to_saved_button.setEnabled(has_snapshot)
-                print(f"RESET_TO_SAVED: Button enabled = {has_snapshot}")
+                print(f"RESET_TO_SAVED: Button enabled = {has_snapshot} for {'saved' if is_saved_file else 'new'} file")
         except Exception as e:
             print(f"RESET_TO_SAVED: Error creating snapshot - {e}")
             import traceback; traceback.print_exc()
@@ -276,6 +300,96 @@ class FullScoreOptionsDialog(QDialog):
                 self.reset_to_saved_button.setEnabled(has_snapshot)
         except Exception as e:
             print(f"RESET_TO_SAVED: Error updating snapshot - {e}")
+    
+    def refresh_snapshot_from_preferences(self):
+        """Refresh snapshot from current Preferences for new files only."""
+        try:
+            if not self.document:
+                return
+            
+            # Only refresh for new files (not saved files)
+            is_saved_file = hasattr(self.document, 'filename') and self.document.filename
+            if is_saved_file:
+                print("RESET_TO_SAVED: Skipping Preferences refresh for saved file")
+                return
+            
+            # For new files: refresh snapshot from current Preferences
+            from PyQt6.QtCore import QSettings
+            qsettings = QSettings("ONOTE", "Preferences")
+            prefs_settings = {}
+            
+            # Extract Full Score Options keys from Preferences
+            for key in qsettings.allKeys():
+                if key.startswith(('fonts/', 'layout/', 'notation/')):
+                    prefs_settings[key] = qsettings.value(key)
+            
+            self.document.last_saved_options = self.document._extract_full_score_options(prefs_settings)
+            print(f"RESET_TO_SAVED: Refreshed snapshot from Preferences with {len(self.document.last_saved_options)} options")
+            
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Error refreshing snapshot from Preferences - {e}")
+    
+    def on_document_changed(self, new_document):
+        """Called when the dialog is associated with a different document."""
+        self.document = new_document
+        self._ensure_snapshot_exists()
+        self._update_title()
+        self.load_current_settings()
+    
+    def on_preferences_applied(self):
+        """Called when Preferences are applied - refresh snapshot for new files only."""
+        self.refresh_snapshot_from_preferences()
+    
+    def _force_reload_all_controls(self):
+        """Force reload all dialog controls to reflect current document settings."""
+        try:
+            if not self.document or not hasattr(self.document, 'settings'):
+                return
+            
+            # Temporarily disconnect signals to prevent triggering updates during reload
+            self._disconnect_value_changed_signals()
+            
+            # Reload all controls based on current document settings
+            settings = self.document.settings
+            
+            # Font settings
+            if hasattr(self, 'font_name_combo') and 'fonts/font_name' in settings:
+                self.font_name_combo.setCurrentText(settings['fonts/font_name'])
+            if hasattr(self, 'style_combo') and 'fonts/font_style' in settings:
+                self.style_combo.setCurrentText(settings['fonts/font_style'])
+            if hasattr(self, 'size_spin') and 'fonts/font_size' in settings:
+                self.size_spin.setValue(settings['fonts/font_size'])
+            
+            # Layout settings
+            if hasattr(self, 'measures_system_spin') and 'layout/measures_per_system' in settings:
+                self.measures_system_spin.setValue(settings['layout/measures_per_system'])
+            if hasattr(self, 'doc_system_spacing') and 'layout/system_spacing' in settings:
+                self.doc_system_spacing.setValue(settings['layout/system_spacing'])
+            if hasattr(self, 'doc_staff_spacing') and 'layout/staff_spacing' in settings:
+                self.doc_staff_spacing.setValue(settings['layout/staff_spacing'])
+            if hasattr(self, 'doc_grand_staff_spacing') and 'layout/grand_staff_spacing' in settings:
+                self.doc_grand_staff_spacing.setValue(settings['layout/grand_staff_spacing'])
+            
+            # Notation settings - staff names
+            if hasattr(self, 'staff_name_font_size') and 'notation/staff_name_font_size' in settings:
+                self.staff_name_font_size.setValue(settings['notation/staff_name_font_size'])
+            if hasattr(self, 'staff_name_vertical') and 'notation/staff_name_vertical' in settings:
+                self.staff_name_vertical.setValue(settings['notation/staff_name_vertical'])
+            if hasattr(self, 'staff_name_horizontal') and 'notation/staff_name_horizontal' in settings:
+                self.staff_name_horizontal.setValue(settings['notation/staff_name_horizontal'])
+            if hasattr(self, 'staff_name_font_color') and 'notation/staff_name_font_color' in settings:
+                color = settings['notation/staff_name_font_color']
+                self.staff_name_font_color.setStyleSheet(f"background-color: {color}; color: white;")
+                setattr(self, 'staff_name_color_value', color)
+            
+            print("RESET_TO_SAVED: Force reloaded all controls from document settings")
+            
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Error in force reload - {e}")
+            import traceback; traceback.print_exc()
+        finally:
+            # Reconnect signals
+            self._connect_value_changed_signals()
         
     def on_reset_to_saved(self):
         """Reset only Full Score Options to the document's last-saved snapshot."""
@@ -290,8 +404,8 @@ class FullScoreOptionsDialog(QDialog):
             # Ask for confirmation with Cancel button
             reply = QMessageBox.question(
                 self,
-                "Reset to Saved",
-                "Are you sure you want to reset all layout and notation settings to the last saved state?\n\n"
+                "Revert to Saved",
+                "Are you sure you want to revert all layout and notation settings to the last saved state?\n\n"
                 "This will revert Fonts, Layout, and Notation settings to when the document was last saved.\n"
                 "Musical content will not be affected.",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
@@ -308,6 +422,9 @@ class FullScoreOptionsDialog(QDialog):
             
             # Reload controls from document.settings
             self.load_current_settings()
+            
+            # Force reload all dialog controls to reflect the reset values
+            self._force_reload_all_controls()
             
             # Force immediate re-render by triggering temporal bridge signals
             try:
@@ -326,7 +443,7 @@ class FullScoreOptionsDialog(QDialog):
             except Exception:
                 pass
                 
-            QMessageBox.information(self, "Reset to Saved", "Layout/Notation/Fonts restored to last saved state.")
+            QMessageBox.information(self, "Revert to Saved", "Layout/Notation/Fonts restored to last saved state.")
         except Exception as e:
             print(f"RESET_TO_SAVED ERROR: {e}")
             import traceback; traceback.print_exc()
@@ -2669,9 +2786,11 @@ class FullScoreOptionsDialog(QDialog):
         """Update the dialog title to include the filename if available"""
         if self.document and hasattr(self.document, 'filename') and self.document.filename:
             filename = os.path.basename(self.document.filename)
-            self.setWindowTitle(f"Full Score Options - {filename}")
+            # Remove file extension for cleaner display
+            filename_without_ext = os.path.splitext(filename)[0]
+            self.setWindowTitle(f"{filename_without_ext} - Full Score Options")
         else:
-            self.setWindowTitle("Full Score Options")
+            self.setWindowTitle("New Score - Full Score Options")
 
     def _set_dialog_zoom(self, zoom_level):
         self.dialog_zoom = max(0.5, min(zoom_level, 2.0))

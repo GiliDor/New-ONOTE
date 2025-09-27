@@ -595,7 +595,7 @@ class PartNameRenderer:
     """
 
     @staticmethod
-    def render_part_name(painter, name, x, y_center, is_grand_staff=False):
+    def render_part_name(painter, name, x, y_center, is_grand_staff=False, document_settings=None):
         """
         Render a part name to the left of a staff.
 
@@ -605,6 +605,7 @@ class PartNameRenderer:
             x: X-coordinate for the name
             y_center: Y-coordinate for the center of the name
             is_grand_staff: Whether this is a grand staff name
+            document_settings: Document settings to use for font styling
         """
         if not name:
             return
@@ -612,10 +613,46 @@ class PartNameRenderer:
         # Save current state
         painter.save()
 
-        # Set font for the part name
+        # Set font for the part name using document settings if available
         name_font = QFont(MUSIC_FONTS["text"])
-        name_font.setPointSize(FONT_SIZES["staffName"])
+        
+        # Get font size from document settings or use default
+        if document_settings and 'notation/staff_name_font_size' in document_settings:
+            font_size = document_settings['notation/staff_name_font_size']
+        else:
+            # Fallback to QSettings
+            from PyQt6.QtCore import QSettings
+            qsettings = QSettings("ONOTE", "Preferences")
+            font_size = int(qsettings.value("notation/staff_name_font_size", FONT_SIZES["staffName"]))
+        
+        name_font.setPointSize(font_size)
         painter.setFont(name_font)
+
+        # Get font color from document settings or use default
+        if document_settings and 'notation/staff_name_font_color' in document_settings:
+            font_color = document_settings['notation/staff_name_font_color']
+        else:
+            # Fallback to QSettings
+            from PyQt6.QtCore import QSettings
+            qsettings = QSettings("ONOTE", "Preferences")
+            font_color = qsettings.value("notation/staff_name_font_color", "#000000")
+        
+        painter.setPen(QColor(font_color))
+
+        # Apply horizontal and vertical offsets from settings
+        if document_settings:
+            h_offset = document_settings.get('notation/staff_name_horizontal', 0)
+            v_offset = document_settings.get('notation/staff_name_vertical', 0)
+        else:
+            # Fallback to QSettings
+            from PyQt6.QtCore import QSettings
+            qsettings = QSettings("ONOTE", "Preferences")
+            h_offset = int(qsettings.value("notation/staff_name_horizontal", 0))
+            v_offset = int(qsettings.value("notation/staff_name_vertical", 0))
+        
+        # Apply offsets
+        x += h_offset
+        y_center += v_offset
 
         # Calculate the width of the text to determine positioning
         text_width = painter.fontMetrics().horizontalAdvance(name)

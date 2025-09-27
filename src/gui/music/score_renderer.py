@@ -1477,7 +1477,8 @@ class ScoreRenderer:
                             staff.instrument_name,
                             name_x,
                             name_y,
-                            is_grand_staff=True
+                            is_grand_staff=True,
+                            document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None
                         )
                         print(f"GRAND_STAFF: Rendered part name '{staff.instrument_name}' for system {system_idx}")
                     else:
@@ -1576,7 +1577,8 @@ class ScoreRenderer:
                         staff.instrument_name,
                         name_x,
                         name_y,
-                        is_grand_staff=True
+                        is_grand_staff=True,
+                        document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None
                     )
                     print(f"GRAND_STAFF_SYSTEM: Rendered part name '{staff.instrument_name}' for system {system_idx}")
                 else:
@@ -1672,6 +1674,7 @@ class ScoreRenderer:
                                 name_x,
                                 name_y,
                                 is_grand_staff=True,
+                                document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None
                             )
                     except Exception:
                         pass
