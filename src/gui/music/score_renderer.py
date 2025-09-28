@@ -1463,7 +1463,7 @@ class ScoreRenderer:
                         from .score_layout import PartNameRenderer
                         # FIXED: Better positioning for grand staff part names
                         # Position further right and use proper vertical centering
-                        name_x = max(80, self.margins["left"] + getattr(self, 'staff_name_horizontal_offset', 50))
+                        name_x = max(80, self.margins["left"] + self.staff_name_horizontal_offset)
                         # Calculate center Y position between top and bottom staves
                         if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
                             top_y = staff.top_staff.y_position
@@ -1563,7 +1563,7 @@ class ScoreRenderer:
                     from .score_layout import PartNameRenderer
                     # FIXED: Better positioning for grand staff part names
                     # Position further right and use proper vertical centering
-                    name_x = max(80, self.margins["left"] + getattr(self, 'staff_name_horizontal_offset', 50))
+                    name_x = max(80, self.margins["left"] + self.staff_name_horizontal_offset)
                     # Calculate center Y position between top and bottom staves
                     if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
                         top_y = staff.top_staff.y_position
@@ -1666,7 +1666,7 @@ class ScoreRenderer:
                     try:
                         from .staff_types import GrandStaff as _GS
                         if isinstance(staff, _GS) and hasattr(staff, 'instrument_name') and staff.instrument_name:
-                            name_x = self.margins["left"] + getattr(self, 'staff_name_horizontal_offset', 0)
+                            name_x = self.margins["left"] + self.staff_name_horizontal_offset
                             name_y = getattr(staff, 'instrument_name_y', staff.y_position)
                             PartNameRenderer.render_part_name(
                                 painter,
