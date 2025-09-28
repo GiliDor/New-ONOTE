@@ -805,6 +805,9 @@ class MainWindow(QMainWindow):
                         
                         # Use ScoreDocument.from_dict() to restore the document
                         new_window.score_document = ScoreDocument.from_dict(document_data)
+                        
+                        # Set the filename on the document
+                        new_window.score_document.filename = file_name
                         print(f"LOAD: Successfully loaded document from {file_name}")
                         
                     except Exception as e:

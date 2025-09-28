@@ -312,9 +312,17 @@ class DocumentWindow(QMainWindow):
         
         if filename:
             try:
-                # Load document
-                self.document = ScoreDocument.load(filename)
+                # Load document from JSON file
+                import json
+                with open(filename, 'r') as f:
+                    document_data = json.load(f)
+                
+                # Use ScoreDocument.from_dict() to restore the document
+                self.document = ScoreDocument.from_dict(document_data)
+                
+                # Set the filename on both window and document
                 self.filename = filename
+                self.document.filename = filename
                 self.is_modified = False
                 
                 # Update staff view and form widget
