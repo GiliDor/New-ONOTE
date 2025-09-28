@@ -234,9 +234,6 @@ class FullScoreOptionsDialog(QDialog):
         
         # Create initial snapshot for new documents if none exists
         self._ensure_snapshot_exists()
-        
-        # Update title to show filename
-        self._update_title()
 
         
     def _ensure_snapshot_exists(self):
@@ -328,6 +325,51 @@ class FullScoreOptionsDialog(QDialog):
             
         except Exception as e:
             print(f"RESET_TO_SAVED: Error refreshing snapshot from Preferences - {e}")
+    
+    def _trigger_score_rerender(self):
+        """Trigger immediate score re-render after settings change."""
+        try:
+            # Method 1: Try to find and update staff view
+            staff_view = self._get_staff_view()
+            if staff_view:
+                if hasattr(staff_view, 'update'):
+                    staff_view.update()
+                    print("RESET_TO_SAVED: Triggered staff_view.update()")
+                if hasattr(staff_view, 'repaint'):
+                    staff_view.repaint()
+                    print("RESET_TO_SAVED: Triggered staff_view.repaint()")
+                
+                # Method 2: Try temporal bridge signals
+                if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'temporal_bridge'):
+                    bridge = staff_view.document.temporal_bridge
+                    if bridge:
+                        bridge.temporal_structure_changed.emit()
+                        bridge.measure_layout_changed.emit()
+                        print("RESET_TO_SAVED: Triggered temporal bridge signals")
+            
+            # Method 3: Try parent window update
+            if hasattr(self.parent(), 'update'):
+                self.parent().update()
+                print("RESET_TO_SAVED: Triggered parent.update()")
+                
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Error triggering re-render - {e}")
+            import traceback; traceback.print_exc()
+    
+    def _get_staff_view(self):
+        """Get the staff view from various possible parent structures."""
+        try:
+            # Try different parent structures
+            if hasattr(self.parent(), 'staff_view'):
+                return self.parent().staff_view
+            elif hasattr(self.parent(), 'music_page') and hasattr(self.parent().music_page, 'staff_view'):
+                return self.parent().music_page.staff_view
+            elif hasattr(self.parent(), 'staff_view') and hasattr(self.parent().staff_view, 'staff_view'):
+                return self.parent().staff_view.staff_view
+            return None
+        except Exception as e:
+            print(f"RESET_TO_SAVED: Error getting staff view - {e}")
+            return None
     
     def on_document_changed(self, new_document):
         """Called when the dialog is associated with a different document."""
@@ -423,25 +465,8 @@ class FullScoreOptionsDialog(QDialog):
             # Reload controls from document.settings
             self.load_current_settings()
             
-            # Force reload all dialog controls to reflect the reset values
-            self._force_reload_all_controls()
-            
-            # Force immediate re-render by triggering temporal bridge signals
-            try:
-                if hasattr(self.parent(), 'staff_view') and hasattr(self.parent().staff_view, 'document'):
-                    doc = self.parent().staff_view.document
-                    # If temporal bridge exists, notify it
-                    if hasattr(doc, 'temporal_bridge') and doc.temporal_bridge:
-                        try:
-                            doc.temporal_bridge.temporal_structure_changed.emit()
-                            doc.temporal_bridge.measure_layout_changed.emit()
-                        except Exception:
-                            pass
-                    # Also force staff view update
-                    if hasattr(self.parent().staff_view, 'update'):
-                        self.parent().staff_view.update()
-            except Exception:
-                pass
+            # Force immediate re-render of the score
+            self._trigger_score_rerender()
                 
             QMessageBox.information(self, "Revert to Saved", "Layout/Notation/Fonts restored to last saved state.")
         except Exception as e:
