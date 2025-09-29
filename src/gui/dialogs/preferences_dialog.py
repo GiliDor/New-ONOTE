@@ -1608,11 +1608,6 @@ class PreferencesDialog(QDialog):
         measure_numbers_layout = QFormLayout(measure_numbers_group)
         measure_numbers_layout.setSpacing(6)
         
-        # Note about current document settings
-        note_label = QLabel("Note: For current document settings, use the Musical Form widget.")
-        note_label.setWordWrap(True)
-        note_label.setStyleSheet("color: #666; font-style: italic; font-size: 9pt;")
-        measure_numbers_layout.addRow("", note_label)
         
         # Enable measure numbers
         self.show_measure_numbers = QCheckBox("Show by default")
@@ -1698,11 +1693,6 @@ class PreferencesDialog(QDialog):
         barline_layout = QFormLayout(barline_group)
         barline_layout.setSpacing(6)
         
-        # Note about current document settings
-        note_label2 = QLabel("Note: For current document settings, use the Musical Form widget.")
-        note_label2.setWordWrap(True)
-        note_label2.setStyleSheet("color: #666; font-style: italic; font-size: 9pt;")
-        barline_layout.addRow("", note_label2)
         
         # Maximum measures per system
         self.max_measures_per_system = QSpinBox()

@@ -659,6 +659,7 @@ class ScoreRenderer:
 
     def render_score(self, painter, viewport_rect=None, mode="edit"):
         """Render the entire score with all its elements."""
+        print(f"MEASURE_NUMBERS: render_score called with mode={mode}")
         try:
             if not self.document or not hasattr(self.document, "layout"):
                 return
@@ -832,14 +833,32 @@ class ScoreRenderer:
 
             # NEW: Render measure numbers after barlines/layout repair so positions are correct
             try:
+                print(f"MEASURE_NUMBERS: Checking if we should render - manager exists: {self.measure_number_manager is not None}")
+                if hasattr(self.document, 'layout'):
+                    print(f"MEASURE_NUMBERS: Document has layout, is_setup_mode: {getattr(self.document.layout, 'is_setup_mode', 'no attribute')}")
+                else:
+                    print(f"MEASURE_NUMBERS: Document has no layout attribute")
+                    
                 if self.measure_number_manager and not (hasattr(self.document, 'layout') and self.document.layout.is_setup_mode):
                     # Group measures by wrapped system so numbers render on each line, not stacked on the first
                     measures = []
-                    if hasattr(self.document, 'measures') and self.document.measures:
+                    
+                    # CRITICAL FIX: Use temporal bridge to get measures, same as barline rendering
+                    if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                        # Use temporal bridge to get measures with correct coordinates
+                        measures = self.document.temporal_bridge._get_current_measures()
+                        print(f"MEASURE_NUMBERS: Using temporal bridge, got {len(measures)} measures")
+                        for i, measure in enumerate(measures):
+                            print(f"  Measure #{getattr(measure, 'measure_number', i+1)}: end_x={getattr(measure, 'end_x', 'unknown')}")
+                    elif hasattr(self.document, 'measures') and self.document.measures:
+                        # Fallback: direct access
                         if isinstance(self.document.measures, dict):
                             measures = [self.document.measures[k] for k in sorted([k for k in self.document.measures.keys() if isinstance(k, int)])]
                         else:
                             measures = list(self.document.measures)
+                        print(f"MEASURE_NUMBERS: Using direct access, got {len(measures)} measures")
+                    else:
+                        print(f"MEASURE_NUMBERS: No measures available - temporal_bridge exists: {hasattr(self.document, 'temporal_bridge')}, document.measures exists: {hasattr(self.document, 'measures')}")
                     # Determine measures per system
                     from PyQt6.QtCore import QSettings
                     mps = int(QSettings("ONOTE", "Preferences").value("layout/default_measures_per_system", 4))
@@ -894,8 +913,10 @@ class ScoreRenderer:
                         local_idx = sys_idx - page_start_idx
                         system_y = top_y + local_idx * spacing_pref
                         # Only render measure numbers above the TOP staff system
-                        self.measure_number_manager.render_for_staff(painter, top_staff.name, sys_measures, system_y, start + 1)
-                        print(f"MEASURE_NUMBERS: Rendered for system {sys_idx} on top staff '{top_staff.name}' at y={system_y}")
+                        # Use instrument_name attribute for SingleStaff objects
+                        staff_label = getattr(top_staff, 'instrument_name', getattr(top_staff, 'name', 'Staff'))
+                        self.measure_number_manager.render_for_staff(painter, staff_label, sys_measures, system_y, start + 1)
+                        print(f"MEASURE_NUMBERS: Rendered for system {sys_idx} on top staff '{staff_label}' at y={system_y}")
                 else:
                     print("MEASURE_NUMBERS: No staves found, skipping measure number rendering")
             except Exception as e:

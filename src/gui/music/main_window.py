@@ -779,6 +779,13 @@ class MainWindow(QMainWindow):
                 # Ensure .otn extension
                 if not file_name.lower().endswith('.otn'):
                     file_name += '.otn'
+                # Enforce single-instance per file: if already open, focus it
+                normalized = os.path.abspath(file_name)
+                for w in self.windows:
+                    if getattr(w, 'current_file', None) and os.path.abspath(w.current_file) == normalized:
+                        w.show(); w.raise_(); w.activateWindow()
+                        self.statusBar.showMessage(f"Already open: {os.path.basename(file_name)} — focusing existing window", 2000)
+                        return
                     
                 # Create a new window for the score (WindowManager handles positioning)
                 new_window = MainWindow(is_welcome_window=False)
@@ -1207,6 +1214,8 @@ class MainWindow(QMainWindow):
             # Ensure .otn extension
             if not file_name.lower().endswith('.otn'):
                 file_name += '.otn'
+            # Capture original file to enforce close of old instance(s)
+            original_file = getattr(self, 'current_file', None)
             self.current_file = file_name
             
             # If this was an untitled window, decrement the counter
@@ -1217,7 +1226,28 @@ class MainWindow(QMainWindow):
             # Update window title with the new file name
             self.update_window_title()
             
-            return self.save_score()
+            # Save immediately under the new name
+            ok = self.save_score()
+            if ok:
+                # Update document.filename for downstream consumers (dialogs, renderer titles)
+                if hasattr(self, 'score_document') and self.score_document:
+                    self.score_document.filename = self.current_file
+                # Close any other windows showing the original file (safety)
+                if original_file:
+                    try:
+                        original_abs = os.path.abspath(original_file)
+                        for w in self.windows[:]:
+                            if w is self:
+                                continue
+                            if getattr(w, 'current_file', None) and os.path.abspath(w.current_file) == original_abs:
+                                # Ask no questions per spec: close by default
+                                w.close()
+                    except Exception:
+                        pass
+                # Refresh open files menus
+                for window in self.windows:
+                    window.update_open_files_menu()
+            return ok
         return False
         
     def import_score(self):
@@ -1281,8 +1311,11 @@ class MainWindow(QMainWindow):
         from src.gui.music.dialogs.full_score_options_dialog import FullScoreOptionsDialog
         
         try:
+            # Create a unique dialog type per window instance to allow multiple dialogs
+            dialog_type = f'full_score_options_{id(self)}'
+            
             # Use WindowManager to show dialog at top-right corner
-            dialog = WindowManager.show_dialog('full_score_options', FullScoreOptionsDialog, self)
+            dialog = WindowManager.show_dialog(dialog_type, FullScoreOptionsDialog, self)
             
             # Set the document on the dialog so it can load current settings
             if hasattr(self.staff_view, 'document') and self.staff_view.document:
@@ -1726,7 +1759,11 @@ class MainWindow(QMainWindow):
         if self.current_file:
             name = os.path.basename(self.current_file)
         else:
-            name = f"Untitled {self.untitled_number}"
+            # Use the same logic as when setting the window title
+            if self.untitled_number == 1:
+                name = "Untitled"
+            else:
+                name = f"Untitled {self.untitled_number}"
             
         if self.is_modified:
             name += "*"
@@ -1734,7 +1771,11 @@ class MainWindow(QMainWindow):
         
     def update_window_title(self):
         """Update the window title."""
-        self.setWindowTitle(self.get_window_title())
+        if self.is_welcome_window:
+            self.setWindowTitle("ONOTE Desktop")
+        else:
+            base_title = self.get_window_title()
+            self.setWindowTitle(f"ONOTE - {base_title}")
 
     def show_page_setup(self):
         """Show the enhanced page setup dialog"""

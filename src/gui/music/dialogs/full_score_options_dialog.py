@@ -283,20 +283,16 @@ class FullScoreOptionsDialog(QDialog):
             import traceback; traceback.print_exc()
     
     def _update_snapshot_after_change(self):
-        """Update the snapshot after any setting change to enable Reset to Saved."""
+        """Do NOT update snapshot on parameter change.
+        Snapshot should represent last-saved state, not current edits.
+        """
         try:
-            if not self.document or not hasattr(self.document, 'settings'):
-                return
-            # Create/update snapshot from current document settings
-            if self.document.settings:
-                self.document.last_saved_options = self.document._extract_full_score_options(self.document.settings)
-                print(f"RESET_TO_SAVED: Updated snapshot with {len(self.document.last_saved_options)} options")
-            # Update button state
-            if hasattr(self, 'reset_to_saved_button'):
-                has_snapshot = bool(self.document.last_saved_options)
+            # Only ensure button enabled state is correct
+            if hasattr(self, 'reset_to_saved_button') and hasattr(self, 'document') and self.document:
+                has_snapshot = bool(getattr(self.document, 'last_saved_options', {}))
                 self.reset_to_saved_button.setEnabled(has_snapshot)
         except Exception as e:
-            print(f"RESET_TO_SAVED: Error updating snapshot - {e}")
+            print(f"RESET_TO_SAVED: Error maintaining button state - {e}")
     
     def refresh_snapshot_from_preferences(self):
         """Refresh snapshot from current Preferences for new files only."""
@@ -332,6 +328,22 @@ class FullScoreOptionsDialog(QDialog):
             # Method 1: Try to find and update staff view
             staff_view = self._get_staff_view()
             if staff_view:
+                # Ensure renderer reloads settings from document (critical for visual restore)
+                if hasattr(staff_view, 'renderer') and staff_view.renderer:
+                    try:
+                        staff_view.renderer.load_notation_settings()
+                        # Refresh measure number manager if present
+                        if hasattr(staff_view.renderer, 'measure_number_manager') and staff_view.renderer.measure_number_manager:
+                            staff_view.renderer.measure_number_manager.refresh_settings()
+                    except Exception:
+                        pass
+                # Force layout recompute via temporal bridge if available
+                if hasattr(staff_view, 'temporal_bridge') and staff_view.temporal_bridge:
+                    try:
+                        if hasattr(staff_view.temporal_bridge, '_force_layout_refresh'):
+                            staff_view.temporal_bridge._force_layout_refresh()
+                    except Exception:
+                        pass
                 if hasattr(staff_view, 'update'):
                     staff_view.update()
                     print("RESET_TO_SAVED: Triggered staff_view.update()")
@@ -2815,7 +2827,27 @@ class FullScoreOptionsDialog(QDialog):
             filename_without_ext = os.path.splitext(filename)[0]
             self.setWindowTitle(f"{filename_without_ext} - Full Score Options")
         else:
-            self.setWindowTitle("New Score - Full Score Options")
+            # For new files, get the document name from the parent window
+            document_name = "New Score"
+            if self.parent() and hasattr(self.parent(), 'get_window_title'):
+                # Use the parent window's title method to get the proper name
+                full_title = self.parent().get_window_title()
+                # Remove modification indicator (*) if present
+                if full_title.endswith('*'):
+                    full_title = full_title[:-1]
+                document_name = full_title
+            elif self.parent() and hasattr(self.parent(), 'windowTitle'):
+                # Fallback to the actual window title
+                full_title = self.parent().windowTitle()
+                # Remove "ONOTE - " prefix if present for cleaner display
+                if full_title.startswith("ONOTE - "):
+                    full_title = full_title[8:]  # Remove "ONOTE - " prefix
+                # Remove modification indicator (*) if present
+                if full_title.endswith('*'):
+                    full_title = full_title[:-1]
+                document_name = full_title
+            
+            self.setWindowTitle(f"{document_name} - Full Score Options")
 
     def _set_dialog_zoom(self, zoom_level):
         self.dialog_zoom = max(0.5, min(zoom_level, 2.0))

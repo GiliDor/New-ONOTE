@@ -276,9 +276,9 @@ class MeasureNumberManager:
                 print(f"MEASURE_NUMBERS: Using document setting for {key} = {value}")
                 return value
             
-            # Fall back to QSettings
+            # Fall back to QSettings - CRITICAL FIX: Use the correct QSettings instance
             from PyQt6.QtCore import QSettings
-            settings = QSettings()
+            settings = QSettings('ONOTE', 'Preferences')
             value = settings.value(key, default_value)
             print(f"MEASURE_NUMBERS: Using QSettings for {key} = {value} (default: {default_value})")
             return value
@@ -288,7 +288,7 @@ class MeasureNumberManager:
         # Enable/disable measure numbers
         self.settings.enabled = get_setting_with_precedence("notation/show_measure_numbers", True) in [True, 'true', 'True', '1', 1]
         
-        # Frequency setting
+        # Frequency setting (plural key to match Preferences/Full Score Options)
         frequency_str = get_setting_with_precedence("notation/measure_numbers_frequency", "Every Measure")
         try:
             self.settings.frequency = MeasureNumberFrequency(frequency_str)
@@ -300,7 +300,7 @@ class MeasureNumberManager:
         # Custom interval
         self.settings.custom_interval = int(get_setting_with_precedence("notation/measure_numbers_custom_interval", 5))
         
-        # Position setting
+        # Position setting (plural key to match Preferences/Full Score Options)
         position_str = get_setting_with_precedence("notation/measure_numbers_position", "Center")
         try:
             self.settings.position = MeasureNumberPosition(position_str)
