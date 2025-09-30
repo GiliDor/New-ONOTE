@@ -288,6 +288,21 @@ class ScoreRenderer:
         # Track selected barline x-positions (score space) to style across all staves
         self._selected_barline_x_positions = set()
 
+        # Safe defaults for page size to prevent attribute errors early in lifecycle
+        try:
+            self.page_width = int(getattr(document.layout, 'page_width', 800)) if document else 800
+            self.page_height = int(getattr(document.layout, 'page_height', 1200)) if document else 1200
+        except Exception:
+            self.page_width = 800
+            self.page_height = 1200
+
+    def set_selected_barline_positions(self, x_positions):
+        """Receive selected barline x positions (score coords) for cross-staff styling."""
+        try:
+            self._selected_barline_x_positions = set(float(x) for x in (x_positions or []))
+        except Exception:
+            self._selected_barline_x_positions = set()
+
         # Ensure percussion clef symbol is correctly defined
         if "percussionClef" not in self.SYMBOL_MAP:
             self.SYMBOL_MAP["percussionClef"] = "\uE069"  # SMuFL code point for percussion clef

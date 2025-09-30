@@ -1880,7 +1880,9 @@ class StaffView(QWidget):
             ctrl_pressed = event.modifiers() & Qt.KeyboardModifier.ControlModifier
             
             # DRAG SELECTION: Start drag selection if Ctrl/Cmd is held
-            if ctrl_pressed and not shift_pressed:
+            meta_pressed = event.modifiers() & Qt.KeyboardModifier.MetaModifier
+            alt_pressed = event.modifiers() & Qt.KeyboardModifier.AltModifier
+            if (ctrl_pressed or (meta_pressed and alt_pressed)) and not shift_pressed:
                 self.start_drag_selection(event.position())
                 return  # Skip barline operations for drag selection
             
@@ -2089,12 +2091,17 @@ class StaffView(QWidget):
             
             if selected_barlines:
                 # Save state for undo BEFORE deletion
-                form_widget = self.get_form_widget()
-                if form_widget and hasattr(form_widget, 'save_state'):
-                    if len(selected_barlines) == 1:
-                        form_widget.save_state(f"Delete barline at measure {getattr(selected_barlines[0], 'measure_number', 'unknown')}")
-                    else:
-                        form_widget.save_state(f"Delete {len(selected_barlines)} barlines")
+                try:
+                    if hasattr(self, 'document') and hasattr(self.document, 'save_state'):
+                        self.document.save_state("Delete selected barlines")
+                except Exception:
+                    # Fallback to form_widget state if available
+                    form_widget = self.get_form_widget()
+                    if form_widget and hasattr(form_widget, 'save_state'):
+                        if len(selected_barlines) == 1:
+                            form_widget.save_state(f"Delete barline at measure {getattr(selected_barlines[0], 'measure_number', 'unknown')}")
+                        else:
+                            form_widget.save_state(f"Delete {len(selected_barlines)} barlines")
                 
                 # Remove each barline immediately
                 successfully_deleted = 0
@@ -2134,6 +2141,8 @@ class StaffView(QWidget):
                 
                 # Update display
                 self.update()
+                # Clear drag rectangle after action
+                self.drag_select_rect = None
                 
                 print(f"BARLINE_DELETE: Successfully deleted {successfully_deleted} barline(s) out of {len(selected_barlines)} selected")
                 
@@ -2353,9 +2362,29 @@ class StaffView(QWidget):
         
         print(f"DRAG_SELECT: Selected {len(draggable_elements)} draggable elements")
         
-        # Clear drag selection state
+        # Keep rectangle visible and keep keyboard for follow-up actions
+        try:
+            self.grabKeyboard()
+            self._keyboard_grabbed = True
+        except Exception:
+            self._keyboard_grabbed = False
+        
+        # Propagate selection x positions to renderer for cross-staff highlight
+        try:
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                x_positions = []
+                for e in draggable_elements:
+                    if hasattr(e, 'end_x'):
+                        x_positions.append(float(e.end_x))
+                    elif hasattr(e, 'x_position'):
+                        x_positions.append(float(e.x_position))
+                self.renderer.set_selected_barline_positions(x_positions)
+        except Exception:
+            pass
+        
+        # Stay in selection state; do not clear drag rectangle until action
         self.is_drag_selecting = False
-        self.drag_select_rect = None
+        # self.drag_select_rect remains to show stable rectangle
         self.update()
     
     def find_elements_in_rect(self, rect):
