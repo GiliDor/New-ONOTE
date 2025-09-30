@@ -1868,16 +1868,7 @@ class StaffView(QWidget):
         
         # Track gesture start
         if event.button() == Qt.MouseButton.LeftButton:
-            self.gesture_start_pos = event.position()
-            self.gesture_start_zoom = self.zoom_factor
-            self.is_gesturing = False
-            
-            # Start page dragging
-            self.is_dragging_page = True
-            self.drag_start_pos = event.position()
-            self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
-            
-            # Check for barline operations
+            # FIRST: Check for barline operations before setting up page dragging
             click_pos = event.position().toPoint()
             
             # Check for shift key modifier for multi-selection
@@ -1886,10 +1877,13 @@ class StaffView(QWidget):
             # Check for Ctrl/Cmd key modifier for drag selection
             ctrl_pressed = event.modifiers() & Qt.KeyboardModifier.ControlModifier
             
-            # DRAG SELECTION: Start drag selection if Ctrl/Cmd is held OR if clicking in empty area
+            # DRAG SELECTION: Start drag selection if Ctrl/Cmd is held
             if ctrl_pressed and not shift_pressed:
                 self.start_drag_selection(event.position())
                 return  # Skip barline operations for drag selection
+            
+            # Track if a barline operation occurred (to prevent page dragging)
+            barline_operation_occurred = False
             
             # Check if we're in a valid area for barline operations
             if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
@@ -1897,6 +1891,8 @@ class StaffView(QWidget):
                 existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
                 
                 if existing_barline:
+                    barline_operation_occurred = True  # Mark that we handled a barline
+                    
                     # Select the existing barline
                     if shift_pressed:
                         # Shift-click: toggle selection of this barline (multi-select)
@@ -1946,6 +1942,7 @@ class StaffView(QWidget):
                             if isinstance(new_barline, MeasureObject):
                                 # Emit signal for form widget (if available)
                                 self.barline_created.emit(new_barline)
+                            barline_operation_occurred = True  # Mark that we created a barline
                             # Update display
                             self.update()
                             print(f"BARLINE_CREATE: Created barline at x={click_pos.x()}")
@@ -1959,6 +1956,19 @@ class StaffView(QWidget):
                     # Normal click outside: deselect all barlines
                     self.deselect_all_barlines()
                 # Shift-click outside: do nothing (preserve current selection)
+            
+            # AFTER barline operations: Set up page dragging ONLY if no barline operation occurred
+            if not barline_operation_occurred:
+                self.gesture_start_pos = event.position()
+                self.gesture_start_zoom = self.zoom_factor
+                self.is_gesturing = False
+                
+                # Start page dragging
+                self.is_dragging_page = True
+                self.drag_start_pos = event.position()
+                self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
+            else:
+                print("BARLINE_OPERATION: Barline operation occurred, skipping page dragging setup")
         
         super().mousePressEvent(event)
     
