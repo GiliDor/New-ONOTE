@@ -3755,7 +3755,7 @@ class ScoreRenderer:
                         print(f"BARLINES: Drawing per-measure barline type={barline_type} at x={x} for system {sys_idx} with top_y={top_y}, bottom_y={bottom_y}")
                     except Exception:
                         pass
-                    self._draw_single_barline(painter, x, barline_type, top_y, bottom_y)
+                    self._draw_single_barline(painter, x, barline_type, top_y, bottom_y, measure)
                     # Draw barline numbers per system with proper vertical positioning
                     if measure is not None:
                         try:
@@ -4234,13 +4234,13 @@ class ScoreRenderer:
                     bottom_staff = element.staves[-1]
                     top_y = top_staff.y_position
                     bottom_y = bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
+                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, None)
                     print(f"BARLINES: Drew {barline_type} barline across SECTION at x={barline_x} (y={top_y}→{bottom_y})")
                 elif hasattr(element, 'is_grand_staff') and getattr(element, 'is_grand_staff', False) and hasattr(element, 'top_staff') and hasattr(element, 'bottom_staff'):
                     # Grand staff: span both staves
                     top_y = element.top_staff.y_position
                     bottom_y = element.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
+                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, None)
                     print(f"BARLINES: Drew {barline_type} barline across GRAND STAFF at x={barline_x} (y={top_y}→{bottom_y})")
             else:
                 # Single staff
@@ -4249,12 +4249,16 @@ class ScoreRenderer:
                 self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
                 print(f"BARLINES: Drew {barline_type} barline on SINGLE STAFF at x={barline_x} (y={top_y}→{bottom_y})")
 
-    def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y):
+    def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y, measure=None):
         """Draw a single barline of the specified type between the given y coordinates"""
         
         def draw_normal_barline(x, y_top, y_bottom, extension=0):
             """Helper function to draw a normal barline"""
-            pen = QPen(Qt.GlobalColor.black, 1)
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
+                pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
+            else:
+                pen = QPen(Qt.GlobalColor.black, 1)  # Black for normal
             painter.setPen(pen)
             line = QLineF(x, y_top - extension, x, y_bottom + extension)
             painter.drawLine(line)
@@ -4263,11 +4267,23 @@ class ScoreRenderer:
         def draw_final_barline(x, y_top, y_bottom):
             # Always draw precise connecting final barline as two lines spanning the full group.
             # This guarantees the barline runs through both staves of a grand staff or all staves of a section.
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
-                painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))  # Thin line
-                painter.setPen(QPen(QColor(0, 0, 0), 4))
-                painter.drawLine(int(x), int(y_top), int(x), int(y_bottom))  # Thick line at specified x
-                print(f"BARLINES: Drew manual end bar at x={x} (thick line), thin at x={x-6}")
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
+                thin_color = QColor(255, 165, 0)  # Orange for selected
+                thick_color = QColor(255, 165, 0)  # Orange for selected
+                thin_width = 2
+                thick_width = 4
+            else:
+                thin_color = QColor(0, 0, 0)  # Black for normal
+                thick_color = QColor(0, 0, 0)  # Black for normal
+                thin_width = 1
+                thick_width = 4
+            
+            painter.setPen(QPen(thin_color, thin_width))
+            painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))  # Thin line
+            painter.setPen(QPen(thick_color, thick_width))
+            painter.drawLine(int(x), int(y_top), int(x), int(y_bottom))  # Thick line at specified x
+            print(f"BARLINES: Drew manual end bar at x={x} (thick line), thin at x={x-6}")
 
         if barline_type == 'single':
             draw_normal_barline(barline_x, top_y, bottom_y)
@@ -4280,7 +4296,11 @@ class ScoreRenderer:
         elif barline_type == 'dashed':
             # Draw dashed barline
             painter.save()
-            pen = QPen(Qt.GlobalColor.black, 1)
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
+                pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
+            else:
+                pen = QPen(Qt.GlobalColor.black, 1)  # Black for normal
             pen.setStyle(Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.drawLine(QLineF(barline_x, top_y, barline_x, bottom_y))
@@ -4289,7 +4309,11 @@ class ScoreRenderer:
             # Draw repeat start barline: thick line + thin line + dots (left to right)
             # Draw thick line first (leftmost)
             painter.save()
-            thick_pen = QPen(Qt.GlobalColor.black, 3)
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
+                thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
+            else:
+                thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
             painter.setPen(thick_pen)
             painter.drawLine(QLineF(barline_x, top_y, barline_x, bottom_y))
             painter.restore()
@@ -4302,7 +4326,11 @@ class ScoreRenderer:
             draw_normal_barline(barline_x - 3, top_y, bottom_y)
             # Draw thick line to the right
             painter.save()
-            thick_pen = QPen(Qt.GlobalColor.black, 3)
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
+                thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
+            else:
+                thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
             painter.setPen(thick_pen)
             painter.drawLine(QLineF(barline_x, top_y, barline_x, bottom_y))
             painter.restore()
@@ -4313,7 +4341,11 @@ class ScoreRenderer:
             
             # Draw the central thick line (overlapped thick parts)
             painter.save()
-            thick_pen = QPen(Qt.GlobalColor.black, 3)
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
+                thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
+            else:
+                thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
             painter.setPen(thick_pen)
             painter.drawLine(QLineF(barline_x, top_y, barline_x, bottom_y))
             painter.restore()
