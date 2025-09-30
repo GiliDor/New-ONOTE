@@ -1863,6 +1863,8 @@ class StaffView(QWidget):
         
     def mousePressEvent(self, event):
         """Handle mouse press for gesture tracking, page dragging, and barline creation"""
+        print(f"MOUSE_PRESS: Button {event.button()} at position {event.position()}")
+        
         # CRITICAL: Ensure this widget has focus to receive key events
         self.setFocus()
         
@@ -2405,9 +2407,13 @@ class StaffView(QWidget):
         
         # Get system layout information
         system_boundaries = self._get_system_boundaries()
+        print(f"BARLINE_POSITION: Checking click at ({x}, {y})")
+        print(f"BARLINE_POSITION: Found {len(system_boundaries) if system_boundaries else 0} system boundaries")
+        
         if system_boundaries:
             # Check if click is within any system's boundaries
             for system in system_boundaries:
+                print(f"BARLINE_POSITION: System {system['index']}: top={system['top']}, bottom={system['bottom']}, left={system['left']}, right={system['right']}")
                 if (system['top'] <= y <= system['bottom'] and 
                     system['left'] <= x <= system['right']):
                     print(f"BARLINE_POSITION: Click at ({x}, {y}) is within system {system['index']} - VALID")
@@ -2415,6 +2421,9 @@ class StaffView(QWidget):
             
             # Click is outside all system boundaries
             print(f"BARLINE_POSITION: Click at ({x}, {y}) is outside all system boundaries - INVALID")
+            return False
+        else:
+            print(f"BARLINE_POSITION: No system boundaries found - INVALID")
             return False
         
         # Fallback to original logic if system boundaries can't be determined
