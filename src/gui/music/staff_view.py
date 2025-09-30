@@ -402,7 +402,7 @@ class StaffView(QWidget):
         
         # Initialize the renderer
         from .score_renderer import ScoreRenderer
-        self.renderer = ScoreRenderer()
+        self.renderer = ScoreRenderer(self.document)
         
         # Set up UI first
         self.setup_ui()
