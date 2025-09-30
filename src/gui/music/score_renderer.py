@@ -4257,8 +4257,13 @@ class ScoreRenderer:
             # Check if measure is selected for orange color
             if measure and hasattr(measure, 'selected') and measure.selected:
                 pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
+                print(f"BARLINE_COLOR: Drawing NORMAL barline in ORANGE - measure {getattr(measure, 'measure_number', 'unknown')} is selected")
             else:
                 pen = QPen(Qt.GlobalColor.black, 1)  # Black for normal
+                if measure:
+                    print(f"BARLINE_COLOR: Drawing NORMAL barline in BLACK - measure {getattr(measure, 'measure_number', 'unknown')} selected={getattr(measure, 'selected', False)}")
+                else:
+                    print(f"BARLINE_COLOR: Drawing NORMAL barline in BLACK - no measure object")
             painter.setPen(pen)
             line = QLineF(x, y_top - extension, x, y_bottom + extension)
             painter.drawLine(line)
@@ -4273,11 +4278,16 @@ class ScoreRenderer:
                 thick_color = QColor(255, 165, 0)  # Orange for selected
                 thin_width = 2
                 thick_width = 4
+                print(f"BARLINE_COLOR: Drawing FINAL barline in ORANGE - measure {getattr(measure, 'measure_number', 'unknown')} is selected")
             else:
                 thin_color = QColor(0, 0, 0)  # Black for normal
                 thick_color = QColor(0, 0, 0)  # Black for normal
                 thin_width = 1
                 thick_width = 4
+                if measure:
+                    print(f"BARLINE_COLOR: Drawing FINAL barline in BLACK - measure {getattr(measure, 'measure_number', 'unknown')} selected={getattr(measure, 'selected', False)}")
+                else:
+                    print(f"BARLINE_COLOR: Drawing FINAL barline in BLACK - no measure object")
             
             painter.setPen(QPen(thin_color, thin_width))
             painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))  # Thin line
