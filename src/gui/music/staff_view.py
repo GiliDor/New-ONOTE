@@ -2525,7 +2525,13 @@ class StaffView(QWidget):
     
     def find_barline_at_position(self, x, y):
         """Find a barline at the given position"""
-        if not self.is_position_valid_for_barline(x, y):
+        # Convert from view/widget coordinates to unscaled score coordinates
+        try:
+            score_x, score_y = self.to_score_coords(float(x), float(y))
+        except Exception:
+            score_x, score_y = x, y
+
+        if not self.is_position_valid_for_barline(score_x, score_y):
             print(f"BARLINE_SELECTION: Position x={x}, y={y} not valid for barline operations")
             return None
             
@@ -2544,8 +2550,8 @@ class StaffView(QWidget):
         if system_boundaries:
             # Find which system the click is in
             for system in system_boundaries:
-                if (system['top'] <= y <= system['bottom'] and 
-                    system['left'] <= x <= system['right']):
+                if (system['top'] <= score_y <= system['bottom'] and 
+                    system['left'] <= score_x <= system['right']):
                     target_system = system
                     break
             
@@ -2571,7 +2577,7 @@ class StaffView(QWidget):
                 
                 # Check if click is ON this barline (within narrow margin)
                 barline_x = measure.end_x
-                distance = abs(barline_x - x)
+                distance = abs(barline_x - score_x)
                 system_info = f" (sys {target_system['index']})" if target_system else ""
                 print(f"BARLINE_SELECTION: Measure {mnum} at x={barline_x}, distance={distance}{system_info}")
                 
@@ -2589,7 +2595,7 @@ class StaffView(QWidget):
         if hasattr(self.document, 'graphical_dashed_barlines'):
             print(f"BARLINE_SELECTION: Checking {len(self.document.graphical_dashed_barlines)} graphical dashed barlines")
             for dashed_barline in self.document.graphical_dashed_barlines:
-                distance = abs(dashed_barline.x_position - x)
+                distance = abs(dashed_barline.x_position - score_x)
                 print(f"BARLINE_SELECTION: Dashed barline at x={dashed_barline.x_position}, distance={distance}, contains={dashed_barline.contains_x_position(x)}")
                 
                 # Check if click is directly on dashed barline
@@ -2604,7 +2610,7 @@ class StaffView(QWidget):
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
         # Return the closest barline if within reasonable threshold (fallback for near misses)
-        selection_threshold = 15  # Reasonable threshold - click near barline with some margin
+        selection_threshold = 12  # Reasonable threshold - click near barline with some margin
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
@@ -2614,6 +2620,44 @@ class StaffView(QWidget):
             print(f"BARLINE_SELECTION: No barline found within {selection_threshold}px threshold (closest was {min_distance}px)")
             
         return None
+
+    def to_score_coords(self, x: float, y: float):
+        """Convert view/widget coordinates to unscaled score/page coordinates used by renderer.
+
+        Returns a tuple (score_x, score_y).
+        """
+        try:
+            # Base page size from renderer
+            base_page_width = int(getattr(self.renderer, 'page_width', 800))
+            base_page_height = int(getattr(self.renderer, 'page_height', 600))
+            zoom = float(getattr(self, 'zoom_factor', 1.0))
+
+            # Horizontal centering of the page within the current widget width
+            page_x = int((self.width() - int(base_page_width * zoom)) // 2)
+
+            # Vertical stacking offset for page-down mode (page 0 only for hit tests)
+            # Use page_offset_y which is in unscaled page units
+            start_y = int(self.page_offset_y * zoom)
+
+            # Inverse transform: first undo translation, then undo scaling
+            score_x = (float(x) - float(page_x)) / zoom
+            score_y = (float(y) - float(start_y)) / zoom
+
+            # Clamp within page bounds to avoid negative surprises
+            if score_x < 0:
+                score_x = 0.0
+            if score_y < 0:
+                score_y = 0.0
+            if score_x > base_page_width:
+                score_x = float(base_page_width)
+            if score_y > base_page_height:
+                score_y = float(base_page_height)
+
+            print(f"COORDS: View({x:.1f},{y:.1f}) -> Score({score_x:.1f},{score_y:.1f}) zoom={zoom} page_x={page_x} start_y={start_y}")
+            return score_x, score_y
+        except Exception as e:
+            print(f"COORDS: Fallback conversion due to error: {e}")
+            return x, y
     
     def create_barline_at_position(self, x, y):
         """Create a barline at the specified position"""
