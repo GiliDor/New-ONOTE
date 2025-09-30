@@ -395,6 +395,12 @@ class StaffView(QWidget):
         # Selection visualization mode: use color change in renderer, not overlay
         self.show_selection_overlay = False
         
+        # DRAG SELECTION: Initialize drag selection
+        self.is_drag_selecting = False
+        self.drag_select_start = None
+        self.drag_select_end = None
+        self.drag_select_rect = None
+        
         # Initialize the renderer
         from .score_renderer import ScoreRenderer
         self.renderer = ScoreRenderer()
@@ -1444,6 +1450,13 @@ class StaffView(QWidget):
                     self.selected_staff.height,
                     highlight_color
                 )
+        
+        # Draw drag selection rectangle if active
+        if self.is_drag_selecting and self.drag_select_rect:
+            painter.setPen(QPen(QColor(0, 100, 255), 2, Qt.PenStyle.DashLine))  # Blue dashed border
+            painter.setBrush(QColor(0, 100, 255, 30))  # Semi-transparent blue fill
+            painter.drawRect(self.drag_select_rect)
+            print(f"PAINT: Drawing drag selection rectangle at {self.drag_select_rect}")
     
     def _render_continuous_mode(self, painter, viewport_rect, is_in_setup):
         """Render in continuous scrollable mode with proper A4 page dimensions and unified zoom"""
@@ -5922,6 +5935,21 @@ class StaffView(QWidget):
         # Call original mouse move handler first
         super().mouseMoveEvent(event)
         
+        # Handle drag selection
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            current_pos = event.position()
+            if self.drag_select_start is not None:
+                distance = (current_pos - self.drag_select_start).manhattanLength()
+                
+                # Start drag selection if moved enough (threshold of 10 pixels)
+                if distance > 10 and not self.is_drag_selecting:
+                    self.start_drag_selection(self.drag_select_start)
+                
+                # Update drag selection if active
+                if self.is_drag_selecting:
+                    self.update_drag_selection(current_pos)
+                    return
+        
         # Handle page dragging
         if self.is_dragging_page and event.buttons() & Qt.MouseButton.LeftButton:
             if self.drag_start_pos is not None:
@@ -5981,11 +6009,21 @@ class StaffView(QWidget):
         
         # End gesture tracking
         if event.button() == Qt.MouseButton.LeftButton:
+            # End drag selection if active
+            if self.is_drag_selecting:
+                self.end_drag_selection(event.position())
+            
             self.gesture_start_pos = None
             self.is_gesturing = False
             self.is_dragging_page = False
             self.drag_start_pos = None
             self.drag_start_offset = None
+            
+            # Clear drag selection state
+            self.is_drag_selecting = False
+            self.drag_select_start = None
+            self.drag_select_end = None
+            self.drag_select_rect = None
             
     def event(self, event):
         """Handle touch and native gesture events for pinch/zoom gestures"""
@@ -6455,4 +6493,113 @@ class StaffBarTool(QWidget):
         if hasattr(self.document, 'graphical_dashed_barlines'):
             for dashed_barline in self.document.graphical_dashed_barlines:
                 if hasattr(dashed_barline, 'selected'):
-                    dashed_barline.selected = False 
+                    dashed_barline.selected = False
+    
+    def start_drag_selection(self, start_pos):
+        """Start drag selection mode"""
+        self.is_drag_selecting = True
+        self.drag_select_start = start_pos
+        self.drag_select_end = start_pos
+        self.drag_select_rect = None
+        print(f"DRAG_SELECT: Started drag selection at {start_pos}")
+    
+    def update_drag_selection(self, current_pos):
+        """Update drag selection rectangle"""
+        if self.is_drag_selecting:
+            self.drag_select_end = current_pos
+            # Create selection rectangle
+            from PyQt6.QtCore import QRectF
+            self.drag_select_rect = QRectF(self.drag_select_start, current_pos).normalized()
+            # Force repaint to show selection rectangle
+            self.update()
+    
+    def end_drag_selection(self, end_pos):
+        """End drag selection and select elements in rectangle"""
+        if not self.is_drag_selecting:
+            return
+        
+        self.drag_select_end = end_pos
+        from PyQt6.QtCore import QRectF
+        self.drag_select_rect = QRectF(self.drag_select_start, end_pos).normalized()
+        
+        # Find and select elements in the rectangle
+        selected_elements = self.find_elements_in_rect(self.drag_select_rect)
+        
+        # Filter out protected elements
+        draggable_elements = self.filter_draggable_elements(selected_elements)
+        
+        # Select the draggable elements
+        for element in draggable_elements:
+            if hasattr(element, 'selected'):
+                element.selected = True
+        
+        print(f"DRAG_SELECT: Selected {len(draggable_elements)} draggable elements")
+        
+        # Clear drag selection state
+        self.is_drag_selecting = False
+        self.drag_select_rect = None
+        self.update()
+    
+    def find_elements_in_rect(self, rect):
+        """Find all score elements within the selection rectangle"""
+        elements = []
+        
+        # Find barlines in rectangle
+        if hasattr(self.document, 'measures') and self.document.measures:
+            measures = self.document.measures
+            if isinstance(measures, dict):
+                measures = measures.values()
+            
+            for measure in measures:
+                if hasattr(measure, 'end_x'):
+                    # Check if barline position is within rectangle
+                    if rect.contains(measure.end_x, rect.center().y()):
+                        elements.append(measure)
+        
+        # Find graphical dashed barlines in rectangle
+        if hasattr(self.document, 'graphical_dashed_barlines'):
+            for dashed_barline in self.document.graphical_dashed_barlines:
+                if hasattr(dashed_barline, 'x_position'):
+                    if rect.contains(dashed_barline.x_position, rect.center().y()):
+                        elements.append(dashed_barline)
+        
+        return elements
+    
+    def filter_draggable_elements(self, elements):
+        """Filter elements to only include draggable ones (exclude protected elements)"""
+        draggable = []
+        
+        for element in elements:
+            # Check if element is a barline
+            if hasattr(element, 'barline_type'):
+                barline_type = getattr(element, 'barline_type', 'unknown')
+                measure_number = getattr(element, 'measure_number', 0)
+                
+                # Protected elements:
+                # 1. Single barlines (cannot be removed via drag select)
+                if barline_type == 'single':
+                    print(f"DRAG_SELECT: Skipping single barline at measure {measure_number} (protected)")
+                    continue
+                
+                # 2. Ultimate final barline at the end of last measure
+                if barline_type == 'final':
+                    # Check if this is the last measure
+                    if hasattr(self.document, 'measures') and self.document.measures:
+                        max_measure = max(self.document.measures.keys()) if isinstance(self.document.measures, dict) else len(self.document.measures) - 1
+                        if measure_number == max_measure:
+                            print(f"DRAG_SELECT: Skipping ultimate final barline at measure {measure_number} (protected)")
+                            continue
+                
+                # 3. Initial clef, key signature, time signature are not barlines, so they're handled elsewhere
+                # For now, assume they're not in the barlines collection
+                
+                # All other barlines are draggable
+                draggable.append(element)
+                print(f"DRAG_SELECT: Including {barline_type} barline at measure {measure_number}")
+            
+            # Graphical dashed barlines are always draggable
+            elif hasattr(element, 'x_position'):
+                draggable.append(element)
+                print(f"DRAG_SELECT: Including dashed barline at x={element.x_position}")
+        
+        return draggable 
