@@ -288,21 +288,6 @@ class ScoreRenderer:
         # Track selected barline x-positions (score space) to style across all staves
         self._selected_barline_x_positions = set()
 
-        # Safe defaults for page size to prevent attribute errors early in lifecycle
-        try:
-            self.page_width = int(getattr(document.layout, 'page_width', 800)) if document else 800
-            self.page_height = int(getattr(document.layout, 'page_height', 1200)) if document else 1200
-        except Exception:
-            self.page_width = 800
-            self.page_height = 1200
-
-    def set_selected_barline_positions(self, x_positions):
-        """Receive selected barline x positions (score coords) for cross-staff styling."""
-        try:
-            self._selected_barline_x_positions = set(float(x) for x in (x_positions or []))
-        except Exception:
-            self._selected_barline_x_positions = set()
-
         # Ensure percussion clef symbol is correctly defined
         if "percussionClef" not in self.SYMBOL_MAP:
             self.SYMBOL_MAP["percussionClef"] = "\uE069"  # SMuFL code point for percussion clef
@@ -316,6 +301,15 @@ class ScoreRenderer:
 
         self.FONT_SIZES = FONT_SIZES.copy()
         self.MUSIC_FONTS = MUSIC_FONTS.copy()
+
+    def set_selected_barline_positions(self, x_positions):
+        """Set the x-positions of selected barlines for cross-system highlighting"""
+        try:
+            self._selected_barline_x_positions = set(float(x) for x in x_positions)
+            print(f"RENDERER: Set {len(self._selected_barline_x_positions)} selected barline positions: {list(self._selected_barline_x_positions)}")
+        except Exception as e:
+            print(f"RENDERER: Error setting selected barline positions: {e}")
+            self._selected_barline_x_positions = set()
 
         # Ensure we have a fallback for bravura
         if "bravura" not in self.MUSIC_FONTS:
@@ -2943,19 +2937,23 @@ class ScoreRenderer:
                 
                 # Only draw if this is the first staff in the system to avoid duplicates
                 if self._is_first_staff_in_system(staff):
-                    # Draw final barline with proper styling if this is the final barline
-                    if is_final_system and m_idx == num_measures_to_render:
-                        # Draw final barline (thin line + thick line)
-                        painter.setPen(QPen(QColor(0, 0, 0), 1))  # Thin line
-                        painter.drawLine(QLineF(x - 6, barline_top_y, x - 6, barline_bottom_y))
-                        painter.setPen(QPen(QColor(0, 0, 0), 4))  # Thick line
-                        painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
-                        print(f"BARLINES: Drew system-aware final barline for {self._get_staff_system_type(staff)} at x={x}")
-                    else:
-                        # Draw normal barline (use same clamped span as final)
-                        painter.setPen(QPen(QColor(0, 0, 0), 1))
-                        painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
-                        print(f"BARLINES: Drew system-aware normal barline for {self._get_staff_system_type(staff)} at x={x}")
+                    # Determine barline type and check if selected
+                    barline_type = "final" if (is_final_system and m_idx == num_measures_to_render) else "normal"
+                    
+                    # Check if this barline position is selected
+                    is_selected = False
+                    try:
+                        if hasattr(self, '_selected_barline_x_positions') and self._selected_barline_x_positions:
+                            for sel_x in self._selected_barline_x_positions:
+                                if abs(float(sel_x) - float(x)) <= 1.0:
+                                    is_selected = True
+                                    break
+                    except Exception:
+                        pass
+                    
+                    # Use the proper barline drawing method that handles selection colors
+                    self._draw_single_barline(painter, x, barline_type, barline_top_y, barline_bottom_y, None, is_selected)
+                    print(f"BARLINES: Drew system-aware {barline_type} barline for {self._get_staff_system_type(staff)} at x={x} (selected={is_selected})")
                         
         except Exception as e:
             print(f"BARLINES: Error in system-aware barline rendering: {e}")
@@ -4267,7 +4265,7 @@ class ScoreRenderer:
                 self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
                 print(f"BARLINES: Drew {barline_type} barline on SINGLE STAFF at x={barline_x} (y={top_y}→{bottom_y})")
 
-    def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y, measure=None):
+    def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y, measure=None, is_selected=None):
         """Draw a single barline of the specified type between the given y coordinates"""
         def _is_selected_fallback(x_value):
             try:
@@ -4281,8 +4279,16 @@ class ScoreRenderer:
 
         def draw_normal_barline(x, y_top, y_bottom, extension=0):
             """Helper function to draw a normal barline"""
-            # Check if measure is selected for orange color
-            if (measure and hasattr(measure, 'selected') and measure.selected) or (measure is None and _is_selected_fallback(x)):
+            # Check if barline is selected for orange color
+            is_barline_selected = False
+            if is_selected is not None:
+                is_barline_selected = is_selected
+            elif measure and hasattr(measure, 'selected') and measure.selected:
+                is_barline_selected = True
+            elif measure is None and _is_selected_fallback(x):
+                is_barline_selected = True
+                
+            if is_barline_selected:
                 pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
                 print(f"BARLINE_COLOR: Drawing NORMAL barline in ORANGE - measure {getattr(measure, 'measure_number', 'unknown')} is selected")
             else:
@@ -4299,9 +4305,11 @@ class ScoreRenderer:
         def draw_final_barline(x, y_top, y_bottom):
             # Always draw precise connecting final barline as two lines spanning the full group.
             # This guarantees the barline runs through both staves of a grand staff or all staves of a section.
-            # Check if measure is selected for orange color
+            # Check if barline is selected for orange color
             selected = False
-            if measure and hasattr(measure, 'selected') and measure.selected:
+            if is_selected is not None:
+                selected = is_selected
+            elif measure and hasattr(measure, 'selected') and measure.selected:
                 selected = True
             elif measure is None and _is_selected_fallback(x):
                 selected = True
@@ -4338,8 +4346,16 @@ class ScoreRenderer:
         elif barline_type == 'dashed':
             # Draw dashed barline
             painter.save()
-            # Check if measure is selected for orange color
-            if measure and hasattr(measure, 'selected') and measure.selected:
+            # Check if barline is selected for orange color
+            is_barline_selected = False
+            if is_selected is not None:
+                is_barline_selected = is_selected
+            elif measure and hasattr(measure, 'selected') and measure.selected:
+                is_barline_selected = True
+            elif measure is None and _is_selected_fallback(barline_x):
+                is_barline_selected = True
+                
+            if is_barline_selected:
                 pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
             else:
                 pen = QPen(Qt.GlobalColor.black, 1)  # Black for normal
@@ -4351,8 +4367,16 @@ class ScoreRenderer:
             # Draw repeat start barline: thick line + thin line + dots (left to right)
             # Draw thick line first (leftmost)
             painter.save()
-            # Check if measure is selected for orange color
-            if measure and hasattr(measure, 'selected') and measure.selected:
+            # Check if barline is selected for orange color
+            is_barline_selected = False
+            if is_selected is not None:
+                is_barline_selected = is_selected
+            elif measure and hasattr(measure, 'selected') and measure.selected:
+                is_barline_selected = True
+            elif measure is None and _is_selected_fallback(barline_x):
+                is_barline_selected = True
+                
+            if is_barline_selected:
                 thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
             else:
                 thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
@@ -4368,8 +4392,16 @@ class ScoreRenderer:
             draw_normal_barline(barline_x - 3, top_y, bottom_y)
             # Draw thick line to the right
             painter.save()
-            # Check if measure is selected for orange color
-            if measure and hasattr(measure, 'selected') and measure.selected:
+            # Check if barline is selected for orange color
+            is_barline_selected = False
+            if is_selected is not None:
+                is_barline_selected = is_selected
+            elif measure and hasattr(measure, 'selected') and measure.selected:
+                is_barline_selected = True
+            elif measure is None and _is_selected_fallback(barline_x):
+                is_barline_selected = True
+                
+            if is_barline_selected:
                 thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
             else:
                 thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
@@ -4383,8 +4415,16 @@ class ScoreRenderer:
             
             # Draw the central thick line (overlapped thick parts)
             painter.save()
-            # Check if measure is selected for orange color
-            if measure and hasattr(measure, 'selected') and measure.selected:
+            # Check if barline is selected for orange color
+            is_barline_selected = False
+            if is_selected is not None:
+                is_barline_selected = is_selected
+            elif measure and hasattr(measure, 'selected') and measure.selected:
+                is_barline_selected = True
+            elif measure is None and _is_selected_fallback(barline_x):
+                is_barline_selected = True
+                
+            if is_barline_selected:
                 thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
             else:
                 thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
