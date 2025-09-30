@@ -285,6 +285,9 @@ class ScoreRenderer:
         if "brace" not in self.SYMBOL_MAP or self.SYMBOL_MAP["brace"] != "\uE000":
             self.SYMBOL_MAP["brace"] = "\uE000"  # SMuFL code point for brace
             
+        # Track selected barline x-positions (score space) to style across all staves
+        self._selected_barline_x_positions = set()
+
         # Ensure percussion clef symbol is correctly defined
         if "percussionClef" not in self.SYMBOL_MAP:
             self.SYMBOL_MAP["percussionClef"] = "\uE069"  # SMuFL code point for percussion clef
@@ -4251,11 +4254,20 @@ class ScoreRenderer:
 
     def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y, measure=None):
         """Draw a single barline of the specified type between the given y coordinates"""
-        
+        def _is_selected_fallback(x_value):
+            try:
+                if hasattr(self, '_selected_barline_x_positions') and self._selected_barline_x_positions:
+                    for sel_x in self._selected_barline_x_positions:
+                        if abs(float(sel_x) - float(x_value)) <= 1.0:
+                            return True
+            except Exception:
+                pass
+            return False
+
         def draw_normal_barline(x, y_top, y_bottom, extension=0):
             """Helper function to draw a normal barline"""
             # Check if measure is selected for orange color
-            if measure and hasattr(measure, 'selected') and measure.selected:
+            if (measure and hasattr(measure, 'selected') and measure.selected) or (measure is None and _is_selected_fallback(x)):
                 pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
                 print(f"BARLINE_COLOR: Drawing NORMAL barline in ORANGE - measure {getattr(measure, 'measure_number', 'unknown')} is selected")
             else:
@@ -4273,7 +4285,12 @@ class ScoreRenderer:
             # Always draw precise connecting final barline as two lines spanning the full group.
             # This guarantees the barline runs through both staves of a grand staff or all staves of a section.
             # Check if measure is selected for orange color
+            selected = False
             if measure and hasattr(measure, 'selected') and measure.selected:
+                selected = True
+            elif measure is None and _is_selected_fallback(x):
+                selected = True
+            if selected:
                 thin_color = QColor(255, 165, 0)  # Orange for selected
                 thick_color = QColor(255, 165, 0)  # Orange for selected
                 thin_width = 2

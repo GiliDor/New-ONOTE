@@ -2205,6 +2205,23 @@ class StaffView(QWidget):
             # Emit selection signal for form widget
             self.barline_selected.emit(barline)
         
+        # Propagate selected x-positions to renderer so selection spans all staves
+        try:
+            x_positions = []
+            if hasattr(self.document, 'measures') and self.document.measures:
+                measures = self.document.measures.values() if isinstance(self.document.measures, dict) else self.document.measures
+                for m in measures:
+                    if hasattr(m, 'selected') and m.selected and hasattr(m, 'end_x'):
+                        x_positions.append(float(m.end_x))
+            if hasattr(self.document, 'graphical_dashed_barlines'):
+                for d in self.document.graphical_dashed_barlines:
+                    if hasattr(d, 'selected') and d.selected and hasattr(d, 'x_position'):
+                        x_positions.append(float(d.x_position))
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                self.renderer.set_selected_barline_positions(x_positions)
+        except Exception:
+            pass
+
         # Update display to show orange highlighting
         self.update()
         
@@ -2245,6 +2262,12 @@ class StaffView(QWidget):
             if form_widget and hasattr(form_widget, 'on_deselect_all_barlines'):
                 form_widget.on_deselect_all_barlines()
         
+        # Clear renderer selection highlights and update display
+        try:
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                self.renderer.set_selected_barline_positions([])
+        except Exception:
+            pass
         # Update display
         self.update()
     
