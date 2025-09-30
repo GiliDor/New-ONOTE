@@ -506,13 +506,13 @@ class StaffView(QWidget):
         # Add stretch to push toolbar to bottom
         main_layout.addStretch()
         
-        # Create bottom toolbar
-        self.toolbar = StaffBarTool(self)
-        self.toolbar.staff_changed.connect(self.on_staff_changed)
-        self.toolbar.clef_changed.connect(self.on_clef_changed)
-        self.toolbar.key_changed.connect(self.on_key_changed)
-        
-        main_layout.addWidget(self.toolbar)
+        # Create bottom toolbar (temporarily disabled - StaffBarTool class missing)
+        # self.toolbar = StaffBarTool(self)
+        # self.toolbar.staff_changed.connect(self.on_staff_changed)
+        # self.toolbar.clef_changed.connect(self.on_clef_changed)
+        # self.toolbar.key_changed.connect(self.on_key_changed)
+        # 
+        # main_layout.addWidget(self.toolbar)
         self.setLayout(main_layout)
         
         # Ensure the widget size matches page size times zoom so scrollbars can appear
