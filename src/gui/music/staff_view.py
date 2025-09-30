@@ -394,8 +394,7 @@ class StaffView(QWidget):
         self.is_gesturing = False
         # Selection visualization mode: use color change in renderer, not overlay
         self.show_selection_overlay = False
-        
-        # DRAG SELECTION: Initialize drag selection system
+                # DRAG SELECTION: Initialize drag selection system
         self.is_drag_selecting = False
         self.drag_select_start = None
         self.drag_select_end = None
@@ -2581,8 +2580,8 @@ class StaffView(QWidget):
                     closest_measure = dashed_barline
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
-        # Return the closest barline if within threshold
-        selection_threshold = 25  # Increased threshold for easier selection
+        # Return the closest barline if within reasonable threshold (for easy clicking)
+        selection_threshold = 20  # Reasonable threshold - click near barline with some margin
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
