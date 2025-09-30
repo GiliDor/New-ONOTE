@@ -476,11 +476,21 @@ class ScoreRenderer:
         
     def get_view_mode(self) -> str:
         """Get the current view mode"""
+        if not hasattr(self, 'view_mode'):
+            self.view_mode = "page_down"  # Default fallback
         return self.view_mode
 
     def set_document(self, document):
         """Set the document to be rendered."""
         self.document = document
+        
+        # Ensure basic attributes are initialized if they weren't set in constructor
+        if not hasattr(self, 'page_width'):
+            self.page_width = 794  # Default A4 width
+        if not hasattr(self, 'page_height'):
+            self.page_height = 1123  # Default A4 height
+        if not hasattr(self, 'view_mode'):
+            self.view_mode = "page_down"
         
         # CRITICAL FIX: Refresh measure number manager when document changes
         # This ensures saved scores get the correct measure number settings
@@ -510,8 +520,8 @@ class ScoreRenderer:
 
     def set_page_size(self, width, height):
         """Set the page size for rendering with dynamic layout refresh."""
-        old_width = self.page_width
-        old_height = self.page_height
+        old_width = getattr(self, 'page_width', 794)
+        old_height = getattr(self, 'page_height', 1123)
         
         self.page_width = width
         self.page_height = height
