@@ -491,6 +491,13 @@ class ScoreRenderer:
             self.page_height = 1123  # Default A4 height
         if not hasattr(self, 'view_mode'):
             self.view_mode = "page_down"
+        if not hasattr(self, 'margins'):
+            self.margins = {
+                'left': 95,   # Default A4 margins
+                'right': 95,
+                'top': 76,
+                'bottom': 76
+            }
         
         # CRITICAL FIX: Refresh measure number manager when document changes
         # This ensures saved scores get the correct measure number settings
@@ -553,6 +560,15 @@ class ScoreRenderer:
 
     def set_margins(self, margins):
         """Set the page margins and trigger layout refresh if changed."""
+        # Ensure margins attribute exists
+        if not hasattr(self, 'margins'):
+            self.margins = {
+                'left': 95,   # Default A4 margins
+                'right': 95,
+                'top': 76,
+                'bottom': 76
+            }
+        
         try:
             old_margins = self.margins.copy()
         except Exception:
