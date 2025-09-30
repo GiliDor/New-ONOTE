@@ -1886,7 +1886,7 @@ class StaffView(QWidget):
             # Check for Ctrl/Cmd key modifier for drag selection
             ctrl_pressed = event.modifiers() & Qt.KeyboardModifier.ControlModifier
             
-            # DRAG SELECTION: Start drag selection if Ctrl/Cmd is held
+            # DRAG SELECTION: Start drag selection if Ctrl/Cmd is held OR if clicking in empty area
             if ctrl_pressed and not shift_pressed:
                 self.start_drag_selection(event.position())
                 return  # Skip barline operations for drag selection
@@ -2522,11 +2522,8 @@ class StaffView(QWidget):
             print(f"BARLINE_SELECTION: Position x={x}, y={y} not valid for barline operations")
             return None
             
-        # Find the closest barline by horizontal distance only
+        # Check if click is ON a barline (not just closest)
         # The y-coordinate validation is already done in is_position_valid_for_barline
-        
-        closest_measure = None
-        min_distance = float('inf')
         
         # Check if document has measures
         if not (hasattr(self.document, 'measures') and self.document.measures):
@@ -2548,11 +2545,14 @@ class StaffView(QWidget):
             if target_system:
                 print(f"BARLINE_SELECTION: Click is in system {target_system['index']} (measures {target_system['measures_start']}-{target_system['measures_end']})")
         
-        # Check regular measures collection
+        # Check regular measures collection - look for barlines the user clicked ON
         measures = self.document.measures
         if isinstance(measures, dict):
             measures = measures.values()
 
+        closest_measure = None
+        min_distance = float('inf')
+        
         for measure in measures:
             if hasattr(measure, 'end_x'):
                 mnum = getattr(measure, 'measure_number', 0)
@@ -2562,9 +2562,18 @@ class StaffView(QWidget):
                     if not (target_system['measures_start'] <= int(mnum) <= target_system['measures_end']):
                         continue
                 
-                distance = abs(measure.end_x - x)
+                # Check if click is ON this barline (within narrow margin)
+                barline_x = measure.end_x
+                distance = abs(barline_x - x)
                 system_info = f" (sys {target_system['index']})" if target_system else ""
-                print(f"BARLINE_SELECTION: Measure {mnum} at x={measure.end_x}, distance={distance}{system_info}")
+                print(f"BARLINE_SELECTION: Measure {mnum} at x={barline_x}, distance={distance}{system_info}")
+                
+                # If click is directly on or very close to this barline, select it immediately
+                if distance <= 6:  # Very narrow margin for clicking directly ON barline
+                    print(f"BARLINE_SELECTION: Click is ON barline {mnum} at x={barline_x} (distance={distance}px)")
+                    return measure
+                
+                # Track closest barline as fallback
                 if distance < min_distance:
                     min_distance = distance
                     closest_measure = measure
@@ -2575,17 +2584,24 @@ class StaffView(QWidget):
             for dashed_barline in self.document.graphical_dashed_barlines:
                 distance = abs(dashed_barline.x_position - x)
                 print(f"BARLINE_SELECTION: Dashed barline at x={dashed_barline.x_position}, distance={distance}, contains={dashed_barline.contains_x_position(x)}")
+                
+                # Check if click is directly on dashed barline
+                if distance <= 6:  # Very narrow margin for clicking directly ON dashed barline
+                    print(f"BARLINE_SELECTION: Click is ON dashed barline at x={dashed_barline.x_position} (distance={distance}px)")
+                    return dashed_barline
+                
+                # Track closest dashed barline as fallback
                 if distance < min_distance:
                     min_distance = distance
                     closest_measure = dashed_barline
                     print(f"BARLINE_SELECTION: New closest dashed barline found at distance {distance}px")
         
-        # Return the closest barline if within reasonable threshold (for easy clicking)
-        selection_threshold = 20  # Reasonable threshold - click near barline with some margin
+        # Return the closest barline if within reasonable threshold (fallback for near misses)
+        selection_threshold = 15  # Reasonable threshold - click near barline with some margin
         if closest_measure and min_distance < selection_threshold:
             barline_type = getattr(closest_measure, 'barline_type', 'unknown')
             measure_id = getattr(closest_measure, 'measure_number', 'unknown')
-            print(f"BARLINE_SELECTION: Found {barline_type} barline at {measure_id}, distance={min_distance}px")
+            print(f"BARLINE_SELECTION: Fallback - Found {barline_type} barline at {measure_id}, distance={min_distance}px")
             return closest_measure
         else:
             print(f"BARLINE_SELECTION: No barline found within {selection_threshold}px threshold (closest was {min_distance}px)")
