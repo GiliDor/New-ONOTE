@@ -4318,37 +4318,40 @@ class StaffView(QWidget):
                 print(f"DRAW_BARLINES: Skipping barline 0 (system connector)")
                 continue
             
-            # Set color based on selection
-            if hasattr(measure, 'selected') and measure.selected:
-                painter.setPen(QPen(QColor(255, 165, 0, 150), 2))  # Orange for selected
-                print(f"DRAW_BARLINES: Drawing selected barline in orange")
+            # Determine color based on selection
+            is_selected = hasattr(measure, 'selected') and measure.selected
+            if is_selected:
+                barline_color = QColor(255, 165, 0)  # Orange for selected
+                print(f"DRAW_BARLINES: Drawing selected {barline_type} barline in orange")
             else:
-                painter.setPen(QPen(QColor(0, 0, 0), 1))  # Black for normal
-                print(f"DRAW_BARLINES: Drawing normal barline in black")
+                barline_color = QColor(0, 0, 0)  # Black for normal
+                print(f"DRAW_BARLINES: Drawing normal {barline_type} barline in black")
             
-            # CRITICAL FIX: Ensure we actually draw the barline
+            # CRITICAL FIX: Ensure we actually draw the barline with proper color
             if barline_type == "single":
                 # Single barline: spans full system height
+                painter.setPen(QPen(barline_color, 1))
                 painter.drawLine(x, score_top, x, score_bottom)
                 print(f"DRAW_BARLINES: Drew single barline at x={x}")
                 
             elif barline_type == "double":
                 # Double barline: spans full system height
+                painter.setPen(QPen(barline_color, 1))
                 painter.drawLine(x, score_top, x, score_bottom)
                 painter.drawLine(x + 3, score_top, x + 3, score_bottom)
                 print(f"DRAW_BARLINES: Drew double barline at x={x}")
                 
             elif barline_type == "final":
                 # Final barline: spans full system height
-                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                painter.setPen(QPen(barline_color, 1))
                 painter.drawLine(x, score_top, x, score_bottom)
-                painter.setPen(QPen(QColor(0, 0, 0), 3))
+                painter.setPen(QPen(barline_color, 3))
                 painter.drawLine(x + 4, score_top, x + 4, score_bottom)
                 print(f"DRAW_BARLINES: Drew final barline at x={x}")
                 
             elif barline_type == "dashed":
                 # Dashed barline: spans full system height
-                pen = QPen(QColor(0, 0, 0), 1)
+                pen = QPen(barline_color, 1)
                 pen.setStyle(Qt.PenStyle.DashLine)
                 painter.setPen(pen)
                 painter.drawLine(x, score_top, x, score_bottom)
@@ -4356,9 +4359,9 @@ class StaffView(QWidget):
                 
             elif barline_type == "repeat_start":
                 # Repeat start: draw barlines spanning full system height, then add dots
-                painter.setPen(QPen(QColor(0, 0, 0), 3))  # Thick line
+                painter.setPen(QPen(barline_color, 3))  # Thick line
                 painter.drawLine(x, score_top, x, score_bottom)
-                painter.setPen(QPen(QColor(0, 0, 0), 1))  # Thin line
+                painter.setPen(QPen(barline_color, 1))  # Thin line
                 painter.drawLine(x + 4, score_top, x + 4, score_bottom)
                 
                 # Draw repeat dots on each staff with correct positioning
@@ -4366,9 +4369,9 @@ class StaffView(QWidget):
                 
             elif barline_type == "repeat_end":
                 # Repeat end: draw barlines spanning full system height, then add dots
-                painter.setPen(QPen(QColor(0, 0, 0), 1))  # Thin line
+                painter.setPen(QPen(barline_color, 1))  # Thin line
                 painter.drawLine(x, score_top, x, score_bottom)
-                painter.setPen(QPen(QColor(0, 0, 0), 3))  # Thick line
+                painter.setPen(QPen(barline_color, 3))  # Thick line
                 painter.drawLine(x + 4, score_top, x + 4, score_bottom)
                 
                 # Draw repeat dots on each staff with correct positioning
@@ -4376,10 +4379,10 @@ class StaffView(QWidget):
                 
             elif barline_type == "repeat_both":
                 # Repeat both: draw barlines spanning full system height, then add dots on both sides
-                painter.setPen(QPen(QColor(0, 0, 0), 3))  # Thick lines
+                painter.setPen(QPen(barline_color, 3))  # Thick lines
                 painter.drawLine(x - 2, score_top, x - 2, score_bottom)
                 painter.drawLine(x + 6, score_top, x + 6, score_bottom)
-                painter.setPen(QPen(QColor(0, 0, 0), 1))  # Thin lines
+                painter.setPen(QPen(barline_color, 1))  # Thin lines
                 painter.drawLine(x + 2, score_top, x + 2, score_bottom)
                 painter.drawLine(x + 10, score_top, x + 10, score_bottom)
                 
@@ -6420,4 +6423,36 @@ class StaffBarTool(QWidget):
             else:
                 print(f"BARLINE_DELETE: No measure number found for barline")
         else:
-            print(f"BARLINE_DELETE: No temporal bridge available for deletion") 
+            print(f"BARLINE_DELETE: No temporal bridge available for deletion")
+    
+    def select_barline(self, measure):
+        """Select or deselect a barline/measure"""
+        # First, deselect all barlines
+        self.deselect_all_barlines()
+        
+        # Then select the specified measure if provided
+        if measure:
+            measure.selected = True
+            print(f"BARLINE_SELECTION: Selected {getattr(measure, 'barline_type', 'unknown')} barline at measure {getattr(measure, 'measure_number', 'unknown')}")
+            # Force repaint to show selection
+            self.update()
+        else:
+            print("BARLINE_SELECTION: Deselected all barlines")
+    
+    def deselect_all_barlines(self):
+        """Deselect all barlines and measures"""
+        # Deselect all regular measures
+        if hasattr(self.document, 'measures') and self.document.measures:
+            measures = self.document.measures
+            if isinstance(measures, dict):
+                measures = measures.values()
+            
+            for measure in measures:
+                if hasattr(measure, 'selected'):
+                    measure.selected = False
+        
+        # Deselect all graphical dashed barlines
+        if hasattr(self.document, 'graphical_dashed_barlines'):
+            for dashed_barline in self.document.graphical_dashed_barlines:
+                if hasattr(dashed_barline, 'selected'):
+                    dashed_barline.selected = False 

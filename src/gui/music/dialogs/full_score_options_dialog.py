@@ -3088,6 +3088,13 @@ class FullScoreOptionsDialog(QDialog):
             layout_params = {'system_spacing', 'staff_spacing', 'measures_per_system'}
             key_namespace = 'layout' if parameter_key in layout_params else 'notation'
             full_key = f"{key_namespace}/{parameter_key}"
+            
+            # Special handling for max_measures_per_system - map to measures_per_system
+            if parameter_key == 'max_measures_per_system':
+                full_key = 'layout/measures_per_system'
+                # Also save to notation namespace for compatibility
+                self.document.settings['notation/max_measures_per_system'] = value
+            
             old_value = self.document.settings.get(full_key, "not set")
             self.document.settings[full_key] = value
             print(f"ISOLATED_PARAM: Changed {full_key}: {old_value} -> {value}")
@@ -3185,7 +3192,7 @@ class FullScoreOptionsDialog(QDialog):
                     else:
                         print(f"ISOLATED_PARAM: Renderer doesn't have attribute {renderer_attribute} (mapped from {parameter_key})")
                 
-                # For layout parameters, trigger a view refresh so spacing/wrapping updates immediately
+                # For layout parameters, trigger a comprehensive view refresh so spacing/wrapping updates immediately
                 if parameter_key in layout_params:
                     # Update live layout object for immediate reflow where applicable
                     try:
@@ -3199,6 +3206,23 @@ class FullScoreOptionsDialog(QDialog):
                                 setattr(layout_obj, 'grand_staff_spacing', int(value))
                     except Exception as e:
                         print(f"ISOLATED_PARAM: Layout live update failed: {e}")
+                    
+                    # Special handling for measures_per_system - requires full renderer refresh
+                    if parameter_key in ['measures_per_system', 'max_measures_per_system']:
+                        print(f"ISOLATED_PARAM: Refreshing renderer for measures per system change: {value}")
+                        try:
+                            # Update temporal bridge if it exists
+                            if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                                self.document.temporal_bridge.measures_per_system = int(value)
+                                print(f"ISOLATED_PARAM: Updated temporal bridge measures_per_system to {value}")
+                            
+                            # Force renderer to reload all notation settings
+                            renderer.load_notation_settings()
+                            # Force a complete repaint to update system layout
+                            staff_view.repaint()
+                        except Exception as e:
+                            print(f"ISOLATED_PARAM: Renderer refresh failed: {e}")
+                    
                     try:
                         staff_view.update()
                     except Exception:
