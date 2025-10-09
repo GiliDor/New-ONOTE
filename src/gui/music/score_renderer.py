@@ -285,9 +285,6 @@ class ScoreRenderer:
         if "brace" not in self.SYMBOL_MAP or self.SYMBOL_MAP["brace"] != "\uE000":
             self.SYMBOL_MAP["brace"] = "\uE000"  # SMuFL code point for brace
             
-        # Track selected barline x-positions (score space) to style across all staves
-        self._selected_barline_x_positions = set()
-
         # Ensure percussion clef symbol is correctly defined
         if "percussionClef" not in self.SYMBOL_MAP:
             self.SYMBOL_MAP["percussionClef"] = "\uE069"  # SMuFL code point for percussion clef
@@ -301,15 +298,6 @@ class ScoreRenderer:
 
         self.FONT_SIZES = FONT_SIZES.copy()
         self.MUSIC_FONTS = MUSIC_FONTS.copy()
-
-    def set_selected_barline_positions(self, x_positions):
-        """Set the x-positions of selected barlines for cross-system highlighting"""
-        try:
-            self._selected_barline_x_positions = set(float(x) for x in x_positions)
-            print(f"RENDERER: Set {len(self._selected_barline_x_positions)} selected barline positions: {list(self._selected_barline_x_positions)}")
-        except Exception as e:
-            print(f"RENDERER: Error setting selected barline positions: {e}")
-            self._selected_barline_x_positions = set()
 
         # Ensure we have a fallback for bravura
         if "bravura" not in self.MUSIC_FONTS:
@@ -420,6 +408,10 @@ class ScoreRenderer:
         self.directions_vertical = 0
         self.directions_horizontal = 0
 
+        # Track x-positions (score space) of barlines currently selected in the view
+        # Values are floats in page coordinates before scaling
+        self._selected_barline_x_positions: list[float] = []
+
     def _copy_nested_dict(self, d):
         """Create a deep copy of a nested dictionary"""
         if not isinstance(d, dict):
@@ -476,28 +468,11 @@ class ScoreRenderer:
         
     def get_view_mode(self) -> str:
         """Get the current view mode"""
-        if not hasattr(self, 'view_mode'):
-            self.view_mode = "page_down"  # Default fallback
         return self.view_mode
 
     def set_document(self, document):
         """Set the document to be rendered."""
         self.document = document
-        
-        # Ensure basic attributes are initialized if they weren't set in constructor
-        if not hasattr(self, 'page_width'):
-            self.page_width = 794  # Default A4 width
-        if not hasattr(self, 'page_height'):
-            self.page_height = 1123  # Default A4 height
-        if not hasattr(self, 'view_mode'):
-            self.view_mode = "page_down"
-        if not hasattr(self, 'margins'):
-            self.margins = {
-                'left': 95,   # Default A4 margins
-                'right': 95,
-                'top': 76,
-                'bottom': 76
-            }
         
         # CRITICAL FIX: Refresh measure number manager when document changes
         # This ensures saved scores get the correct measure number settings
@@ -527,8 +502,8 @@ class ScoreRenderer:
 
     def set_page_size(self, width, height):
         """Set the page size for rendering with dynamic layout refresh."""
-        old_width = getattr(self, 'page_width', 794)
-        old_height = getattr(self, 'page_height', 1123)
+        old_width = self.page_width
+        old_height = self.page_height
         
         self.page_width = width
         self.page_height = height
@@ -560,15 +535,6 @@ class ScoreRenderer:
 
     def set_margins(self, margins):
         """Set the page margins and trigger layout refresh if changed."""
-        # Ensure margins attribute exists
-        if not hasattr(self, 'margins'):
-            self.margins = {
-                'left': 95,   # Default A4 margins
-                'right': 95,
-                'top': 76,
-                'bottom': 76
-            }
-        
         try:
             old_margins = self.margins.copy()
         except Exception:
@@ -2956,6 +2922,27 @@ class ScoreRenderer:
         try:
             # Determine the staff system this staff belongs to and calculate barline span
             barline_top_y, barline_bottom_y = self._calculate_barline_span_for_staff(staff, staff_y)
+
+            # Resolve measure objects for this system so barline type (e.g., 'final')
+            # controls appearance even on the last bar of a system.
+            measures_for_system = []
+            try:
+                # Measures per system from bridge/document; default to 4
+                mps = 4
+                if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                    mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 4) or 4)
+                # Build ordered measure list
+                ordered_nums = []
+                if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict):
+                    ordered_nums = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+                # Determine slice for current system (0-based)
+                start_idx = system_idx * mps
+                end_idx = start_idx + int(num_measures_to_render)
+                slice_nums = ordered_nums[start_idx:end_idx]
+                for num in slice_nums:
+                    measures_for_system.append(self.document.measures.get(num))
+            except Exception:
+                measures_for_system = []
             
             # Draw barlines for each measure in this system
             for m_idx in range(1, num_measures_to_render + 1):
@@ -2963,23 +2950,55 @@ class ScoreRenderer:
                 
                 # Only draw if this is the first staff in the system to avoid duplicates
                 if self._is_first_staff_in_system(staff):
-                    # Determine barline type and check if selected
-                    barline_type = "final" if (is_final_system and m_idx == num_measures_to_render) else "normal"
-                    
-                    # Check if this barline position is selected
+                    # Determine selection using synchronized positions from StaffView
                     is_selected = False
                     try:
-                        if hasattr(self, '_selected_barline_x_positions') and self._selected_barline_x_positions:
-                            for sel_x in self._selected_barline_x_positions:
-                                if abs(float(sel_x) - float(x)) <= 1.0:
-                                    is_selected = True
-                                    break
+                        # Use measure-number aware selection when available; only fall back
+                        # to x-tolerance when no measure-number selection was provided.
+                        bar_meas_num = None
+                        try:
+                            idx0 = int(m_idx) - 1
+                            if 0 <= idx0 < len(measures_for_system):
+                                mobj = measures_for_system[idx0]
+                                bar_meas_num = int(getattr(mobj, 'measure_number', 0))
+                        except Exception:
+                            bar_meas_num = None
+                        has_measure_sel = bool(getattr(self, '_selected_measure_numbers', None))
+                        if has_measure_sel:
+                            is_selected = bool(bar_meas_num and bar_meas_num in self._selected_measure_numbers)
+                        else:
+                            is_selected = self._is_selected_barline_x(float(x))
                     except Exception:
-                        pass
-                    
-                    # Use the proper barline drawing method that handles selection colors
-                    self._draw_single_barline(painter, x, barline_type, barline_top_y, barline_bottom_y, None, is_selected)
-                    print(f"BARLINES: Drew system-aware {barline_type} barline for {self._get_staff_system_type(staff)} at x={x} (selected={is_selected})")
+                        is_selected = False
+
+                    # Determine this barline's type from the measure object slice
+                    render_as_final = False
+                    try:
+                        idx0 = int(m_idx) - 1  # 0-based within this system
+                        if 0 <= idx0 < len(measures_for_system):
+                            mo = measures_for_system[idx0]
+                            render_as_final = (getattr(mo, 'barline_type', 'single') == 'final')
+                        else:
+                            # Fallback to old behavior only if we can't resolve measures
+                            render_as_final = (is_final_system and m_idx == num_measures_to_render)
+                    except Exception:
+                        render_as_final = (is_final_system and m_idx == num_measures_to_render)
+
+                    if render_as_final:
+                        # Thin line (left) and thick line (right)
+                        thin_color = QColor(255, 165, 0) if is_selected else QColor(0, 0, 0)
+                        thick_color = QColor(255, 165, 0) if is_selected else QColor(0, 0, 0)
+                        painter.setPen(QPen(thin_color, 1))
+                        painter.drawLine(QLineF(x - 6, barline_top_y, x - 6, barline_bottom_y))
+                        painter.setPen(QPen(thick_color, 4))
+                        painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
+                        print(f"BARLINES: Drew system-aware final barline for {self._get_staff_system_type(staff)} at x={x}")
+                    else:
+                        # Draw normal (single) barline
+                        color = QColor(255, 165, 0) if is_selected else QColor(0, 0, 0)
+                        painter.setPen(QPen(color, 1))
+                        painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
+                        print(f"BARLINES: Drew system-aware normal barline for {self._get_staff_system_type(staff)} at x={x}")
                         
         except Exception as e:
             print(f"BARLINES: Error in system-aware barline rendering: {e}")
@@ -4135,6 +4154,23 @@ class ScoreRenderer:
             import traceback
             traceback.print_exc()
 
+        # -----------------------------------------------------
+        # OVERLAY: highlight ALL selected barlines across staves
+        # -----------------------------------------------------
+        if getattr(self, "_selected_barline_x_positions", None):
+            try:
+                orange_pen = QPen(QColor(255, 165, 0, 180), 2)
+                painter.setPen(orange_pen)
+
+                # Determine full score vertical span on this page
+                top_y_global = 0.0
+                bottom_y_global = float(self.page_height)
+
+                for sel_x in self._selected_barline_x_positions:
+                    painter.drawLine(QPointF(sel_x, top_y_global), QPointF(sel_x, bottom_y_global))
+            except Exception as e:
+                print(f"RENDERER: Error drawing selection overlay: {e}")
+
     def _draw_repeat_dots_for_barline(self, painter, barline_x, barline_type, top_y, bottom_y):
         """Draw repeat dots for repeat barlines - one pair per staff"""
         painter.save()
@@ -4222,7 +4258,7 @@ class ScoreRenderer:
             painter.drawEllipse(QPointF(right_dot_x, dot1_y), dot_radius, dot_radius)
             painter.drawEllipse(QPointF(right_dot_x, dot2_y), dot_radius, dot_radius)
 
-    def _draw_grouped_barlines(self, painter, barline_x, barline_type, rendering_order):
+    def _draw_grouped_barlines(self, painter, barline_x, barline_type, rendering_order, measure=None):
         """Draw barlines grouped by sections, grand staves, and individual single staves"""
         
         def draw_normal_barline(x, y_top, y_bottom, extension=0):
@@ -4276,53 +4312,38 @@ class ScoreRenderer:
                     bottom_staff = element.staves[-1]
                     top_y = top_staff.y_position
                     bottom_y = bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, None)
+                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, measure)
                     print(f"BARLINES: Drew {barline_type} barline across SECTION at x={barline_x} (y={top_y}→{bottom_y})")
                 elif hasattr(element, 'is_grand_staff') and getattr(element, 'is_grand_staff', False) and hasattr(element, 'top_staff') and hasattr(element, 'bottom_staff'):
                     # Grand staff: span both staves
                     top_y = element.top_staff.y_position
                     bottom_y = element.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, None)
+                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, measure)
                     print(f"BARLINES: Drew {barline_type} barline across GRAND STAFF at x={barline_x} (y={top_y}→{bottom_y})")
-            else:
-                # Single staff
-                top_y = element.y_position
-                bottom_y = element.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y)
-                print(f"BARLINES: Drew {barline_type} barline on SINGLE STAFF at x={barline_x} (y={top_y}→{bottom_y})")
+                else:
+                    # Single staff
+                    top_y = element.y_position
+                    bottom_y = element.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                    self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, measure)
+                    print(f"BARLINES: Drew {barline_type} barline on SINGLE STAFF at x={barline_x} (y={top_y}→{bottom_y})")
 
-    def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y, measure=None, is_selected=None):
+    def _draw_single_barline(self, painter, barline_x, barline_type, top_y, bottom_y, measure=None):
         """Draw a single barline of the specified type between the given y coordinates"""
-        def _is_selected_fallback(x_value):
-            try:
-                if hasattr(self, '_selected_barline_x_positions') and self._selected_barline_x_positions:
-                    for sel_x in self._selected_barline_x_positions:
-                        if abs(float(sel_x) - float(x_value)) <= 1.0:
-                            return True
-            except Exception:
-                pass
-            return False
-
+        
         def draw_normal_barline(x, y_top, y_bottom, extension=0):
             """Helper function to draw a normal barline"""
-            # Check if barline is selected for orange color
-            is_barline_selected = False
-            if is_selected is not None:
-                is_barline_selected = is_selected
-            elif measure and hasattr(measure, 'selected') and measure.selected:
-                is_barline_selected = True
-            elif measure is None and _is_selected_fallback(x):
-                is_barline_selected = True
-                
-            if is_barline_selected:
-                pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
-                print(f"BARLINE_COLOR: Drawing NORMAL barline in ORANGE - measure {getattr(measure, 'measure_number', 'unknown')} is selected")
+            # Treat barline as selected if either the bound measure is selected
+            # OR the x-position matches any selected x supplied by StaffView
+            is_selected = False
+            try:
+                is_selected = (measure and hasattr(measure, 'selected') and measure.selected) or self._is_selected_barline_x(float(x))
+            except Exception:
+                is_selected = (measure and hasattr(measure, 'selected') and measure.selected)
+
+            if is_selected:
+                pen = QPen(QColor(255, 165, 0), 2)
             else:
-                pen = QPen(Qt.GlobalColor.black, 1)  # Black for normal
-                if measure:
-                    print(f"BARLINE_COLOR: Drawing NORMAL barline in BLACK - measure {getattr(measure, 'measure_number', 'unknown')} selected={getattr(measure, 'selected', False)}")
-                else:
-                    print(f"BARLINE_COLOR: Drawing NORMAL barline in BLACK - no measure object")
+                pen = QPen(Qt.GlobalColor.black, 1)
             painter.setPen(pen)
             line = QLineF(x, y_top - extension, x, y_bottom + extension)
             painter.drawLine(line)
@@ -4331,29 +4352,22 @@ class ScoreRenderer:
         def draw_final_barline(x, y_top, y_bottom):
             # Always draw precise connecting final barline as two lines spanning the full group.
             # This guarantees the barline runs through both staves of a grand staff or all staves of a section.
-            # Check if barline is selected for orange color
-            selected = False
-            if is_selected is not None:
-                selected = is_selected
-            elif measure and hasattr(measure, 'selected') and measure.selected:
-                selected = True
-            elif measure is None and _is_selected_fallback(x):
-                selected = True
-            if selected:
-                thin_color = QColor(255, 165, 0)  # Orange for selected
-                thick_color = QColor(255, 165, 0)  # Orange for selected
+            is_selected = False
+            try:
+                is_selected = (measure and hasattr(measure, 'selected') and measure.selected) or self._is_selected_barline_x(float(x))
+            except Exception:
+                is_selected = (measure and hasattr(measure, 'selected') and measure.selected)
+
+            if is_selected:
+                thin_color = QColor(255, 165, 0)
+                thick_color = QColor(255, 165, 0)
                 thin_width = 2
                 thick_width = 4
-                print(f"BARLINE_COLOR: Drawing FINAL barline in ORANGE - measure {getattr(measure, 'measure_number', 'unknown')} is selected")
             else:
-                thin_color = QColor(0, 0, 0)  # Black for normal
-                thick_color = QColor(0, 0, 0)  # Black for normal
+                thin_color = QColor(0, 0, 0)
+                thick_color = QColor(0, 0, 0)
                 thin_width = 1
                 thick_width = 4
-                if measure:
-                    print(f"BARLINE_COLOR: Drawing FINAL barline in BLACK - measure {getattr(measure, 'measure_number', 'unknown')} selected={getattr(measure, 'selected', False)}")
-                else:
-                    print(f"BARLINE_COLOR: Drawing FINAL barline in BLACK - no measure object")
             
             painter.setPen(QPen(thin_color, thin_width))
             painter.drawLine(int(x - 6), int(y_top), int(x - 6), int(y_bottom))  # Thin line
@@ -4372,16 +4386,8 @@ class ScoreRenderer:
         elif barline_type == 'dashed':
             # Draw dashed barline
             painter.save()
-            # Check if barline is selected for orange color
-            is_barline_selected = False
-            if is_selected is not None:
-                is_barline_selected = is_selected
-            elif measure and hasattr(measure, 'selected') and measure.selected:
-                is_barline_selected = True
-            elif measure is None and _is_selected_fallback(barline_x):
-                is_barline_selected = True
-                
-            if is_barline_selected:
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
                 pen = QPen(QColor(255, 165, 0), 2)  # Orange for selected
             else:
                 pen = QPen(Qt.GlobalColor.black, 1)  # Black for normal
@@ -4393,16 +4399,8 @@ class ScoreRenderer:
             # Draw repeat start barline: thick line + thin line + dots (left to right)
             # Draw thick line first (leftmost)
             painter.save()
-            # Check if barline is selected for orange color
-            is_barline_selected = False
-            if is_selected is not None:
-                is_barline_selected = is_selected
-            elif measure and hasattr(measure, 'selected') and measure.selected:
-                is_barline_selected = True
-            elif measure is None and _is_selected_fallback(barline_x):
-                is_barline_selected = True
-                
-            if is_barline_selected:
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
                 thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
             else:
                 thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
@@ -4418,16 +4416,8 @@ class ScoreRenderer:
             draw_normal_barline(barline_x - 3, top_y, bottom_y)
             # Draw thick line to the right
             painter.save()
-            # Check if barline is selected for orange color
-            is_barline_selected = False
-            if is_selected is not None:
-                is_barline_selected = is_selected
-            elif measure and hasattr(measure, 'selected') and measure.selected:
-                is_barline_selected = True
-            elif measure is None and _is_selected_fallback(barline_x):
-                is_barline_selected = True
-                
-            if is_barline_selected:
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
                 thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
             else:
                 thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
@@ -4441,16 +4431,8 @@ class ScoreRenderer:
             
             # Draw the central thick line (overlapped thick parts)
             painter.save()
-            # Check if barline is selected for orange color
-            is_barline_selected = False
-            if is_selected is not None:
-                is_barline_selected = is_selected
-            elif measure and hasattr(measure, 'selected') and measure.selected:
-                is_barline_selected = True
-            elif measure is None and _is_selected_fallback(barline_x):
-                is_barline_selected = True
-                
-            if is_barline_selected:
+            # Check if measure is selected for orange color
+            if measure and hasattr(measure, 'selected') and measure.selected:
                 thick_pen = QPen(QColor(255, 165, 0), 3)  # Orange for selected
             else:
                 thick_pen = QPen(Qt.GlobalColor.black, 3)  # Black for normal
@@ -4858,3 +4840,439 @@ class ScoreRenderer:
         print(f"BARLINE_NUMBERS: Drew barline number 0 at position ({number_x}, {number_y}) using offsets - vertical: {barline_number_vertical_offset}, horizontal: {barline_number_horizontal_offset}")
         
         painter.restore()
+
+    # -------------------------------------------------------------
+    # Selection API – called by StaffView so renderer can highlight
+    # -------------------------------------------------------------
+
+    def set_selected_barline_positions(self, positions: list[float]):
+        """Receive list of barline x positions (score coordinates) that are
+        currently selected and should be rendered in orange across *all*
+        staves in their system. Called by StaffView whenever selection
+        changes. """
+        # Store a sorted unique copy for cheap membership tests
+        self._selected_barline_x_positions = sorted(set(float(p) for p in positions))
+
+    # New: measure-number based selection to disambiguate wrapped systems
+    def set_selected_barline_measures(self, measure_numbers: list[int]):
+        try:
+            self._selected_measure_numbers = set(int(n) for n in measure_numbers)
+        except Exception:
+            self._selected_measure_numbers = set()
+
+    # Utility
+    def _is_selected_barline_x(self, x: float, tolerance: float = 3.0) -> bool:
+        """Return True if *x* matches any selected barline within tolerance."""
+        # Prefer measure-number based selection when available via system-aware rendering
+        try:
+            if getattr(self, '_selected_measure_numbers', None):
+                # Caller should check measure numbers directly; fall back to x-match below
+                pass
+        except Exception:
+            pass
+        # Only consider selection matches that belong to the same wrapped system as x
+        try:
+            # Determine measures per system to segment the grid
+            mps = 4
+            if hasattr(self, 'document') and hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                mps = int(getattr(self.document.temporal_bridge, 'measures_per_system', 4) or 4)
+            # Build ordered end_x grid to map x to a measure index
+            grid = []
+            if hasattr(self, 'document') and hasattr(self.document, 'measures') and isinstance(self.document.measures, dict):
+                ordered = [self.document.measures[k] for k in sorted(self.document.measures.keys()) if isinstance(k, int)]
+                grid = [float(getattr(m, 'end_x', 0.0)) for m in ordered]
+            # Helper to compute system index from end_x by nearest match
+            def system_index(val: float) -> int:
+                if not grid:
+                    return 0
+                # Find first end_x >= val
+                for i, gx in enumerate(grid):
+                    if val <= gx + tolerance:
+                        return i // max(1, mps)
+                return (len(grid) - 1) // max(1, mps)
+            x_sys = system_index(x)
+            for sel_x in self._selected_barline_x_positions:
+                if system_index(sel_x) != x_sys:
+                    continue
+                if abs(sel_x - x) <= tolerance:
+                    return True
+            return False
+        except Exception:
+            for sel_x in self._selected_barline_x_positions:
+                if abs(sel_x - x) <= tolerance:
+                    return True
+            return False
+        return False
+
+    # ------------------------------
+    # Continuous rendering (no pages)
+    # ------------------------------
+    def render_continuous(self, painter, lane_rect):
+        """Draw a single horizontal system with all measures left→right.
+        No margins/pages/wrap. Selection by measure number when provided.
+        """
+        try:
+            # Horizontal scroll offset provided by StaffView (optional)
+            offset_x = 0.0
+            try:
+                if hasattr(self.document, 'staff_view') and hasattr(self.document.staff_view, 'continuous_offset_x'):
+                    offset_x = float(self.document.staff_view.continuous_offset_x)
+            except Exception:
+                offset_x = 0.0
+
+            # Left strip width (fixed column). If user set a custom value, use it.
+            # Otherwise compute dynamically from longest part/section name + symbol block width.
+            from PyQt6.QtGui import QFont, QFontMetrics
+            try:
+                from PyQt6.QtCore import QSettings
+                settings = QSettings("ONOTE", "Preferences")
+                custom_left = settings.value("layout/continuous_left_margin")
+            except Exception:
+                custom_left = None
+
+            # Read document-scoped switches first (Full Score Options), fallback to Preferences
+            def _get_toggle(doc_key: str, pref_key: str, default: bool = True) -> bool:
+                try:
+                    if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                        if doc_key in self.document.settings:
+                            return bool(self.document.settings.get(doc_key))
+                except Exception:
+                    pass
+                try:
+                    from PyQt6.QtCore import QSettings
+                    s = QSettings("ONOTE", "Preferences")
+                    return s.value(pref_key, default, type=bool)
+                except Exception:
+                    return default
+
+            show_names = _get_toggle('notation/continuous_show_staff_names', 'continuous/show_staff_names', True)
+            show_sections = _get_toggle('notation/continuous_show_section_names', 'continuous/show_section_names', True)
+            show_clefs = _get_toggle('notation/continuous_show_clefs', 'continuous/show_clefs', True)
+            show_time = _get_toggle('notation/continuous_show_time_signature', 'continuous/show_time_signature', True)
+            show_key = _get_toggle('notation/continuous_show_key_signature', 'continuous/show_key_signature', True)
+
+            # Gather names to estimate width
+            names: list[str] = []
+            try:
+                if hasattr(self.document, 'layout'):
+                    if hasattr(self.document.layout, 'ungrouped_staves'):
+                        for s in self.document.layout.ungrouped_staves:
+                            names.append(getattr(s, 'instrument_name', '') or getattr(s, 'name', ''))
+                    for section in getattr(self.document.layout, 'sections', []):
+                        for s in getattr(section, 'staves', []):
+                            names.append(getattr(s, 'instrument_name', '') or getattr(s, 'name', ''))
+            except Exception:
+                pass
+            fm = QFontMetrics(QFont())
+            name_w = max([fm.horizontalAdvance(n) for n in names if n] + [0])
+            symbol_block_w = 105 if (show_clefs or show_time or show_key) else 0
+            computed_strip = float(max(120, name_w + symbol_block_w + 24))
+            left_strip_width = float(custom_left) if custom_left is not None else computed_strip
+
+            # left_x is the start of scrollable notation area after horizontal offset
+            left_x = max(0.0, left_strip_width - offset_x)
+            # Vertical layout for all staves/parts in parallel
+            base_y = 102.0
+            staff_gap = 80.0
+            staves = []
+            try:
+                if hasattr(self.document, 'layout'):
+                    # Prefer explicit list if present
+                    if hasattr(self.document.layout, 'ungrouped_staves'):
+                        staves.extend(self.document.layout.ungrouped_staves)
+                    for section in getattr(self.document.layout, 'sections', []):
+                        staves.extend(getattr(section, 'staves', []))
+            except Exception:
+                staves = []
+            if not staves:
+                staves = [object()]  # draw at least one row
+
+            # Build rows preserving section grouping to enable section names and brackets
+            rows = []  # list of tuples: (staff_obj, section_or_none)
+            try:
+                if hasattr(self.document, 'layout'):
+                    # Ungrouped first
+                    for s in (getattr(self.document.layout, 'ungrouped_staves', []) or []):
+                        rows.append((s, None))
+                    # Then sections
+                    for sec in (getattr(self.document.layout, 'sections', []) or []):
+                        for s in (getattr(sec, 'staves', []) or []):
+                            rows.append((s, sec))
+            except Exception:
+                rows = [(s, None) for s in staves]
+            if not rows:
+                rows = [(object(), None)]
+
+            # Track first/last index per section for bracket spans
+            section_first_index = {}
+            section_last_index = {}
+            for idx, (_s, _sec) in enumerate(rows):
+                if _sec is None:
+                    continue
+                if _sec not in section_first_index:
+                    section_first_index[_sec] = idx
+                section_last_index[_sec] = idx
+
+            rightmost = left_x + 2000.0
+            # Determine rightmost from last measure
+            if hasattr(self, 'document') and hasattr(self.document, 'measures') \
+               and isinstance(self.document.measures, dict) and self.document.measures:
+                 try:
+                     last_idx = max([k for k in self.document.measures.keys() if isinstance(k, int)])
+                     last_m = self.document.measures[last_idx]
+                     rightmost = float(getattr(last_m, 'end_x', rightmost))
+                 except Exception:
+                     pass
+
+            # Draw FIXED column (names + clef/time/key + braces) independent of offset
+            def draw_fixed_column(row_y: float, name: str | None = None, is_grand: bool = False, bottom_row_y: float | None = None, section_name: str | None = None):
+                # Name above part in continuous mode
+                try:
+                    if show_names and hasattr(self, 'document') and hasattr(self.document, 'layout') and getattr(self.document.layout, 'show_staff_names', True):
+                        label = name if name is not None else getattr(self, 'current_staff_name', '')
+                        if label:
+                            painter.setPen(QPen(QColor('#0e4ba0')))
+                            # Right align 20px from strip edge
+                            text_metrics = painter.fontMetrics()
+                            label_w = text_metrics.horizontalAdvance(label)
+                            name_x = max(0.0, left_strip_width - 20 - label_w)
+                            painter.drawText(QPointF(name_x, row_y - 18), label)
+                except Exception:
+                    pass
+                # Optional: section name on the left in orange, aligned with this staff block
+                try:
+                    if show_sections and section_name:
+                        painter.setPen(QPen(QColor('#ff8c00')))
+                        painter.drawText(QPointF(6, row_y - 18), section_name)
+                except Exception:
+                    pass
+                # Clef/time/key block anchored to fixed strip right edge
+                try:
+                    if (show_clefs or show_time or show_key) and hasattr(self, 'render_initial_symbols_for_staff'):
+                        x_fixed = left_strip_width - symbol_block_w
+                        # Render components conditionally
+                        if show_clefs:
+                            self._render_clef(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
+                            if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
+                                self._render_clef(painter, _staff.bottom_staff, is_first_system=True)
+                        if show_key:
+                            self._render_key_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
+                            if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
+                                self._render_key_signature(painter, _staff.bottom_staff, is_first_system=True)
+                        if show_time:
+                            self._render_time_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
+                            if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
+                                self._render_time_signature(painter, _staff.bottom_staff, is_first_system=True)
+                except Exception:
+                    pass
+                # Braces move with the scrolled staff, not fixed column – so skip here
+
+            # Shade the fixed strip subtly to distinguish it
+            try:
+                from PyQt6.QtCore import QRectF
+                painter.save()
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(230, 233, 238, 90))
+                painter.drawRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
+                painter.restore()
+            except Exception:
+                pass
+
+            # Draw each staff row scrollable lines
+            def draw_staff_row(row_y: float):
+                painter.setPen(QPen(QColor(0, 0, 0), 1))
+                for i in range(self.STAFF_LINE_COUNT):
+                    line_y = row_y + i * self.STAFF_LINE_SPACING
+                    painter.drawLine(QLineF(left_x, line_y, rightmost - offset_x, line_y))
+
+            # Measures sequence (shared across rows)
+            measures = []
+            if hasattr(self, 'document') and isinstance(self.document.measures, dict):
+                measures = [self.document.measures[k] for k in sorted(self.document.measures.keys()) if isinstance(k, int)]
+
+            is_first_row = True
+            first_row_top = None
+            top_system_y = None
+            bottom_system_y = None
+            for row_index, (_staff, _section) in enumerate(rows):
+                # If this staff is a grand staff, render both top and bottom rows with brace
+                if hasattr(_staff, 'top_staff') and hasattr(_staff, 'bottom_staff'):
+                    try:
+                        top_y = float(getattr(_staff.top_staff, 'y_position', base_y + row_index * staff_gap))
+                        bottom_y = float(getattr(_staff.bottom_staff, 'y_position', top_y + staff_gap))
+                    except Exception:
+                        top_y = base_y + row_index * staff_gap
+                        bottom_y = top_y + staff_gap
+                    name = getattr(_staff, 'instrument_name', '') or getattr(_staff, 'name', '')
+                    # Fixed column (name + symbols). For the first row of a section, also draw section name
+                    section_name_for_row = None
+                    if _section is not None and section_first_index.get(_section, -1) == row_index:
+                        section_name_for_row = getattr(_section, 'name', None)
+                    draw_fixed_column(top_y, name, True, bottom_y, section_name_for_row)
+                    # Scrollable rows
+                    draw_staff_row(top_y)
+                    draw_staff_row(bottom_y)
+                    # Draw brace in scrollable area using the exact same sizing method as page view
+                    try:
+                        # Use the same constants and vertical extents as _render_brace (page view)
+                        try:
+                            brace_inset = float(self.BRACE_CONSTANTS.get("inset", 6.0))
+                            extension = float(self.BRACE_CONSTANTS.get("extension", 0.0))
+                        except Exception:
+                            brace_inset = 6.0
+                            extension = 0.0
+
+                        # In continuous mode, barline 0 is at left_x; place brace just to its left
+                        brace_x = max(0.0, left_x - brace_inset)
+
+                        # Mirror page-view vertical calculation:
+                        # top two lines above the treble top line, bottom at bass bottom line + tiny extension
+                        top_line_y = top_y - (2 * self.STAFF_LINE_SPACING)
+                        bottom_line_y = bottom_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                        brace_y_start = top_line_y
+                        brace_y_end = bottom_line_y + (extension * 0.5)
+                        brace_height = brace_y_end - brace_y_start
+                        if brace_height <= 0:
+                            raise ValueError("Invalid brace height in continuous mode")
+
+                        # Use the same font scaling method as page view (0.85 factor) and the same baseline reference
+                        painter.save()
+                        painter.setPen(QPen(Qt.GlobalColor.black, 1, Qt.PenStyle.SolidLine))
+                        brace_font = QFont("Bravura")
+                        brace_font.setPointSizeF(brace_height * 0.85)
+                        painter.setFont(brace_font)
+                        painter.drawText(QPointF(brace_x, brace_y_end), "\uE000")
+                        painter.restore()
+                    except Exception:
+                        pass
+                    top_span = top_y
+                    bot_span = bottom_y + (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
+                    if top_system_y is None or top_y < top_system_y:
+                        top_system_y = top_y
+                    if bottom_system_y is None or bot_span > bottom_system_y:
+                        bottom_system_y = bot_span
+                    for m in measures:
+                        x = float(getattr(m, 'end_x', left_x)) - offset_x
+                        bar_type = getattr(m, 'barline_type', 'single')
+                        is_sel = bool(getattr(self, '_selected_measure_numbers', None) and getattr(m, 'measure_number', None) in self._selected_measure_numbers)
+                        color = QColor(255, 165, 0) if is_sel else QColor(0, 0, 0)
+                        if bar_type == 'final':
+                            painter.setPen(QPen(color, 1))
+                            painter.drawLine(QLineF(x - 6, top_span, x - 6, bot_span))
+                            painter.setPen(QPen(color, 4))
+                            painter.drawLine(QLineF(x, top_span, x, bot_span))
+                        else:
+                            painter.setPen(QPen(color, 1))
+                            painter.drawLine(QLineF(x, top_span, x, bot_span))
+                    if is_first_row:
+                        first_row_top = top_y
+                        is_first_row = False
+                else:
+                    row_y = float(getattr(_staff, 'y_position', base_y + row_index * staff_gap))
+                    name = getattr(_staff, 'instrument_name', '') or getattr(_staff, 'name', '')
+                    section_name_for_row = None
+                    if _section is not None and section_first_index.get(_section, -1) == row_index:
+                        section_name_for_row = getattr(_section, 'name', None)
+                    draw_fixed_column(row_y, name, False, None, section_name_for_row)
+                    draw_staff_row(row_y)
+                    top_y = row_y
+                    bot_y = row_y + (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
+                    if top_system_y is None or top_y < top_system_y:
+                        top_system_y = top_y
+                    if bottom_system_y is None or bot_y > bottom_system_y:
+                        bottom_system_y = bot_y
+                    for m in measures:
+                        x = float(getattr(m, 'end_x', left_x)) - offset_x
+                        bar_type = getattr(m, 'barline_type', 'single')
+                        is_sel = bool(getattr(self, '_selected_measure_numbers', None) and getattr(m, 'measure_number', None) in self._selected_measure_numbers)
+                        color = QColor(255, 165, 0) if is_sel else QColor(0, 0, 0)
+                        if bar_type == 'final':
+                            painter.setPen(QPen(color, 1))
+                            painter.drawLine(QLineF(x - 6, top_y, x - 6, bot_y))
+                            painter.setPen(QPen(color, 4))
+                            painter.drawLine(QLineF(x, top_y, x, bot_y))
+                        else:
+                            painter.setPen(QPen(color, 1))
+                            painter.drawLine(QLineF(x, top_y, x, bot_y))
+                    if is_first_row:
+                        first_row_top = row_y
+                        is_first_row = False
+
+            # Draw section brackets (page-view equivalent) in the scrollable area
+            try:
+                if hasattr(self.document, 'layout'):
+                    for sec in (getattr(self.document.layout, 'sections', []) or []):
+                        if sec not in section_first_index:
+                            continue
+                        first_idx = section_first_index.get(sec)
+                        last_idx = section_last_index.get(sec, first_idx)
+                        # Compute top and bottom y positions for bracket span
+                        top_y = base_y + first_idx * staff_gap
+                        # Determine bottom row start for last index (grand staff consumes two rows visually)
+                        last_staff, _ = rows[last_idx]
+                        if hasattr(last_staff, 'top_staff') and hasattr(last_staff, 'bottom_staff'):
+                            bottom_row_y = base_y + last_idx * staff_gap + staff_gap
+                        else:
+                            bottom_row_y = base_y + last_idx * staff_gap
+                        top_line_y = top_y
+                        bottom_line_y = bottom_row_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+
+                        # X position just left of barline 0
+                        try:
+                            bracket_inset = float(self.BRACKET_CONSTANTS.get('inset', 10.0))
+                        except Exception:
+                            bracket_inset = 10.0
+                        bracket_x = max(0.0, left_x - bracket_inset)
+
+                        painter.save()
+                        try:
+                            # SMuFL bracket caps
+                            bracket_top = "\uE003"
+                            bracket_bottom = "\uE004"
+                            bracket_font = QFont("Bravura")
+                            bracket_font.setPointSizeF(24.0)
+                            painter.setFont(bracket_font)
+                            # Draw caps
+                            painter.drawText(QPointF(bracket_x, top_line_y), bracket_top)
+                            bottom_cap_y = bottom_line_y + 5
+                            painter.drawText(QPointF(bracket_x, bottom_cap_y), bracket_bottom)
+                            # Connect with vertical line
+                            painter.save()
+                            painter.setPen(QPen(Qt.GlobalColor.black, 2.0, Qt.PenStyle.SolidLine))
+                            painter.drawLine(QLineF(bracket_x, top_line_y + 2, bracket_x, bottom_cap_y - 2))
+                            painter.restore()
+                        finally:
+                            painter.restore()
+            except Exception:
+                pass
+
+            # Overlay: measure and barline numbers on top staff only
+            try:
+                if measures and first_row_top is not None:
+                    measure_color = QColor('#e8161a')
+                    barline_color = QColor('#229c00')
+                    for m in measures:
+                        start_x = float(getattr(m, 'x_position', getattr(m, 'start_x', left_x))) - offset_x
+                        end_x = float(getattr(m, 'end_x', left_x)) - offset_x
+                        center_x = (start_x + end_x) / 2.0
+                        num = int(getattr(m, 'measure_number', 0) or 0)
+                        if num > 0:
+                            painter.setPen(QPen(measure_color))
+                            painter.drawText(QPointF(center_x - 3, first_row_top - 13), str(num))
+                            painter.setPen(QPen(barline_color))
+                            painter.drawText(QPointF(end_x - 3, first_row_top - 13), str(num))
+            except Exception as e:
+                print(f"CONTINUOUS_NUMBERS: error {e}")
+
+            # Global barline 0 spanning all parts (scrolls with content)
+            try:
+                if top_system_y is not None and bottom_system_y is not None:
+                    x0 = left_x  # start of notation area
+                    # Match page view thickness using constants
+                    normal_thickness = float(self.BARLINE_CONSTANTS["normal"]["thickness"]) if hasattr(self, 'BARLINE_CONSTANTS') else 2.0
+                    painter.setPen(QPen(QColor(0, 0, 0), normal_thickness))
+                    painter.drawLine(QLineF(x0, top_system_y, x0, bottom_system_y))
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"RENDER_CONTINUOUS: error {e}")
