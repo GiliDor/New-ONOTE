@@ -189,20 +189,20 @@ class PreferencesDialog(QDialog):
         # Add dialog buttons: Apply (commit to Preferences, stay open) + Close
         button_box = QDialogButtonBox()
         button_box.setContentsMargins(6, 6, 6, 6)
-
+        
         self.apply_button = QPushButton("Confirm")
         self.apply_button.setMinimumSize(100, 28)
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self.apply_settings)
         button_box.addButton(self.apply_button, QDialogButtonBox.ButtonRole.ApplyRole)
-
+        
         close_button = QPushButton("Close")
         close_button.setMinimumSize(100, 28)
         close_button.clicked.connect(self._on_close_clicked)
         button_box.addButton(close_button, QDialogButtonBox.ButtonRole.ResetRole)
         
         self.content_layout.addWidget(button_box)
-
+        
     def showEvent(self, event):
         try:
             preferences_bus.set_preferences_dialog_open(True)
@@ -391,7 +391,11 @@ class PreferencesDialog(QDialog):
         self.default_right_margin.setValue(float(self.settings.value("layout/default_right_margin", 25.0)))
         self.default_staff_spacing.setValue(int(self.settings.value("layout/default_staff_spacing", 40)))
         self.default_grand_staff_spacing.setValue(int(self.settings.value("layout/default_grand_staff_spacing", 32)))
-        self.default_system_spacing.setValue(int(self.settings.value("layout/default_system_spacing", 80)))
+        self.default_system_spacing.setValue(int(self.settings.value("layout/default_system_spacing", 40)))
+        if hasattr(self, 'exclude_single_staff_systems'):
+            self.exclude_single_staff_systems.setChecked(self.settings.value("layout/exclude_single_staff_from_system_spacing", False, type=bool))
+        if hasattr(self, 'default_wrapping_spacing'):
+            self.default_wrapping_spacing.setValue(int(self.settings.value("layout/default_wrapping_spacing", 80)))
         self.default_measures_per_system.setValue(int(self.settings.value("layout/default_measures_per_system", 4)))
         # Initial MPS preference
         if hasattr(self, 'initial_mps_enabled') and self.initial_mps_enabled is not None:
@@ -672,6 +676,8 @@ class PreferencesDialog(QDialog):
         self.settings.setValue("layout/default_grand_staff_spacing", grand_staff_value)
         print(f"PREFERENCES_SAVE: Writing Grand Staff Spacing = {grand_staff_value}px")
         self.settings.setValue("layout/default_system_spacing", self.default_system_spacing.value())
+        self.settings.setValue("layout/exclude_single_staff_from_system_spacing", self.exclude_single_staff_systems.isChecked())
+        self.settings.setValue("layout/default_wrapping_spacing", self.default_wrapping_spacing.value())
         # Canonicalize Measures/System: prefer Page Layout tab spinner and mirror to notation key later
         canonical_mps = self.default_measures_per_system.value()
         self.settings.setValue("layout/default_measures_per_system", canonical_mps)
@@ -1078,12 +1084,13 @@ class PreferencesDialog(QDialog):
         score_layout_layout = QFormLayout(score_layout_group)
         score_layout_layout.setSpacing(6)
         
-        # Staff spacing
+        # Staff spacing (internal spacing within systems/sections)
         self.default_staff_spacing = QSpinBox()
         self.default_staff_spacing.setRange(20, 100)
         self.default_staff_spacing.setValue(40)
         self.default_staff_spacing.setSuffix(" px")
         self.default_staff_spacing.setMinimumWidth(120)
+        self.default_staff_spacing.setToolTip("Spacing between staves within a system or section")
         score_layout_layout.addRow("Staff Spacing:", self.default_staff_spacing)
         self.default_staff_spacing.valueChanged.connect(self._mark_dirty)
         
@@ -1096,14 +1103,32 @@ class PreferencesDialog(QDialog):
         score_layout_layout.addRow("Grand Staff Spacing:", self.default_grand_staff_spacing)
         self.default_grand_staff_spacing.valueChanged.connect(self._mark_dirty)
 
-        # System spacing
+        # System spacing (between complete systems: voice → piano → string quartet → bass)
         self.default_system_spacing = QSpinBox()
-        self.default_system_spacing.setRange(40, 200)
-        self.default_system_spacing.setValue(80)
+        self.default_system_spacing.setRange(0, 200)
+        self.default_system_spacing.setValue(40)
         self.default_system_spacing.setSuffix(" px")
         self.default_system_spacing.setMinimumWidth(120)
+        self.default_system_spacing.setToolTip("Extra spacing between complete systems (voice → piano → string quartet → bass)")
         score_layout_layout.addRow("System Spacing:", self.default_system_spacing)
         self.default_system_spacing.valueChanged.connect(self._mark_dirty)
+        
+        # Exclude single staff systems from system spacing
+        self.exclude_single_staff_systems = QCheckBox("Exclude single staff systems")
+        self.exclude_single_staff_systems.setChecked(False)
+        self.exclude_single_staff_systems.setToolTip("When checked, single staves use only staff spacing; system spacing applies only between multi-staff systems")
+        score_layout_layout.addRow("", self.exclude_single_staff_systems)
+        self.exclude_single_staff_systems.toggled.connect(self._mark_dirty)
+        
+        # Wrapping spacing (vertical spacing when score wraps to next line)
+        self.default_wrapping_spacing = QSpinBox()
+        self.default_wrapping_spacing.setRange(40, 200)
+        self.default_wrapping_spacing.setValue(80)
+        self.default_wrapping_spacing.setSuffix(" px")
+        self.default_wrapping_spacing.setMinimumWidth(120)
+        self.default_wrapping_spacing.setToolTip("Vertical spacing when score wraps to next line")
+        score_layout_layout.addRow("Wrapping Spacing:", self.default_wrapping_spacing)
+        self.default_wrapping_spacing.valueChanged.connect(self._mark_dirty)
         
         # Measures per system
         self.default_measures_per_system = QSpinBox()
@@ -1114,7 +1139,6 @@ class PreferencesDialog(QDialog):
         self.default_measures_per_system.valueChanged.connect(self._mark_dirty)
 
         # Initial MPS (auto-fill first system on entering Edit)
-        from PyQt6.QtWidgets import QCheckBox
         self.initial_mps_enabled = QCheckBox("Initial MPS (auto-fill first system on enter Edit)")
         self.initial_mps_enabled.setChecked(True)
         score_layout_layout.addRow("Initial MPS:", self.initial_mps_enabled)

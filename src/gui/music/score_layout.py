@@ -595,18 +595,58 @@ class PartNameRenderer:
     """
 
     @staticmethod
-    def render_part_name(painter, name, x, y_center, is_grand_staff=False, document_settings=None):
+    def render_part_name(painter, name, x, y_center, is_grand_staff=False, document_settings=None, system_idx=0, abbreviation=None):
         """
         Render a part name to the left of a staff.
 
         Args:
             painter: QPainter instance
-            name: Name of the part to render
+            name: Full title/name of the part to render
             x: X-coordinate for the name
             y_center: Y-coordinate for the center of the name
             is_grand_staff: Whether this is a grand staff name
             document_settings: Document settings to use for font styling
+            system_idx: System index (0 = first system, 1+ = following systems)
+            abbreviation: Abbreviated name (if available)
         """
+        if not name:
+            return
+        
+        # Determine which name to display based on system and settings
+        display_mode = None
+        if system_idx == 0:
+            # First system
+            if document_settings and 'layout/staff_names_first_system' in document_settings:
+                display_mode = document_settings['layout/staff_names_first_system']
+            else:
+                from PyQt6.QtCore import QSettings
+                qsettings = QSettings("ONOTE", "Preferences")
+                display_mode = qsettings.value("layout/staff_names_first_system", "Full Title")
+        else:
+            # Following systems
+            if document_settings and 'layout/staff_names_following_systems' in document_settings:
+                display_mode = document_settings['layout/staff_names_following_systems']
+            else:
+                from PyQt6.QtCore import QSettings
+                qsettings = QSettings("ONOTE", "Preferences")
+                display_mode = qsettings.value("layout/staff_names_following_systems", "Abbreviation")
+        
+        # Apply display mode
+        if display_mode == "None":
+            return  # Don't render anything
+        elif display_mode == "Abbreviation":
+            # Use abbreviation if available, otherwise use default abbreviation or full name
+            if abbreviation:
+                name = abbreviation
+            else:
+                # Generate default abbreviation: "Pt 1" from "Part 1"
+                if name.startswith("Part "):
+                    name = "Pt" + name[4:]
+                # If no clear pattern, just use first 4 characters
+                elif len(name) > 4:
+                    name = name[:4]
+        # If display_mode == "Full Title", use the name as-is
+        
         if not name:
             return
 
