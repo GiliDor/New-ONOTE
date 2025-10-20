@@ -501,6 +501,16 @@ class BarlineTemporalBridge(QObject):
             # Create a new measure at the end when clicking beyond existing measures
             current_measure_count = len(validated_measures)
             new_measure_number = current_measure_count + 1
+            # Preserve whether the current last measure had a final overlay – if so, keep
+            # the last measure as final after the append; otherwise, keep singles.
+            prev_last_was_final = False
+            try:
+                if current_measure_count > 0:
+                    prev_last_was_final = (
+                        getattr(validated_measures[-1], 'barline_type', 'single') == 'final'
+                    )
+            except Exception:
+                prev_last_was_final = False
             
             print(f"RULE2: New measure #{new_measure_number} = last measure index ({current_measure_count}) + 1")
             
@@ -532,6 +542,22 @@ class BarlineTemporalBridge(QObject):
             self.temporal_structure_changed.emit()
             self.measure_layout_changed.emit()
             
+            # If the previous last barline was final, keep the last barline final by
+            # moving the overlay to the new rightmost measure.
+            try:
+                if prev_last_was_final and hasattr(self.document, 'measures') and isinstance(self.document.measures, dict):
+                    ordered_nums = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
+                    if ordered_nums:
+                        last_num = ordered_nums[-1]
+                        prev_last_num = ordered_nums[-2] if len(ordered_nums) >= 2 else ordered_nums[0]
+                        if prev_last_num in self.document.measures:
+                            self.document.measures[prev_last_num].barline_type = 'single'
+                        if last_num in self.document.measures:
+                            self.document.measures[last_num].barline_type = 'final'
+                        print(f"BRIDGE: Preserved final overlay on new last measure #{last_num}")
+            except Exception as e:
+                print(f"BRIDGE: Failed to preserve moving final overlay: {e}")
+
             return new_measure
         
         # CRITICAL FIX: Validate that target_measure is a proper MeasureObject
@@ -884,23 +910,8 @@ class BarlineTemporalBridge(QObject):
         print("RULE1: Applying justified positioning")
         self._ensure_all_measures_justified()
         
-        # STEP 7b: Ensure only the last measure has 'final' barline after the split
-        try:
-            ordered = sorted([k for k in self.document.measures.keys() if isinstance(k, int)])
-            if ordered:
-                last_num = ordered[-1]
-                for num in ordered:
-                    m = self.document.measures.get(num)
-                    if m is None:
-                        continue
-                    if num == last_num:
-                        m.barline_type = 'final'
-                    else:
-                        if getattr(m, 'barline_type', 'single') == 'final':
-                            m.barline_type = 'single'
-                print(f"BRIDGE: Normalized barline types so only measure #{last_num} is 'final'")
-        except Exception as e:
-            print(f"BRIDGE: Error normalizing barline types: {e}")
+            # STEP 7b: DO NOT force last measure to 'final'. Respect user's choice.
+            # Final overlay is user-controlled; new measures default to 'single'.
         
         # STEP 8: Verify result
         final_measures = sorted([num for num in self.document.measures.keys() if isinstance(num, int)])
@@ -1500,6 +1511,36 @@ class BarlineTemporalBridge(QObject):
         
         print("Atomic barline removal complete")
         return True
+
+    # New bulk deletion API used by StaffView Delete key
+    def delete_measures(self, measure_numbers: List[int]) -> bool:
+        try:
+            if not measure_numbers:
+                return False
+            # Normalize and sort unique measure numbers descending to avoid reindex churn
+            uniq = sorted(set(int(n) for n in measure_numbers if n is not None), reverse=True)
+            any_removed = False
+            for num in uniq:
+                try:
+                    removed = self.remove_barline(int(num))
+                    any_removed = any_removed or removed
+                except Exception as e:
+                    print(f"BRIDGE: delete_measures failed for {num}: {e}")
+            # After bulk ops, ensure justified layout and refresh
+            if any_removed:
+                try:
+                    self._ensure_all_measures_justified()
+                except Exception:
+                    pass
+                try:
+                    self.temporal_structure_changed.emit()
+                    self.measure_layout_changed.emit()
+                except Exception:
+                    pass
+            return any_removed
+        except Exception as e:
+            print(f"BRIDGE: delete_measures error: {e}")
+            return False
     
     def modify_barline_type(self, measure_obj: MeasureObject, new_type: str):
         """Modify the barline type of an existing measure"""
@@ -1522,6 +1563,69 @@ class BarlineTemporalBridge(QObject):
                 measure_obj.is_repeat_end = False
             
             print(f"Modified measure #{getattr(measure_obj, 'measure_number', 'unknown')} barline type: {old_type} → {new_type}")
+    
+    # Lightweight helper to update by measure number, used by StaffView
+    def update_barline_type(self, measure_number: int, new_type: str) -> bool:
+        try:
+            if not hasattr(self.document, 'measures') or not self.document.measures:
+                return False
+            target = None
+            if isinstance(self.document.measures, dict):
+                target = self.document.measures.get(int(measure_number))
+            else:
+                for m in self.document.measures:
+                    if getattr(m, 'measure_number', None) == int(measure_number):
+                        target = m
+                        break
+            if not target:
+                return False
+            self.modify_barline_type(target, new_type)
+            # Emit minimal signals so renderers refresh but layout is unchanged
+            try:
+                self.measure_layout_changed.emit()
+                self.temporal_structure_changed.emit()
+            except Exception:
+                pass
+            return True
+        except Exception as e:
+            print(f"BRIDGE: update_barline_type failed for measure {measure_number}: {e}")
+            return False
+
+    # Continuous-mode helpers
+    def ensure_continuous_positions(self):
+        """Force no-wrap, continuous horizontal positions for all measures.
+        Distributes measures left-to-right with a fixed unit width so the
+        score can extend indefinitely without page constraints.
+        """
+        try:
+            measures = self._get_current_measures()
+            if not measures:
+                return
+            total = len(measures)
+            leftmost_x = float(self.calculate_leftmost_note_position())
+            # Determine a reasonable unit width from current prefs/page width
+            try:
+                page_width = float(self._get_dynamic_page_width())
+                right_margin = float(self._get_dynamic_right_margin())
+                total_space = max(100.0, page_width - right_margin - leftmost_x)
+                # Use current MPS as baseline unit, default 4.
+                baseline_mps = int(getattr(self, 'measures_per_system', 4) or 4)
+                unit = total_space / max(1, baseline_mps)
+            except Exception:
+                unit = 133.5
+            # Apply continuous positions
+            prev_end = leftmost_x
+            for i, m in enumerate(measures, start=1):
+                new_end = leftmost_x + i * unit
+                try:
+                    m.end_x = float(new_end)
+                    m.x_position = float(prev_end)
+                    m.width = float(new_end - prev_end)
+                except Exception:
+                    pass
+                prev_end = new_end
+        except Exception as e:
+            print(f"BRIDGE: ensure_continuous_positions failed: {e}")
     
     # Legacy compatibility methods
     def get_temporal_measures(self) -> List[TemporalMeasure]:
@@ -1753,6 +1857,7 @@ class BarlineTemporalBridge(QObject):
             system_positions = self._calculate_system_justified_positions(mps, staff_end_x, 0)
             # Create measures 1..mps with equal widths across the first system
             prev_end = self.LEFTMOST_NOTE_X
+            last_created_num = 0
             for i, end_x in enumerate(system_positions, start=1):
                 measure = self._create_measure_object(
                     measure_number=i,
@@ -1766,7 +1871,15 @@ class BarlineTemporalBridge(QObject):
                     pass
                 self.document.measures[i] = measure
                 prev_end = end_x
+                last_created_num = i
                 print(f"EDIT_MODE: Created initial measure #{i}: start={measure.x_position}, end={measure.end_x}")
+            # Make the last barline a final overlay initially (user can demote it).
+            try:
+                if last_created_num > 0 and last_created_num in self.document.measures:
+                    self.document.measures[last_created_num].barline_type = 'final'
+                    print(f"EDIT_MODE: Marked initial measure #{last_created_num} as final")
+            except Exception as e:
+                print(f"EDIT_MODE: Failed to set initial final: {e}")
         else:
             # Only one compact measure with a final barline visually at its right edge
             self.document.measures = {}
@@ -1782,7 +1895,7 @@ class BarlineTemporalBridge(QObject):
                 setattr(single_measure, 'compact_end_x', float(getattr(single_measure, 'end_x', self.LEFTMOST_NOTE_X + 120.0)))
             except Exception:
                 pass
-            # Mark barline type as final for edit mode visual behavior
+            # Ensure the compact single ends with a final barline initially
             try:
                 single_measure.barline_type = 'final'
             except Exception:

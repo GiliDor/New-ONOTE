@@ -103,6 +103,10 @@ class PageSetupDialog(QDialog):
         self.setMinimumHeight(500)
         self.setModal(True)
         
+        # Track per-tab dirty state for user feedback
+        self._tab_dirty = {"page": False, "margins": False, "print": False}
+        self._confirm_buttons = {}
+
         self.setup_ui()
         self.load_settings()
         self.connect_signals()
@@ -241,6 +245,13 @@ class PageSetupDialog(QDialog):
         
         layout.addWidget(scale_group)
         
+        # Per-tab Confirm button
+        page_confirm = QPushButton("Confirm")
+        page_confirm.setEnabled(False)
+        page_confirm.clicked.connect(lambda: self._confirm_tab("page"))
+        self._confirm_buttons["page"] = page_confirm
+        layout.addWidget(page_confirm, 0, Qt.AlignmentFlag.AlignRight)
+
         layout.addStretch()
         
     def setup_margins_tab(self):
@@ -366,6 +377,13 @@ class PageSetupDialog(QDialog):
         self.mirror_margins = QCheckBox("Mirror margins for duplex printing")
         layout.addWidget(self.mirror_margins)
         
+        # Per-tab Confirm button
+        margins_confirm = QPushButton("Confirm")
+        margins_confirm.setEnabled(False)
+        margins_confirm.clicked.connect(lambda: self._confirm_tab("margins"))
+        self._confirm_buttons["margins"] = margins_confirm
+        layout.addWidget(margins_confirm, 0, Qt.AlignmentFlag.AlignRight)
+
         layout.addStretch()
         
     def setup_print_tab(self):
@@ -457,6 +475,13 @@ class PageSetupDialog(QDialog):
         
         layout.addWidget(options_group)
         
+        # Per-tab Confirm button
+        print_confirm = QPushButton("Confirm")
+        print_confirm.setEnabled(False)
+        print_confirm.clicked.connect(lambda: self._confirm_tab("print"))
+        self._confirm_buttons["print"] = print_confirm
+        layout.addWidget(print_confirm, 0, Qt.AlignmentFlag.AlignRight)
+        
         layout.addStretch()
         
     def set_margin_preset(self, left, right, top, bottom):
@@ -506,32 +531,41 @@ class PageSetupDialog(QDialog):
         """Connect signals to update preview and apply settings immediately"""
         # Page size and orientation changes
         self.page_type_combo.currentTextChanged.connect(self._apply_page_size_change)
+        self.page_type_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("page"))
         self.page_type_combo.currentTextChanged.connect(self.apply_settings)
         self.page_type_combo.currentTextChanged.connect(self.update_preview)
         self.portrait_radio.toggled.connect(self._apply_page_size_change)
+        self.portrait_radio.toggled.connect(lambda _: self._mark_tab_dirty("page"))
         self.portrait_radio.toggled.connect(self.apply_settings)
         self.portrait_radio.toggled.connect(self.update_preview)
         self.landscape_radio.toggled.connect(self._apply_page_size_change)
+        self.landscape_radio.toggled.connect(lambda _: self._mark_tab_dirty("page"))
         self.landscape_radio.toggled.connect(self.apply_settings)
         self.landscape_radio.toggled.connect(self.update_preview)
         
         # Margin changes - apply immediately
         self.top_margin.valueChanged.connect(self._apply_margin_change)
+        self.top_margin.valueChanged.connect(lambda _: self._mark_tab_dirty("margins"))
         self.top_margin.valueChanged.connect(self.apply_settings)
         self.top_margin.valueChanged.connect(self.update_preview)
         self.bottom_margin.valueChanged.connect(self._apply_margin_change)
+        self.bottom_margin.valueChanged.connect(lambda _: self._mark_tab_dirty("margins"))
         self.bottom_margin.valueChanged.connect(self.apply_settings)
         self.bottom_margin.valueChanged.connect(self.update_preview)
         self.left_margin.valueChanged.connect(self._apply_margin_change)
+        self.left_margin.valueChanged.connect(lambda _: self._mark_tab_dirty("margins"))
         self.left_margin.valueChanged.connect(self.apply_settings)
         self.left_margin.valueChanged.connect(self.update_preview)
         self.right_margin.valueChanged.connect(self._apply_margin_change)
+        self.right_margin.valueChanged.connect(lambda _: self._mark_tab_dirty("margins"))
         self.right_margin.valueChanged.connect(self.apply_settings)
         self.right_margin.valueChanged.connect(self.update_preview)
         
         # Unit changes
         self.mm_radio.toggled.connect(self.update_units)
+        self.mm_radio.toggled.connect(lambda _: self._mark_tab_dirty("margins"))
         self.inches_radio.toggled.connect(self.update_units)
+        self.inches_radio.toggled.connect(lambda _: self._mark_tab_dirty("margins"))
         
     def update_units(self):
         """Update margin controls when units change"""
@@ -680,36 +714,65 @@ class PageSetupDialog(QDialog):
         settings.settings.setValue("page_setup/print_copyright", self.print_copyright.isChecked())
         
     def save_as_defaults(self):
-        """Save current settings as defaults and export to Preferences"""
+        """Save current settings as defaults, using staged keys with conditional auto-apply."""
         self.save_settings()
-        
-        # Export to Preferences / Page Layout tab
-        from PyQt6.QtCore import QSettings
-        qsettings = QSettings("ONOTE", "Preferences")
-        
-        # Save page layout settings to Preferences
-        qsettings.setValue("layout/default_top_margin", self.top_margin.value())
-        qsettings.setValue("layout/default_bottom_margin", self.bottom_margin.value())
-        qsettings.setValue("layout/default_left_margin", self.left_margin.value())
-        qsettings.setValue("layout/default_right_margin", self.right_margin.value())
-        
-        # Save page size and orientation
-        page_type = self.page_type_combo.currentText().split(" ")[0]  # Extract just "A4", "Letter", etc.
-        qsettings.setValue("layout/default_page_type", page_type)
-        orientation = "Portrait" if self.portrait_radio.isChecked() else "Landscape"
-        qsettings.setValue("layout/default_orientation", orientation)
-        
-        # Save units
-        units = "mm" if self.mm_radio.isChecked() else "in"
-        qsettings.setValue("layout/default_units", units)
-        
-        # Emit settings_changed with set_as_defaults=True so main_window can update QSettings
+
+        # Write staged layout defaults
+        try:
+            from PyQt6.QtCore import QSettings
+            from src.core.settings_manager import SettingsManager
+            from src.core.settings_signal_bus import preferences_bus
+            qs = QSettings("ONOTE", "Preferences")
+            values = {
+                "default_top_margin": float(self.top_margin.value()),
+                "default_bottom_margin": float(self.bottom_margin.value()),
+                "default_left_margin": float(self.left_margin.value()),
+                "default_right_margin": float(self.right_margin.value()),
+                "default_page_size": self.page_type_combo.currentText(),
+                "default_orientation": "Portrait" if self.portrait_radio.isChecked() else "Landscape",
+                "default_units": "mm" if self.mm_radio.isChecked() else "in",
+                # Legacy mirrors for UI overlay/back-compat
+                "top_margin": float(self.top_margin.value()),
+                "bottom_margin": float(self.bottom_margin.value()),
+                "left_margin": float(self.left_margin.value()),
+                "right_margin": float(self.right_margin.value()),
+                "page_size": self.page_type_combo.currentText(),
+                "orientation": "Portrait" if self.portrait_radio.isChecked() else "Landscape",
+                "units": "mm" if self.mm_radio.isChecked() else "in",
+            }
+            # Stage under staged/layout/*
+            for key, val in values.items():
+                qs.setValue(f"staged/layout/{key}", val)
+            qs.sync()
+        except Exception:
+            pass
+
+        # Notify listeners that staged preferences were updated
+        try:
+            from src.core.settings_signal_bus import preferences_bus
+            preferences_bus.preferences_updated.emit({"source": "page_setup_set_defaults", "scope": "layout"})
+        except Exception:
+            pass
+
+        # Conditional auto-apply: if Preferences dialog is not open, promote staged to final
+        try:
+            if not preferences_bus.is_preferences_open():
+                SettingsManager().promote_staged_settings()
+            # Broadcast after promotion
+            preferences_bus.preferences_updated.emit({"source": "page_setup_auto_applied"})
+        except Exception:
+            pass
+
+        # Notify current UI of change context
         page_options = self.get_page_options()
         page_options['set_as_defaults'] = True
         self.settings_changed.emit(page_options)
-        
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Page Setup", "Current settings saved as defaults and exported to Preferences.")
+
+        try:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(self, "Page Setup", "Defaults staged. They will be committed automatically now (if Preferences is closed) or on Preferences close.")
+        except Exception:
+            pass
         
     def apply_settings(self):
         """Apply settings immediately (kept for internal calls)"""
@@ -720,8 +783,28 @@ class PageSetupDialog(QDialog):
     def accept_settings(self):
         """Accept and apply settings"""
         try:
+            # Prompt to save the document before closing if changes were made
+            try:
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self,
+                    "Save Changes?",
+                    "Page Setup was changed. Save the document?",
+                    QMessageBox.StandardButton.Save |
+                    QMessageBox.StandardButton.Discard |
+                    QMessageBox.StandardButton.Cancel
+                )
+                if reply == QMessageBox.StandardButton.Save:
+                    # Try to call parent window's save routine
+                    parent = self.parent()
+                    if parent and hasattr(parent, 'save_document'):
+                        if not parent.save_document():
+                            return
+                elif reply == QMessageBox.StandardButton.Cancel:
+                    return
+            except Exception:
+                pass
             self.save_settings()
-            # Call the parent accept method to properly close the dialog
             super().accept()
         except Exception as e:
             print(f"Error in accept_settings: {e}")
@@ -729,6 +812,20 @@ class PageSetupDialog(QDialog):
             traceback.print_exc()
             # Still try to close the dialog even if there's an error
             super().accept()
+
+    def closeEvent(self, event):
+        """Ensure the window close button triggers the same flow as the Close button."""
+        try:
+            # Reuse the exact same logic as the explicit Close action
+            self.accept_settings()
+        except Exception:
+            # If anything goes wrong, ignore and let base handler proceed
+            pass
+        # If dialog is still visible (e.g., user chose Cancel), keep it open
+        if self.isVisible():
+            event.ignore()
+        else:
+            event.accept()
         
     def get_page_options(self):
         """Get the current page setup options"""
@@ -789,7 +886,26 @@ class PageSetupDialog(QDialog):
                     'left': doc.layout.left_margin,
                     'right': doc.layout.right_margin
                 })
+                # Invalidate precomputed widths so all systems re-justify after left margin changes
+                try:
+                    if hasattr(self.parent().staff_view.renderer, '_unit_width_by_system'):
+                        self.parent().staff_view.renderer._unit_width_by_system = {}
+                except Exception:
+                    pass
                 self.parent().staff_view.update()
+
+    def _mark_tab_dirty(self, tab_key: str):
+        self._tab_dirty[tab_key] = True
+        btn = self._confirm_buttons.get(tab_key)
+        if btn:
+            btn.setEnabled(True)
+
+    def _confirm_tab(self, tab_key: str):
+        # Clear dirty state and disable the confirm button
+        self._tab_dirty[tab_key] = False
+        btn = self._confirm_buttons.get(tab_key)
+        if btn:
+            btn.setEnabled(False)
 
     def _apply_page_size_change(self, value=None):
         """Immediately apply page size changes to the current document and re-render"""

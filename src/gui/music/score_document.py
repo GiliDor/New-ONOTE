@@ -56,7 +56,41 @@ class ScoreDocument:
             ('notation/barline_number_vertical_offset', -3),
             ('notation/barline_number_horizontal_offset', -3),
             ('notation/barline_numbers_font_color', '#800080'),
-            # Layout settings are now handled by Preferences dialog
+            # Staff names
+            ('notation/staff_name_font_size', 10),
+            ('notation/staff_name_vertical', -8),
+            ('notation/staff_name_horizontal', -50),
+            ('notation/staff_name_font_color', '#000000'),
+            # Section names
+            ('notation/section_name_font_size', 12),
+            ('notation/section_name_vertical', -25),
+            ('notation/section_name_horizontal', -60),
+            ('notation/section_name_font_color', '#000000'),
+            # Clefs
+            ('notation/clef_font_size', 32),
+            ('notation/clef_vertical', 0),
+            ('notation/clef_horizontal', 20),
+            ('notation/clef_font_color', '#000000'),
+            # Time signatures
+            ('notation/time_sig_font_size', 24),
+            ('notation/time_sig_vertical', 0),
+            ('notation/time_sig_horizontal', 40),
+            ('notation/time_sig_spacing', 18),
+            ('notation/time_sig_font_color', '#000000'),
+            # Key signatures
+            ('notation/key_sig_font_size', 14),
+            ('notation/key_sig_vertical', 0),
+            ('notation/key_sig_horizontal', 75),
+            ('notation/key_sig_accidental_spacing', 12),
+            ('notation/key_sig_font_color', '#000000'),
+            # Musical directions
+            ('notation/directions_font_size', 11),
+            ('notation/directions_vertical', 30),
+            ('notation/directions_horizontal', 0),
+            # Layout settings
+            ('layout/default_staff_spacing', 40),
+            ('layout/default_system_spacing', 80),
+            ('layout/default_grand_staff_spacing', 32),
         ]
         for key, default in keys:
             value = qsettings.value(key, default)
@@ -68,7 +102,11 @@ class ScoreDocument:
             elif isinstance(default, float):
                 value = float(value) if value is not None else default
             self.settings[key] = value
-            print(f"DOCUMENT_INIT: Loaded {key} = {value} (type: {type(value).__name__})")
+            # Extra logging for grand_staff_spacing specifically
+            if 'grand_staff_spacing' in key:
+                print(f"DOCUMENT_INIT: *** Grand Staff Spacing *** key={key}, raw_value={qsettings.value(key, 'NOT_FOUND')}, converted_value={value}, type={type(value).__name__}")
+            else:
+                print(f"DOCUMENT_INIT: Loaded {key} = {value} (type: {type(value).__name__})")
         
         # DEBUG: Check specific barline settings
         print(f"DOCUMENT_INIT: Barline color from QSettings: {qsettings.value('notation/barline_numbers_font_color', 'NOT_FOUND')}")
@@ -92,6 +130,14 @@ class ScoreDocument:
         self.layout.right_margin = int(right_margin * MM_TO_PIXELS)
         self.layout.top_margin = int(top_margin * MM_TO_PIXELS)
         self.layout.bottom_margin = int(bottom_margin * MM_TO_PIXELS)
+        # Grand staff spacing is loaded in the keys loop above and stored to document.settings['layout/default_grand_staff_spacing']
+        # Mirror it to layout/grand_staff_spacing for renderer compatibility
+        if 'layout/default_grand_staff_spacing' in self.settings:
+            self.settings['layout/grand_staff_spacing'] = self.settings['layout/default_grand_staff_spacing']
+            print(f"DOCUMENT_INIT: Grand staff spacing mirrored: {self.settings['layout/grand_staff_spacing']}px")
+        else:
+            print(f"DOCUMENT_INIT: WARNING - layout/default_grand_staff_spacing not found in settings!")
+            print(f"DOCUMENT_INIT: Available settings keys: {list(self.settings.keys())}")
         # Set page size based on type and orientation
         if 'A4' in str(page_type):
             width_mm, height_mm = 210, 297
@@ -879,6 +925,7 @@ class ScoreDocument:
         """
         try:
             # Create a safe copy of the current state using safe attribute copying
+            # Store measures as a list (ordered copies) to keep redo granular and selection stable
             current_state = {
                 'operation_description': operation_description,
                 'layout': self._safe_copy_layout(),
@@ -1023,22 +1070,40 @@ class ScoreDocument:
             return new_layout
     
     def _safe_copy_measures(self):
-        """Safely copy the measures list avoiding problematic references"""
+        """Safely snapshot measures in a serialization-friendly way.
+
+        We intentionally avoid deepcopy of MeasureObject because it contains
+        references to the live document/staff_view which are not picklable.
+        Instead, we serialize each measure via to_dict().
+        """
         try:
             if not hasattr(self, 'measures') or not self.measures:
                 return []
-            return copy.deepcopy(self.measures)
-        except Exception as e:
-            print(f"UNDO_SYSTEM: Failed to deep copy measures, using fallback: {e}")
-            # Fallback: manually copy each measure
-            safe_measures = []
-            for measure in self.measures:
+            # Order measures by number
+            if isinstance(self.measures, dict):
+                ordered = [self.measures[k] for k in sorted(self.measures.keys()) if isinstance(k, int)]
+            else:
+                ordered = list(self.measures)
+            payload = []
+            for m in ordered:
                 try:
-                    safe_measures.append(copy.deepcopy(measure))
-                except Exception as measure_error:
-                    print(f"UNDO_SYSTEM: Skipping problematic measure: {measure_error}")
-                    continue
-            return safe_measures
+                    if hasattr(m, 'to_dict'):
+                        payload.append(m.to_dict())
+                    else:
+                        # Minimal snapshot if to_dict is unavailable
+                        payload.append({
+                            'measure_number': getattr(m, 'measure_number', 0),
+                            'end_x': getattr(m, 'end_x', 0.0),
+                            'x_position': getattr(m, 'x_position', 0.0),
+                            'barline_type': getattr(m, 'barline_type', 'single'),
+                            'selected': getattr(m, 'selected', False)
+                        })
+                except Exception as inner_e:
+                    print(f"UNDO_SYSTEM: Failed to serialize a measure: {inner_e}")
+            return payload
+        except Exception as e:
+            print(f"UNDO_SYSTEM: Measures snapshot error: {e}")
+            return []
 
     def _restore_state(self, state):
         """Restore the document to a previous state
@@ -1049,8 +1114,32 @@ class ScoreDocument:
         # Restore layout
         self.layout = state['layout']
         
-        # Restore measures
-        self.measures = state.get('measures', [])
+        # Restore measures – list of serialized dicts → MeasureObject instances
+        restored_measures = state.get('measures', [])
+        from .measure_object import MeasureObject
+        measures_dict: Dict[int, Any] = {}
+        try:
+            for entry in restored_measures or []:
+                try:
+                    if isinstance(entry, dict):
+                        m = MeasureObject.from_dict(entry)
+                    else:
+                        # Already an object – accept as is
+                        m = entry
+                    # Re-bind to this document to avoid stale references
+                    try:
+                        setattr(m, 'document', self)
+                    except Exception:
+                        pass
+                    num = int(getattr(m, 'measure_number', 0) or 0)
+                    if num > 0:
+                        measures_dict[num] = m
+                except Exception as inner_e:
+                    print(f"UNDO_SYSTEM: Failed to reconstruct a measure: {inner_e}")
+            self.measures = measures_dict
+        except Exception as e:
+            print(f"UNDO_SYSTEM: Restore measures error: {e}")
+            self.measures = {}
         
         # Restore graphical dashed barlines
         if 'graphical_dashed_barlines' in state:

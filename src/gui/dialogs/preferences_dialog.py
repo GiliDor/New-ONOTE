@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (QDialog, QTabWidget, QWidget, QVBoxLayout,
                              QToolBar, QToolButton, QMenu)
 from PyQt6.QtGui import QAction
 from PyQt6.QtCore import Qt, QDir, QSettings, pyqtSignal
+from src.core.settings_signal_bus import preferences_bus
 from PyQt6.QtGui import QColor
 import os
 import sounddevice as sd
@@ -30,7 +31,8 @@ class PreferencesDialog(QDialog):
         
         # CRITICAL FIX: Ensure dialog always shows on Desktop background, never behind it
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        self.settings = QSettings()
+        # Use named scope consistently to prevent split stores
+        self.settings = QSettings("ONOTE", "Preferences")
         self.dialog_zoom = 1.0
         self._dirty = False  # Track unsaved changes
 
@@ -82,6 +84,12 @@ class PreferencesDialog(QDialog):
         
         # Initialize settings
         self.settings = QSettings("ONOTE", "Preferences")
+
+        # Listen for external preference updates (e.g., Page Setup "Set as Default")
+        try:
+            preferences_bus.preferences_updated.connect(lambda _payload: self.load_settings())
+        except Exception:
+            pass
         
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
@@ -166,6 +174,11 @@ class PreferencesDialog(QDialog):
         self.notation_tab = QWidget()
         self.setup_notation_tab()
         self.tab_widget.addTab(self.notation_tab, "Default Notation Setup")
+
+        # NEW: Continuous View defaults tab (separate from notation)
+        self.continuous_defaults_tab = QWidget()
+        self.setup_continuous_defaults_tab()
+        self.tab_widget.addTab(self.continuous_defaults_tab, "Continuous View defaults")
         
         self.tab_widget.addTab(self.audio_tab, "Audio")
         self.tab_widget.addTab(self.midi_io_tab, "MIDI I/O")
@@ -173,72 +186,162 @@ class PreferencesDialog(QDialog):
         self.tab_widget.addTab(self.midi_import_tab, "MIDI Import")
         self.tab_widget.addTab(self.plugins_tab, "Plug-in Manager")
         
-        # Add dialog buttons
+        # Add dialog buttons: Apply (commit to Preferences, stay open) + Close
         button_box = QDialogButtonBox()
-        
-        # Apply button - applies settings but keeps dialog open
-        self.apply_button = QPushButton("Apply")
+        button_box.setContentsMargins(6, 6, 6, 6)
+
+        self.apply_button = QPushButton("Confirm")
+        self.apply_button.setMinimumSize(100, 28)
+        self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self.apply_settings)
         button_box.addButton(self.apply_button, QDialogButtonBox.ButtonRole.ApplyRole)
-        # Keep Apply enabled across all tabs; we'll still gate saves in apply_settings
-        self.apply_button.setEnabled(True)
-        
-        # Close button - closes dialog
+
         close_button = QPushButton("Close")
-        close_button.clicked.connect(self.accept_settings)
-        button_box.addButton(close_button, QDialogButtonBox.ButtonRole.RejectRole)
+        close_button.setMinimumSize(100, 28)
+        close_button.clicked.connect(self._on_close_clicked)
+        button_box.addButton(close_button, QDialogButtonBox.ButtonRole.ResetRole)
         
         self.content_layout.addWidget(button_box)
-        
-        # Load saved settings
-        self.load_settings()
 
-        # After all widgets are created in __init__ or setup methods, connect their change signals to _mark_dirty
-        # Example for a few widgets:
-        self.staff_name_font_size.valueChanged.connect(self._mark_dirty)
-        self.staff_name_vertical.valueChanged.connect(self._mark_dirty)
-        self.staff_name_horizontal.valueChanged.connect(self._mark_dirty)
-        self.section_name_font_size.valueChanged.connect(self._mark_dirty)
-        self.section_name_vertical.valueChanged.connect(self._mark_dirty)
-        self.section_name_horizontal.valueChanged.connect(self._mark_dirty)
-        self.time_sig_font_size.valueChanged.connect(self._mark_dirty)
-        self.time_sig_vertical.valueChanged.connect(self._mark_dirty)
-        self.time_sig_horizontal.valueChanged.connect(self._mark_dirty)
-        self.time_sig_spacing.valueChanged.connect(self._mark_dirty)
-        self.key_sig_font_size.valueChanged.connect(self._mark_dirty)
-        self.key_sig_vertical.valueChanged.connect(self._mark_dirty)
-        self.key_sig_horizontal.valueChanged.connect(self._mark_dirty)
-        self.key_sig_accidental_spacing.valueChanged.connect(self._mark_dirty)
-        self.clef_font_size.valueChanged.connect(self._mark_dirty)
-        self.clef_vertical.valueChanged.connect(self._mark_dirty)
-        self.clef_horizontal.valueChanged.connect(self._mark_dirty)
-        self.directions_font_size.valueChanged.connect(self._mark_dirty)
-        self.directions_vertical.valueChanged.connect(self._mark_dirty)
-        self.directions_horizontal.valueChanged.connect(self._mark_dirty)
-        # For color buttons, connect their clicked signal to _mark_dirty as well
-        self.staff_name_font_color.clicked.connect(self._mark_dirty)
-        self.section_name_font_color.clicked.connect(self._mark_dirty)
-        self.time_sig_font_color.clicked.connect(self._mark_dirty)
-        self.key_sig_font_color.clicked.connect(self._mark_dirty)
-        self.clef_font_color.clicked.connect(self._mark_dirty)
-        
-        # Connect measure numbers and barline controls to _mark_dirty
-        self.show_measure_numbers.toggled.connect(self._mark_dirty)
-        self.measure_numbers_frequency.currentTextChanged.connect(self._mark_dirty)
-        self.measure_numbers_custom_interval.valueChanged.connect(self._mark_dirty)
-        self.measure_numbers_position.currentTextChanged.connect(self._mark_dirty)
-        self.measure_numbers_vertical.currentTextChanged.connect(self._mark_dirty)
-        self.measure_numbers_font_size.valueChanged.connect(self._mark_dirty)
-        self.measure_numbers_vertical_offset.valueChanged.connect(self._mark_dirty)
-        self.measure_numbers_horizontal_offset.valueChanged.connect(self._mark_dirty)
-        self.measure_numbers_font_color.clicked.connect(self._mark_dirty)
-        
-        self.max_measures_per_system.valueChanged.connect(self._mark_dirty)
-        self.barline_numbering.toggled.connect(self._mark_dirty)
-        self.barline_number_font_size.valueChanged.connect(self._mark_dirty)
-        self.barline_number_vertical_offset.valueChanged.connect(self._mark_dirty)
-        self.barline_number_horizontal_offset.valueChanged.connect(self._mark_dirty)
-        self.barline_number_font_color.clicked.connect(self._mark_dirty)
+    def showEvent(self, event):
+        try:
+            preferences_bus.set_preferences_dialog_open(True)
+        except Exception:
+            pass
+        # Ensure we start reading latest values and mark clean
+        try:
+            self.settings.sync()
+            # Reload settings to pick up any staged values from Page Setup or FSO
+            self.load_settings()
+        except Exception:
+            pass
+        super().showEvent(event)
+
+    def closeEvent(self, event):
+        # If there are pending edits, trigger the same close prompt logic
+        try:
+            preferences_bus.set_preferences_dialog_open(False)
+        except Exception:
+            pass
+        # Route through our close button handler to unify Apply/Discard/Cancel behavior
+        self._on_close_clicked()
+        # Accept or ignore the event based on whether dialog was closed
+        if self.isVisible():
+            event.ignore()
+        else:
+            super().closeEvent(event)
+
+    def _on_close_clicked(self):
+        """Prompt Apply/Discard/Cancel when there are pending or staged changes."""
+        try:
+            from PyQt6.QtWidgets import QMessageBox
+            # Determine dirty state: explicit UI edits or any staged/* keys
+            dirty = getattr(self, '_dirty', False)
+            try:
+                from src.core.settings_manager import SettingsManager
+                if SettingsManager().has_staged_values():
+                    dirty = True
+            except Exception:
+                pass
+
+            if dirty:
+                resp = QMessageBox.question(
+                    self,
+                    "Apply Changes?",
+                    "You have pending default changes. Apply to commit them for new documents?",
+                    QMessageBox.StandardButton.Apply | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+                    QMessageBox.StandardButton.Apply,
+                )
+                if resp == QMessageBox.StandardButton.Apply:
+                    # Commit both pending UI edits and any staged values
+                    self.apply_settings()
+                    super().accept()
+                    return
+                if resp == QMessageBox.StandardButton.Discard:
+                    # Revert pending edits and clear staged
+                    try:
+                        from src.core.settings_manager import SettingsManager
+                        SettingsManager().clear_staged_values()
+                    except Exception:
+                        pass
+                    # Reload committed defaults
+                    try:
+                        self.load_settings()
+                    except Exception:
+                        pass
+                    super().reject()
+                    return
+                return  # Cancel
+            # no changes, just close
+            super().accept()
+        except Exception:
+            super().accept()
+
+    def setup_continuous_defaults_tab(self):
+        """Create the 'Continuous View defaults' tab mirroring Default Notation where relevant.
+        This affects only new documents (saved to QSettings). MPS and MPC are disabled.
+        """
+        layout = QVBoxLayout(self.continuous_defaults_tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        info = QLabel("These defaults apply to new scores in Continuous View only.")
+        info.setStyleSheet("color:#0066cc; font-weight:bold; background:#e7f3ff; padding:6px; border:1px solid #b3d9ff; border-radius:4px;")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+
+        # Visibility group
+        vis_group = QGroupBox("Show in Continuous View")
+        vis_form = QFormLayout(vis_group)
+        self.cvd_show_staff_names = QCheckBox("Staff names")
+        self.cvd_show_section_names = QCheckBox("Section names")
+        self.cvd_show_clefs = QCheckBox("Clefs")
+        self.cvd_show_time = QCheckBox("Time Signature")
+        self.cvd_show_key = QCheckBox("Key Signature")
+        vis_form.addRow(self.cvd_show_staff_names)
+        vis_form.addRow(self.cvd_show_section_names)
+        vis_form.addRow(self.cvd_show_clefs)
+        vis_form.addRow(self.cvd_show_time)
+        vis_form.addRow(self.cvd_show_key)
+        layout.addWidget(vis_group)
+
+        # Fixed strip width
+        strip_group = QGroupBox("Fixed strip width")
+        strip_form = QFormLayout(strip_group)
+        self.cvd_strip_width = QSpinBox()
+        self.cvd_strip_width.setRange(80, 600)
+        self.cvd_strip_width.setSuffix(" px")
+        strip_form.addRow("Width:", self.cvd_strip_width)
+        layout.addWidget(strip_group)
+
+        layout.addStretch(1)
+
+        # Load current defaults
+        try:
+            self.cvd_show_staff_names.setChecked(self.settings.value("continuous/show_staff_names", True, type=bool))
+            self.cvd_show_section_names.setChecked(self.settings.value("continuous/show_section_names", True, type=bool))
+            self.cvd_show_clefs.setChecked(self.settings.value("continuous/show_clefs", True, type=bool))
+            self.cvd_show_time.setChecked(self.settings.value("continuous/show_time_signature", True, type=bool))
+            self.cvd_show_key.setChecked(self.settings.value("continuous/show_key_signature", True, type=bool))
+            self.cvd_strip_width.setValue(int(self.settings.value("layout/continuous_left_margin", 160)))
+        except Exception:
+            pass
+
+        # Mark dialog dirty on changes
+        for w in [self.cvd_show_staff_names, self.cvd_show_section_names, self.cvd_show_clefs,
+                  self.cvd_show_time, self.cvd_show_key, self.cvd_strip_width]:
+            try:
+                if isinstance(w, QCheckBox):
+                    w.toggled.connect(self._mark_dirty)
+                else:
+                    w.valueChanged.connect(self._mark_dirty)
+            except Exception:
+                pass
+
+    def _mark_dirty(self):
+        self._dirty = True
+        if hasattr(self, 'apply_button'):
+            self.apply_button.setEnabled(True)
 
     def _set_dialog_zoom(self, zoom_level):
         self.dialog_zoom = max(0.5, min(zoom_level, 2.0))
@@ -252,8 +355,21 @@ class PreferencesDialog(QDialog):
         if hasattr(self, 'apply_button'):
             self.apply_button.setEnabled(True)
 
+    def _set_color_button(self, button, color_hex, attr_name=None):
+        try:
+            button.setStyleSheet(f"background-color: {color_hex}; color: {'white' if self.is_dark_color_hex(color_hex) else 'black'};")
+            if attr_name:
+                setattr(self, attr_name, color_hex)
+        except Exception:
+            pass
+
     def load_settings(self):
         """Load settings from QSettings"""
+        # Ensure we read the latest values that may have just been written by Page Setup
+        try:
+            self.settings.sync()
+        except Exception:
+            pass
         # General settings
         default_score_dir = "/Users/gilidor/Library/Mobile Documents/com~apple~CloudDocs/QC-Projects/ONOTE Music scores"
         self.score_dir.setText(self.settings.value("general/score_directory", default_score_dir))
@@ -287,6 +403,24 @@ class PreferencesDialog(QDialog):
         self.hide_empty_staves.setChecked(self.settings.value("layout/hide_empty_staves", False, type=bool))
         self.default_print_quality.setCurrentText(self.settings.value("layout/default_print_quality", "Normal"))
         self.default_print_resolution.setCurrentText(self.settings.value("layout/default_print_resolution", "600 DPI"))
+        
+        # If there are staged defaults (from FSO or Page Setup), reflect them in UI only
+        # Do NOT write staged values into final keys here; they will be committed on Close→Apply
+        staged_overrides = {}
+        try:
+            for k in self.settings.allKeys():
+                if isinstance(k, str) and k.startswith("staged/"):
+                    base = k[len("staged/"):]
+                    staged_overrides[base] = self.settings.value(k)
+                    print(f"PREFERENCES_LOAD: Found staged key '{k}' -> base '{base}' = {self.settings.value(k)}")
+        except Exception as e:
+            print(f"PREFERENCES_LOAD: Error loading staged overrides: {e}")
+            staged_overrides = {}
+        
+        if staged_overrides:
+            print(f"PREFERENCES_LOAD: Total staged overrides found: {len(staged_overrides)}")
+        else:
+            print("PREFERENCES_LOAD: No staged overrides found")
         
         # Layout Settings (moved from form widget)
         self.auto_justify.setChecked(self.settings.value("layout/auto_justify", True, type=bool))
@@ -401,9 +535,103 @@ class PreferencesDialog(QDialog):
         self.barline_numbers_color_value = self.settings.value("notation/barline_numbers_font_color", "#666666")
         self.barline_number_font_color.setStyleSheet(f"background-color: {self.barline_numbers_color_value}; color: {'white' if self.is_dark_color_hex(self.barline_numbers_color_value) else 'black'};")
     
-        self._dirty = False
-        if hasattr(self, 'apply_button'):
-            self.apply_button.setEnabled(False)
+        # Continuous mode toggles
+        try:
+            self.cont_show_staff_names.setChecked(self.settings.value("continuous/show_staff_names", True, type=bool))
+            self.cont_show_section_names.setChecked(self.settings.value("continuous/show_section_names", True, type=bool))
+            self.cont_show_clefs.setChecked(self.settings.value("continuous/show_clefs", True, type=bool))
+            self.cont_show_time.setChecked(self.settings.value("continuous/show_time_signature", True, type=bool))
+            self.cont_show_key.setChecked(self.settings.value("continuous/show_key_signature", True, type=bool))
+            self.cont_strip_width.setValue(int(self.settings.value("layout/continuous_left_margin", 160)))
+        except Exception:
+            pass
+
+        # Apply staged overrides to widgets (UI only)
+        try:
+            if staged_overrides:
+                # Layout overrides
+                def _set_if(key, fn):
+                    if key in staged_overrides and staged_overrides[key] is not None:
+                        try:
+                            fn(staged_overrides[key])
+                        except Exception:
+                            pass
+                # Legacy overlay keys
+                _set_if("layout/top_margin", lambda v: self.default_top_margin.setValue(float(v)))
+                _set_if("layout/bottom_margin", lambda v: self.default_bottom_margin.setValue(float(v)))
+                _set_if("layout/left_margin", lambda v: self.default_left_margin.setValue(float(v)))
+                _set_if("layout/right_margin", lambda v: self.default_right_margin.setValue(float(v)))
+                _set_if("layout/page_size", lambda v: self.default_page_size.setCurrentText(str(v)))
+                _set_if("layout/orientation", lambda v: self.default_orientation.setCurrentText(str(v)))
+                # Canonical default_* overlay keys
+                _set_if("layout/default_top_margin", lambda v: self.default_top_margin.setValue(float(v)))
+                _set_if("layout/default_bottom_margin", lambda v: self.default_bottom_margin.setValue(float(v)))
+                _set_if("layout/default_left_margin", lambda v: self.default_left_margin.setValue(float(v)))
+                _set_if("layout/default_right_margin", lambda v: self.default_right_margin.setValue(float(v)))
+                _set_if("layout/default_page_size", lambda v: self.default_page_size.setCurrentText(str(v)))
+                _set_if("layout/default_orientation", lambda v: self.default_orientation.setCurrentText(str(v)))
+                _set_if("layout/default_grand_staff_spacing", lambda v: self.default_grand_staff_spacing.setValue(int(v)))
+                # Legacy overlay for grand staff spacing
+                _set_if("layout/grand_staff_spacing", lambda v: self.default_grand_staff_spacing.setValue(int(v)))
+
+                # Notation overrides
+                _set_if("notation/staff_name_font_size", lambda v: self.staff_name_font_size.setValue(int(v)))
+                _set_if("notation/staff_name_vertical", lambda v: self.staff_name_vertical.setValue(int(v)))
+                _set_if("notation/staff_name_horizontal", lambda v: self.staff_name_horizontal.setValue(int(v)))
+                _set_if("notation/staff_name_font_color", lambda v: self._set_color_button(self.staff_name_font_color, v, attr_name="staff_names_color_value"))
+
+                _set_if("notation/section_name_font_size", lambda v: self.section_name_font_size.setValue(int(v)))
+                _set_if("notation/section_name_vertical", lambda v: self.section_name_vertical.setValue(int(v)))
+                _set_if("notation/section_name_horizontal", lambda v: self.section_name_horizontal.setValue(int(v)))
+                _set_if("notation/section_name_font_color", lambda v: self._set_color_button(self.section_name_font_color, v, attr_name="section_names_color_value"))
+
+                _set_if("notation/time_sig_font_size", lambda v: self.time_sig_font_size.setValue(int(v)))
+                _set_if("notation/time_sig_vertical", lambda v: self.time_sig_vertical.setValue(int(v)))
+                _set_if("notation/time_sig_horizontal", lambda v: self.time_sig_horizontal.setValue(int(v)))
+                _set_if("notation/time_sig_spacing", lambda v: self.time_sig_spacing.setValue(int(v)))
+                _set_if("notation/time_sig_font_color", lambda v: self._set_color_button(self.time_sig_font_color, v, attr_name="time_sig_color_value"))
+
+                _set_if("notation/key_sig_font_size", lambda v: self.key_sig_font_size.setValue(int(v)))
+                _set_if("notation/key_sig_vertical", lambda v: self.key_sig_vertical.setValue(int(v)))
+                _set_if("notation/key_sig_horizontal", lambda v: self.key_sig_horizontal.setValue(int(v)))
+                _set_if("notation/key_sig_accidental_spacing", lambda v: self.key_sig_accidental_spacing.setValue(int(v)))
+                _set_if("notation/key_sig_font_color", lambda v: self._set_color_button(self.key_sig_font_color, v, attr_name="key_sig_color_value"))
+
+                _set_if("notation/clef_font_size", lambda v: self.clef_font_size.setValue(int(v)))
+                _set_if("notation/clef_vertical", lambda v: self.clef_vertical.setValue(int(v)))
+                _set_if("notation/clef_horizontal", lambda v: self.clef_horizontal.setValue(int(v)))
+                _set_if("notation/clef_font_color", lambda v: self._set_color_button(self.clef_font_color, v, attr_name="clef_color_value"))
+
+                _set_if("notation/directions_font_size", lambda v: self.directions_font_size.setValue(int(v)))
+                _set_if("notation/directions_vertical", lambda v: self.directions_vertical.setValue(int(v)))
+                _set_if("notation/directions_horizontal", lambda v: self.directions_horizontal.setValue(int(v)))
+
+                _set_if("notation/show_measure_numbers", lambda v: self.show_measure_numbers.setChecked(bool(v) if isinstance(v, bool) else str(v).lower() in ("1","true","yes")))
+                _set_if("notation/measure_numbers_frequency", lambda v: self.measure_numbers_frequency.setCurrentText(str(v)))
+                _set_if("notation/measure_numbers_custom_interval", lambda v: self.measure_numbers_custom_interval.setValue(int(v)))
+                _set_if("notation/measure_numbers_position", lambda v: self.measure_numbers_position.setCurrentText(str(v)))
+                _set_if("notation/measure_numbers_vertical", lambda v: self.measure_numbers_vertical.setCurrentText(str(v)))
+                _set_if("notation/measure_numbers_font_size", lambda v: self.measure_numbers_font_size.setValue(int(v)))
+                _set_if("notation/measure_numbers_vertical_offset", lambda v: self.measure_numbers_vertical_offset.setValue(int(v)))
+                _set_if("notation/measure_numbers_horizontal_offset", lambda v: self.measure_numbers_horizontal_offset.setValue(int(v)))
+                _set_if("notation/measure_numbers_font_color", lambda v: self._set_color_button(self.measure_numbers_font_color, v, attr_name="measure_numbers_color_value"))
+
+                _set_if("notation/barline_numbering", lambda v: self.barline_numbering.setChecked(bool(v) if isinstance(v, bool) else str(v).lower() in ("1","true","yes")))
+                _set_if("notation/barline_number_font_size", lambda v: self.barline_number_font_size.setValue(int(v)))
+                _set_if("notation/barline_number_vertical_offset", lambda v: self.barline_number_vertical_offset.setValue(int(v)))
+                _set_if("notation/barline_number_horizontal_offset", lambda v: self.barline_number_horizontal_offset.setValue(int(v)))
+                _set_if("notation/barline_numbers_font_color", lambda v: self._set_color_button(self.barline_number_font_color, v, attr_name="barline_numbers_color_value"))
+
+                # Mark dialog dirty so Close will prompt
+                self._dirty = True
+        except Exception:
+            pass
+
+        self._dirty = False if not staged_overrides else True
+        
+        # Enable Apply button when staged values exist
+        if staged_overrides and hasattr(self, 'apply_button'):
+            self.apply_button.setEnabled(True)
     
     def save_settings(self):
         """Save settings to QSettings"""
@@ -425,6 +653,14 @@ class PreferencesDialog(QDialog):
         self.settings.setValue("layout/default_bottom_margin", self.default_bottom_margin.value())
         self.settings.setValue("layout/default_left_margin", self.default_left_margin.value())
         self.settings.setValue("layout/default_right_margin", self.default_right_margin.value())
+        # Mirror to legacy page_setup keys for compatibility with older readers
+        try:
+            self.settings.setValue("page_setup/top_margin_mm", self.default_top_margin.value())
+            self.settings.setValue("page_setup/bottom_margin_mm", self.default_bottom_margin.value())
+            self.settings.setValue("page_setup/left_margin_mm", self.default_left_margin.value())
+            self.settings.setValue("page_setup/right_margin_mm", self.default_right_margin.value())
+        except Exception:
+            pass
         # Also persist default zoom percentage selected in Page Layout tab
         try:
             if hasattr(self, 'default_zoom_spin') and self.default_zoom_spin is not None:
@@ -432,7 +668,9 @@ class PreferencesDialog(QDialog):
         except Exception:
             pass
         self.settings.setValue("layout/default_staff_spacing", self.default_staff_spacing.value())
-        self.settings.setValue("layout/default_grand_staff_spacing", self.default_grand_staff_spacing.value())
+        grand_staff_value = self.default_grand_staff_spacing.value()
+        self.settings.setValue("layout/default_grand_staff_spacing", grand_staff_value)
+        print(f"PREFERENCES_SAVE: Writing Grand Staff Spacing = {grand_staff_value}px")
         self.settings.setValue("layout/default_system_spacing", self.default_system_spacing.value())
         # Canonicalize Measures/System: prefer Page Layout tab spinner and mirror to notation key later
         canonical_mps = self.default_measures_per_system.value()
@@ -553,6 +791,19 @@ class PreferencesDialog(QDialog):
         
         # Measure numbers font color
         self.settings.setValue("notation/measure_numbers_font_color", getattr(self, 'measure_numbers_color_value', '#000000'))
+
+        # Continuous mode settings
+        # Continuous View defaults are now saved from the dedicated tab controls
+        try:
+            if hasattr(self, 'cvd_show_staff_names'):
+                self.settings.setValue("continuous/show_staff_names", self.cvd_show_staff_names.isChecked())
+                self.settings.setValue("continuous/show_section_names", self.cvd_show_section_names.isChecked())
+                self.settings.setValue("continuous/show_clefs", self.cvd_show_clefs.isChecked())
+                self.settings.setValue("continuous/show_time_signature", self.cvd_show_time.isChecked())
+                self.settings.setValue("continuous/show_key_signature", self.cvd_show_key.isChecked())
+                self.settings.setValue("layout/continuous_left_margin", self.cvd_strip_width.value())
+        except Exception:
+            pass
     
         self._dirty = False
         if hasattr(self, 'apply_button'):
@@ -560,16 +811,45 @@ class PreferencesDialog(QDialog):
         # Ensure values are written to persistent storage immediately
         try:
             self.settings.sync()
-        except Exception:
-            pass
+            # Read back to verify persistence
+            saved_grand_spacing = self.settings.value("layout/default_grand_staff_spacing", None)
+            print(f"PREFERENCES_SAVE: Read-back verification - Grand Staff Spacing = {saved_grand_spacing}px (expected {grand_staff_value}px)")
+        except Exception as e:
+            print(f"PREFERENCES_SAVE: Error during sync/read-back: {e}")
 
     def apply_settings(self):
         """Apply settings without closing the dialog - ONLY saves to QSettings for new documents"""
-        print("PREFERENCES: Saving settings to QSettings for new documents only")
+        print("PREFERENCES: Applying pending edits and promoting any staged defaults")
+        # Save pending UI edits into final keys first
         self.save_settings()
-        # Emit signal to notify that preferences have been saved (but NOT applied to current document)
+        # Promote staged values so FSO/Page Setup staged defaults are committed
+        try:
+            from src.core.settings_manager import SettingsManager
+            SettingsManager().promote_staged_settings()
+        except Exception as e:
+            print(f"PREFERENCES: Error promoting staged settings: {e}")
+        # Ensure QSettings is flushed
+        try:
+            self.settings.sync()
+        except Exception as e:
+            print(f"PREFERENCES: Error syncing settings: {e}")
+        
+        # Read-back verification for critical margin values
+        try:
+            print(f"PREFERENCES: Verifying write - top_margin readback: {self.settings.value('layout/default_top_margin', 'NOT_FOUND')}")
+            print(f"PREFERENCES: Verifying write - bottom_margin readback: {self.settings.value('layout/default_bottom_margin', 'NOT_FOUND')}")
+            print(f"PREFERENCES: Verifying write - left_margin readback: {self.settings.value('layout/default_left_margin', 'NOT_FOUND')}")
+            print(f"PREFERENCES: Verifying write - right_margin readback: {self.settings.value('layout/default_right_margin', 'NOT_FOUND')}")
+        except Exception as e:
+            print(f"PREFERENCES: Error verifying readback: {e}")
+        
+        # Clear dirty flag
+        self._dirty = False
+        if hasattr(self, 'apply_button'):
+            self.apply_button.setEnabled(False)
+        
+        # Emit signal to notify that preferences have been saved (for new documents)
         self.preferences_changed.emit({})
-        print("PREFERENCES: Settings saved to QSettings - will affect new documents only")
         
     def accept_settings(self):
         """Accept and save settings, then close dialog - ONLY saves to QSettings for new documents"""
@@ -753,6 +1033,8 @@ class PreferencesDialog(QDialog):
         
         self.default_top_margin = QDoubleSpinBox()
         self.default_top_margin.setRange(0.0, 100.0)
+        self.default_top_margin.setDecimals(2)
+        self.default_top_margin.setSingleStep(0.5)
         self.default_top_margin.setValue(20.0)
         self.default_top_margin.setSuffix(" mm")
         self.default_top_margin.setMinimumWidth(80)
@@ -761,6 +1043,8 @@ class PreferencesDialog(QDialog):
         
         self.default_bottom_margin = QDoubleSpinBox()
         self.default_bottom_margin.setRange(0.0, 100.0)
+        self.default_bottom_margin.setDecimals(2)
+        self.default_bottom_margin.setSingleStep(0.5)
         self.default_bottom_margin.setValue(20.0)
         self.default_bottom_margin.setSuffix(" mm")
         self.default_bottom_margin.setMinimumWidth(80)
@@ -769,6 +1053,8 @@ class PreferencesDialog(QDialog):
         
         self.default_left_margin = QDoubleSpinBox()
         self.default_left_margin.setRange(0.0, 100.0)
+        self.default_left_margin.setDecimals(2)
+        self.default_left_margin.setSingleStep(0.5)
         self.default_left_margin.setValue(25.0)
         self.default_left_margin.setSuffix(" mm")
         self.default_left_margin.setMinimumWidth(80)
@@ -777,6 +1063,8 @@ class PreferencesDialog(QDialog):
         
         self.default_right_margin = QDoubleSpinBox()
         self.default_right_margin.setRange(0.0, 100.0)
+        self.default_right_margin.setDecimals(2)
+        self.default_right_margin.setSingleStep(0.5)
         self.default_right_margin.setValue(25.0)
         self.default_right_margin.setSuffix(" mm")
         self.default_right_margin.setMinimumWidth(80)
@@ -998,6 +1286,7 @@ class PreferencesDialog(QDialog):
             return
         
         # Open color picker
+        # Use macOS native Colors panel for parity across dialogs
         color = QColorDialog.getColor(current_color, self, f"Choose {category.replace('_', ' ').title()} Color")
         
         if color.isValid():
@@ -1326,6 +1615,8 @@ class PreferencesDialog(QDialog):
         layout = QVBoxLayout(self.notation_tab)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
+
+        # NOTE: Continuous Mode controls moved to their own tab
         
         # Create main horizontal layout for 3 columns for better balance
         main_h_layout = QHBoxLayout()
@@ -1360,7 +1651,7 @@ class PreferencesDialog(QDialog):
         
         # Horizontal position
         self.staff_name_horizontal = QSpinBox()
-        self.staff_name_horizontal.setRange(-100, 0)
+        self.staff_name_horizontal.setRange(-100, 100)
         self.staff_name_horizontal.setValue(-50)
         self.staff_name_horizontal.setSuffix(" px")
         self.staff_name_horizontal.setMinimumWidth(80)

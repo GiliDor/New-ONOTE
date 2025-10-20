@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ONOTE: Run Dev (Music UI)",
+      "type": "shell",
+      "command": "/bin/zsh",
+      "args": ["-lc", "./onote-dev.sh"],
+      "options": {
+        "cwd": "/Users/gilidor/Projects/New-ONOTE"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      },
+      "problemMatcher": []
+    }
+  ]
+}
+
+

@@ -564,7 +564,9 @@ class ScoreRenderer:
             print(f"RENDERER: set_margins error: {e}")
         
     def load_notation_settings(self):
-        """Load notation settings with document precedence over preferences."""
+        """Load notation settings with document precedence over preferences.
+        When in continuous view, prefer notation/continuous_* keys and fall back to notation/*.
+        """
         from PyQt6.QtCore import QSettings
         
         print(f"RENDERER: load_notation_settings() called, document: {self.document}")
@@ -578,8 +580,11 @@ class ScoreRenderer:
             document_settings = self.document.settings
             print(f"RENDERER: Found document settings: {list(document_settings.keys())}")
         
-        # Helper function to get setting with precedence: document -> preferences -> default
-        def get_setting_with_precedence(key, default_value):
+        # Determine whether we are in continuous view
+        is_continuous = (getattr(self, 'view_mode', '') == 'continuous')
+
+        # Helper: fetch from doc/prefs with precedence
+        def _fetch(key, default_value):
             # First check document settings
             if key in document_settings:
                 value = document_settings[key]
@@ -590,6 +595,19 @@ class ScoreRenderer:
             pref_value = settings.value(key, default_value)
             print(f"RENDERER: Using preference setting {key} = {pref_value} (default: {default_value})")
             return pref_value
+
+        # Wrapper that tries continuous key first when applicable
+        def get_setting_with_precedence(key, default_value):
+            if is_continuous and key.startswith('notation/'):
+                cont_key = key.replace('notation/', 'notation/continuous_', 1) if '/continuous_' not in key else key
+                # If already a continuous key, use as-is
+                if '/continuous_' in key:
+                    return _fetch(key, default_value)
+                # Try continuous variant first
+                val = _fetch(cont_key, None)
+                if val is not None:
+                    return val
+            return _fetch(key, default_value)
         
         # Load settings with precedence
         self.staff_name_font_size = int(get_setting_with_precedence("notation/staff_name_font_size", 10))
@@ -670,6 +688,11 @@ class ScoreRenderer:
 
             # Guard set to avoid drawing headers (clef/key/time, names) twice per staff/system within a single frame
             self._rendered_system_headers = set()
+            # Reset per-frame shared unit widths for uniform justification across all staves
+            self._unit_width_by_system = {}
+            # Reset shared bar positions and shared first-x per system
+            self._bar_positions_by_system = {}
+            self._first_x_by_system = {}
             
             # CRITICAL FIX: Clear barline number tracking for fresh render
             self._rendered_barline_numbers = set()
@@ -962,16 +985,17 @@ class ScoreRenderer:
             # Save current font settings
             original_font = painter.font()
 
-            # Set font for measuring instrument names
-            name_font_size = 10
-            if "instrumentName" in FONT_SIZES:
-                name_font_size = FONT_SIZES["instrumentName"]
+            # Set font for measuring instrument names based on current settings (document/prefs)
+            try:
+                active_name_size = int(getattr(self, 'staff_name_font_size', 10))
+            except Exception:
+                active_name_size = 10
 
             try:
-                name_font = QFont(MUSIC_FONTS["text"], name_font_size)
+                name_font = QFont(MUSIC_FONTS["text"], active_name_size)
             except Exception as e:
                 # Fallback to a generic font if specific fonts not available
-                name_font = QFont("Arial", name_font_size)
+                name_font = QFont("Arial", active_name_size)
                 print(f"Error loading font: {e}")
 
             painter.setFont(name_font)
@@ -1015,10 +1039,16 @@ class ScoreRenderer:
 
             # Check each staff for name and abbreviation
             for staff in staves_to_check:
-                if hasattr(staff, "instrument_name") and staff.instrument_name:
-                    name_width = painter.fontMetrics().horizontalAdvance(staff.instrument_name)
+                # Consider custom display name first, then instrument_name, then abbreviation
+                display = None
+                if hasattr(staff, "custom_name") and staff.custom_name:
+                    display = staff.custom_name
+                elif hasattr(staff, "instrument_name") and staff.instrument_name:
+                    display = staff.instrument_name
+                if display:
+                    name_width = painter.fontMetrics().horizontalAdvance(display)
                     if name_width > longest_name_width:
-                        longest_name = staff.instrument_name
+                        longest_name = display
                         longest_name_width = name_width
 
                 if hasattr(staff, "instrument_abbr") and staff.instrument_abbr:
@@ -1034,11 +1064,12 @@ class ScoreRenderer:
             # For sections, we need slightly more space
             section_name_space = longest_section_name_width + part_name_padding_left + part_name_padding_right
             
-            # Calculate the maximum space needed but override for testing
-            # Temporarily force a small value to test left margin
-            max_name_space = first_system_name_space
-            # Override with a fixed small value 
-            max_name_space = 50
+            # Calculate the maximum space needed for first system names and section names
+            # Ensure a reasonable minimum for aesthetics
+            max_name_space = max(first_system_name_space, section_name_space, 80)
+            # NOTE: staff_name_horizontal_offset should NOT affect barline/measure positions
+            # It only affects the text glyph position (applied in the drawing code)
+            max_name_space = int(max_name_space)
             
             # Store values for use in rendering
             self.name_offset = max_name_space
@@ -1061,6 +1092,14 @@ class ScoreRenderer:
 
             # Restore original font
             painter.setFont(original_font)
+
+            # Invalidate shared unit widths so all systems re-justify with the new barline 0
+            try:
+                self._unit_width_by_system = {}
+                self._bar_positions_by_system = {}
+                self._first_x_by_system = {}
+            except Exception:
+                pass
                 
         except Exception as e:
             print(f"Error calculating dynamic offsets: {e}")
@@ -1148,11 +1187,40 @@ class ScoreRenderer:
             painter.setPen(original_pen)
 
     def _render_section_bracket(self, painter, section):
-        """Render the bracket for a section using SMuFL glyphs with top, middle, and bottom components."""
+        """Render the bracket for a section using SMuFL glyphs with top, middle, and bottom components.
+
+        The vertical span is computed dynamically from the section's current staves order
+        so it always covers from the first staff's top line to the last staff's bottom line
+        (e.g., Violin I → Cello in the Strings section).
+        """
         try:
-            # Calculate bracket positions - adjust to start at the top line of first staff
-            bracket_y_start = section.bracket_y_start
-            bracket_y_end = section.bracket_y_end
+            # Compute top/bottom from actual staves to respect current display order
+            try:
+                from .staff_types import GrandStaff as _GrandStaff
+            except Exception:
+                _GrandStaff = None
+
+            top_candidates = []
+            bottom_candidates = []
+            for s in getattr(section, 'staves', []) or []:
+                if _GrandStaff and isinstance(s, _GrandStaff) and hasattr(s, 'top_staff') and hasattr(s, 'bottom_staff'):
+                    top_candidates.append(float(s.top_staff.y_position))
+                    bottom_candidates.append(
+                        float(s.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                    )
+                else:
+                    top_candidates.append(float(getattr(s, 'y_position', 0.0)))
+                    bottom_candidates.append(
+                        float(getattr(s, 'y_position', 0.0) + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                    )
+
+            if top_candidates and bottom_candidates:
+                bracket_y_start = min(top_candidates)
+                bracket_y_end = max(bottom_candidates)
+            else:
+                # Fallback to precomputed values if no staves found
+                bracket_y_start = getattr(section, 'bracket_y_start', 0.0)
+                bracket_y_end = getattr(section, 'bracket_y_end', bracket_y_start)
 
             # Print debug info
             print(f"SECTION_BRACKET: Positions - top: {bracket_y_start}, bottom: {bracket_y_end}")
@@ -1196,9 +1264,8 @@ class ScoreRenderer:
                 print(f"SECTION_BRACKET: Top bracket positioned at y={bracket_y_start}")
 
                 # STEP 2: Position the bottom bracket glyph precisely at the fifth line of the bottom staff
-                # Draw the bottom part at the bottom position (exactly at y_bottom) + 1px for precise alignment
-                # Since the bottom bracket is currently between lines 4 and 5, we'll position it exactly on line 5
-                bracket_bottom_y = bracket_y_end + 5  # Add 5 pixels to position on the bottom line
+                # Draw the bottom part exactly on the bottom line (no extra offset)
+                bracket_bottom_y = bracket_y_end
                 painter.drawText(QPointF(bracket_x, bracket_bottom_y), bracket_bottom)
                 print(
                     f"SECTION_BRACKET: Bottom bracket positioned at y={bracket_bottom_y} (adjusted to align with line 5)"
@@ -1460,11 +1527,13 @@ class ScoreRenderer:
                 
                 # Update staff positions for this system
                 staff.top_staff.y_position = staff.y_position + vertical_shift
-                staff.bottom_staff.y_position = staff.top_staff.y_position + staff.top_staff.height + grand_staff_spacing
+                # Use consistent STAFF_HEIGHT instead of staff.top_staff.height which may not be set
+                staff.bottom_staff.y_position = staff.top_staff.y_position + self.STAFF_HEIGHT + grand_staff_spacing
+                print(f"🎹 GRAND_STAFF_POSITION: System {system_idx} - top={staff.top_staff.y_position:.1f}, spacing={grand_staff_spacing}px, bottom={staff.bottom_staff.y_position:.1f}, height={staff.bottom_staff.y_position - staff.top_staff.y_position:.1f}")
                 
                 # Update brace positions for this system
                 staff.brace_y_start = staff.top_staff.y_position
-                staff.brace_y_end = staff.bottom_staff.y_position + staff.bottom_staff.height
+                staff.brace_y_end = staff.bottom_staff.y_position + self.STAFF_HEIGHT
 
                 # Update instrument name y position (centered between staves)
                 staff.instrument_name_y = staff.y_position + vertical_shift + ((staff.brace_y_end - staff.brace_y_start) / 2)
@@ -1479,39 +1548,29 @@ class ScoreRenderer:
                 except Exception as e:
                     print(f"GRAND_STAFF ERROR: Brace rendering failed for system {system_idx}: {e}")
 
-                # Render part name for this system (only for first system or if needed)
+                # Render part name for this system (only on first system). Align exactly like single-staff names.
                 try:
-                    print(f"GRAND_STAFF DEBUG: system_idx={system_idx}, hasattr instrument_name={hasattr(staff, 'instrument_name')}")
-                    if hasattr(staff, 'instrument_name'):
-                        print(f"GRAND_STAFF DEBUG: staff.instrument_name='{staff.instrument_name}'")
                     if system_idx == 0 and hasattr(staff, 'instrument_name') and staff.instrument_name:
-                        from .score_layout import PartNameRenderer
-                        # FIXED: Better positioning for grand staff part names
-                        # Position further right and use proper vertical centering
-                        name_x = max(80, self.margins["left"] + self.staff_name_horizontal_offset)
-                        # Calculate center Y position between top and bottom staves
-                        if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
-                            top_y = staff.top_staff.y_position
-                            bottom_y = staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                            name_y = (top_y + bottom_y) / 2
-                        else:
-                            name_y = staff.instrument_name_y
-                        print(f"GRAND_STAFF DEBUG: About to render part name '{staff.instrument_name}' at ({name_x}, {name_y})")
-                        PartNameRenderer.render_part_name(
-                            painter,
-                            staff.instrument_name,
-                            name_x,
-                            name_y,
-                            is_grand_staff=True,
-                            document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None
-                        )
-                        print(f"GRAND_STAFF: Rendered part name '{staff.instrument_name}' for system {system_idx}")
-                    else:
-                        print(f"GRAND_STAFF DEBUG: Part name not rendered - system_idx={system_idx}, has_name={hasattr(staff, 'instrument_name')}, name_value='{getattr(staff, 'instrument_name', 'N/A')}'")
-                except Exception as e:
-                    print(f"GRAND_STAFF ERROR: Part name rendering failed for system {system_idx}: {e}")
-                    import traceback
-                    traceback.print_exc()
+                        original_pen = painter.pen()
+                        painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
+                        name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
+                        painter.setFont(name_font)
+                        display_name = staff.instrument_name
+                        # Compute right edge at barline 0 minus padding plus horizontal offset
+                        base_right = float(self.margins["left"] + self.barline_0_offset - 18)
+                        h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                        right_edge = base_right + h_off
+                        left_edge = float(self.margins.get("left", 0))
+                        # Vertical baseline centered between the two staves (brace midpoint), plus vertical offset
+                        top_y = float(staff.top_staff.y_position)
+                        bottom_end = float(staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                        center_between_staves = (top_y + bottom_end) / 2.0
+                        name_y = center_between_staves + float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
+                        rect = QRectF(left_edge, name_y - painter.fontMetrics().ascent(), max(0.0, right_edge - left_edge), painter.fontMetrics().height())
+                        painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
+                        painter.setPen(original_pen)
+                except Exception:
+                    pass
 
                 # Calculate if this is the final system
                 is_final_system = system_idx == system_info['total_systems'] - 1
@@ -1534,12 +1593,10 @@ class ScoreRenderer:
                 except Exception as e:
                     print(f"GRAND_STAFF ERROR: Measure rendering failed for system {system_idx}: {e}")
 
-            # Restore original positions
-            try:
-                staff.top_staff.y_position = top_staff_original_y
-                staff.bottom_staff.y_position = bottom_staff_original_y
-            except Exception as e:
-                print(f"GRAND_STAFF ERROR: Failed to restore positions: {e}")
+            # DO NOT restore original positions - keep the updated ones for barline rendering
+            # The y_positions must remain updated so _render_connecting_barlines can use them
+            # The positions are reset at the start of each render cycle anyway
+            print(f"GRAND_STAFF: Keeping updated positions - top={staff.top_staff.y_position}, bottom={staff.bottom_staff.y_position}")
 
         except Exception as e:
             print(f"GRAND_STAFF ERROR: General failure: {e}")
@@ -1565,11 +1622,11 @@ class ScoreRenderer:
             
             # Update staff positions for this system
             staff.top_staff.y_position = staff.y_position
-            staff.bottom_staff.y_position = staff.top_staff.y_position + staff.top_staff.height + grand_staff_spacing
+            staff.bottom_staff.y_position = staff.top_staff.y_position + self.STAFF_HEIGHT + grand_staff_spacing
             
             # Update brace positions for this system
             staff.brace_y_start = staff.top_staff.y_position
-            staff.brace_y_end = staff.bottom_staff.y_position + staff.bottom_staff.height
+            staff.brace_y_end = staff.bottom_staff.y_position + self.STAFF_HEIGHT
             
             print(f"GRAND_STAFF_SYSTEM: System {system_idx} positions - top: {staff.top_staff.y_position}, bottom: {staff.bottom_staff.y_position}")
 
@@ -1579,39 +1636,28 @@ class ScoreRenderer:
             except Exception as e:
                 print(f"GRAND_STAFF_SYSTEM ERROR: Brace rendering failed for system {system_idx}: {e}")
 
-            # Render part name for this system (only for first system)
+            # Render part name for this system (only for first system) with same alignment as single-staff
             try:
-                print(f"GRAND_STAFF_SYSTEM DEBUG: system_idx={system_idx}, hasattr instrument_name={hasattr(staff, 'instrument_name')}")
-                if hasattr(staff, 'instrument_name'):
-                    print(f"GRAND_STAFF_SYSTEM DEBUG: staff.instrument_name='{staff.instrument_name}'")
                 if system_idx == 0 and hasattr(staff, 'instrument_name') and staff.instrument_name:
-                    from .score_layout import PartNameRenderer
-                    # FIXED: Better positioning for grand staff part names
-                    # Position further right and use proper vertical centering
-                    name_x = max(80, self.margins["left"] + self.staff_name_horizontal_offset)
-                    # Calculate center Y position between top and bottom staves
-                    if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
-                        top_y = staff.top_staff.y_position
-                        bottom_y = staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
-                        name_y = (top_y + bottom_y) / 2
-                    else:
-                        name_y = staff.y_position + ((staff.brace_y_end - staff.brace_y_start) / 2)
-                    print(f"GRAND_STAFF_SYSTEM DEBUG: About to render part name '{staff.instrument_name}' at ({name_x}, {name_y})")
-                    PartNameRenderer.render_part_name(
-                        painter,
-                        staff.instrument_name,
-                        name_x,
-                        name_y,
-                        is_grand_staff=True,
-                        document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None
-                    )
-                    print(f"GRAND_STAFF_SYSTEM: Rendered part name '{staff.instrument_name}' for system {system_idx}")
-                else:
-                    print(f"GRAND_STAFF_SYSTEM DEBUG: Part name not rendered - system_idx={system_idx}, has_name={hasattr(staff, 'instrument_name')}, name_value='{getattr(staff, 'instrument_name', 'N/A')}'")
-            except Exception as e:
-                print(f"GRAND_STAFF_SYSTEM ERROR: Part name rendering failed for system {system_idx}: {e}")
-                import traceback
-                traceback.print_exc()
+                    original_pen = painter.pen()
+                    painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
+                    name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
+                    painter.setFont(name_font)
+                    display_name = staff.instrument_name
+                    base_right = float(self.margins["left"] + self.barline_0_offset - 18)
+                    h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                    right_edge = base_right + h_off
+                    left_edge = float(self.margins.get("left", 0))
+                    # Use exact midpoint between top staff top-line and bottom staff bottom-line
+                    top_y = float(staff.top_staff.y_position)
+                    bottom_end = float(staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                    center_between_staves = (top_y + bottom_end) / 2.0
+                    name_y = center_between_staves + float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
+                    rect = QRectF(left_edge, name_y - painter.fontMetrics().ascent(), max(0.0, right_edge - left_edge), painter.fontMetrics().height())
+                    painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
+                    painter.setPen(original_pen)
+            except Exception:
+                pass
 
             # Calculate if this is the final system
             is_final_system = system_idx == system_info['total_systems'] - 1
@@ -1879,14 +1925,14 @@ class ScoreRenderer:
         elements that extend beyond the nominal staff boxes when available via
         required_extra_clearance_* markers.
         """
-        # Base spacing from document or preferences
+        # Base spacing comes ONLY from the document snapshot. Do not read live QSettings.
         try:
             base = 0
             if hasattr(self.document, 'settings') and self.document.settings:
                 base = int(self.document.settings.get('layout/grand_staff_spacing', 0) or 0)
             if base <= 0:
-                from PyQt6.QtCore import QSettings
-                base = int(QSettings("ONOTE", "Preferences").value("layout/default_grand_staff_spacing", self.STAFF_LINE_SPACING * 4))
+                # Fallback to a sane default if not present in document snapshot
+                base = int(self.STAFF_LINE_SPACING * 4)
         except Exception:
             base = self.STAFF_LINE_SPACING * 4
 
@@ -1993,9 +2039,7 @@ class ScoreRenderer:
             painter.setPen(QColor(staff_name_color))
 
             # Position name using configurable offsets
-            # Calculate base position from left margin
-            base_x = self.margins["left"] + self.staff_name_horizontal_offset
-            
+            # Right-align names against barline 0 (like continuous view)
             # Measure the width of the name
             display_name = staff.instrument_name
             if hasattr(staff, "custom_name") and staff.custom_name:
@@ -2007,17 +2051,31 @@ class ScoreRenderer:
                 display_name = display_name[:max_name_length-3] + "..."
                 
             name_width = painter.fontMetrics().horizontalAdvance(display_name)
-            
-            # Use configurable horizontal offset
-            name_x = base_x
-            
+
             # Center vertically at the middle staff line with configurable vertical offset
             staff_center = float(
                 staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING
             )
             name_y = staff_center + self.staff_name_vertical_offset
 
-            painter.drawText(QPointF(name_x, name_y), display_name)
+            # Draw using a right-aligned rect from left margin up to barline 0 minus padding
+            try:
+                # Increase padding so names don't touch barline 0 and apply user horizontal offset
+                base_right = float(self.margins["left"] + self.barline_0_offset - 18)
+                h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                right_edge = base_right + h_off
+            except Exception:
+                right_edge = float(self.margins.get("left", 0) + 80)
+            left_edge = float(self.margins.get("left", 0))
+            rect = QRectF(
+                left_edge,
+                name_y - painter.fontMetrics().ascent(),
+                max(0.0, right_edge - left_edge),
+                painter.fontMetrics().height(),
+            )
+            painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
+            # Approximate baseline x used for selection: right edge minus text width
+            name_x = right_edge - name_width
             print(f"Drawing instrument name '{display_name}' at x={name_x}, y={name_y}, width={name_width}px, barline0={barline_0_x}, color={staff_name_color}")
             
             # CRITICAL FIX: Restore the original pen state after drawing staff name
@@ -2079,10 +2137,23 @@ class ScoreRenderer:
             name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
             painter.setFont(name_font)
             display_name = getattr(staff, 'instrument_name', '') or getattr(staff, 'abbr', '') or 'Part'
-            name_x = self.margins["left"] + self.staff_name_horizontal_offset
             staff_center = float(staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING)
             name_y = staff_center + self.staff_name_vertical_offset
-            painter.drawText(QPointF(name_x, name_y), display_name)
+            # Right-align against barline 0 for wrapped systems too
+            try:
+                base_right = float(self.margins["left"] + self.barline_0_offset - 18)
+                h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                right_edge = base_right + h_off
+            except Exception:
+                right_edge = float(self.margins.get("left", 0) + 80)
+            left_edge = float(self.margins.get("left", 0))
+            rect = QRectF(
+                left_edge,
+                name_y - painter.fontMetrics().ascent(),
+                max(0.0, right_edge - left_edge),
+                painter.fontMetrics().height(),
+            )
+            painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
             painter.setPen(original_pen)
         except Exception:
             pass
@@ -2826,10 +2897,35 @@ class ScoreRenderer:
         right_edge_x = self.page_width - self.margins["right"]
 
         # Calculate equal unit width for this system
-        available_width = max(0.0, right_edge_x - first_measure_barline_x)
-        unit_width = available_width / max(1, measures_per_line)
+        # Share unit width across all staves for the same system index to keep widths uniform
+        system_key = int(system_idx)
+        if hasattr(self, '_unit_width_by_system') and system_key in self._unit_width_by_system:
+            unit_width = float(self._unit_width_by_system[system_key])
+        else:
+            available_width = max(0.0, right_edge_x - first_measure_barline_x)
+            unit_width = available_width / max(1, measures_per_line)
+            try:
+                if not hasattr(self, '_unit_width_by_system'):
+                    self._unit_width_by_system = {}
+                self._unit_width_by_system[system_key] = float(unit_width)
+                # Record the first x and precompute bar positions for this system index
+                if not hasattr(self, '_first_x_by_system'):
+                    self._first_x_by_system = {}
+                self._first_x_by_system[system_key] = float(first_measure_barline_x)
+                if not hasattr(self, '_bar_positions_by_system'):
+                    self._bar_positions_by_system = {}
+                self._bar_positions_by_system[system_key] = [first_measure_barline_x + (i * unit_width) for i in range(1, measures_per_line + 1)]
+            except Exception:
+                pass
         if is_compact_single and compact_end_x is not None:
             unit_width = max(1.0, compact_end_x - first_measure_barline_x)
+            try:
+                self._unit_width_by_system[system_key] = float(unit_width)
+                # Update bar positions for compact case
+                if hasattr(self, '_bar_positions_by_system'):
+                    self._bar_positions_by_system[system_key] = [first_measure_barline_x + (i * unit_width) for i in range(1, measures_per_line + 1)]
+            except Exception:
+                pass
 
         # Get the starting measure index for this system
         start_measure_idx = system_idx * measures_per_line
@@ -2922,6 +3018,7 @@ class ScoreRenderer:
         try:
             # Determine the staff system this staff belongs to and calculate barline span
             barline_top_y, barline_bottom_y = self._calculate_barline_span_for_staff(staff, staff_y)
+            print(f"BARLINES: System {system_idx} span calculated: {barline_top_y} to {barline_bottom_y}")
 
             # Resolve measure objects for this system so barline type (e.g., 'final')
             # controls appearance even on the last bar of a system.
@@ -2944,9 +3041,20 @@ class ScoreRenderer:
             except Exception:
                 measures_for_system = []
             
+            # Determine x positions using shared bar spacing if available
+            shared_positions = []
+            try:
+                if hasattr(self, '_bar_positions_by_system') and int(system_idx) in self._bar_positions_by_system:
+                    shared_positions = self._bar_positions_by_system[int(system_idx)]
+            except Exception:
+                shared_positions = []
+
             # Draw barlines for each measure in this system
             for m_idx in range(1, num_measures_to_render + 1):
-                x = first_measure_barline_x + (m_idx * unit_width)
+                if shared_positions and len(shared_positions) >= m_idx:
+                    x = float(shared_positions[m_idx - 1])
+                else:
+                    x = first_measure_barline_x + (m_idx * unit_width)
                 
                 # Only draw if this is the first staff in the system to avoid duplicates
                 if self._is_first_staff_in_system(staff):
@@ -3012,32 +3120,46 @@ class ScoreRenderer:
         # Case 1: Grand Staff object passed in — derive span using current system y (staff_y)
         if hasattr(staff, 'is_grand_staff') and staff.is_grand_staff:
             if hasattr(staff, 'top_staff') and hasattr(staff, 'bottom_staff'):
-                # Use effective grand-staff spacing preference for the inter-staff gap
-                spacing = float(self._get_effective_grand_staff_spacing(staff))
-                top_y = float(staff_y)
-                bottom_y = top_y + self.STAFF_HEIGHT + spacing + self.STAFF_HEIGHT
-                # Clamp 1px to avoid any visual overrun on last/only system
-                bottom_y -= 1.0
-                print(f"BARLINES: Grand staff barline span (from grand): {top_y} to {bottom_y}")
-                return top_y, bottom_y
+                # Exact spec: start at top line of RH staff, end at bottom line of LH staff
+                try:
+                    top_line_y = float(staff.top_staff.y_position)
+                    bottom_line_y = float(staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                    # Small clamp to avoid overrun
+                    bottom_line_y -= 1.0
+                    print(f"BARLINES: Grand staff barline span (from grand): {top_line_y} to {bottom_line_y}")
+                    return top_line_y, bottom_line_y
+                except Exception:
+                    # Fallback to previous spacing computation
+                    spacing = float(self._get_effective_grand_staff_spacing(staff))
+                    top_y = float(staff_y)
+                    bottom_y = top_y + self.STAFF_HEIGHT + spacing + self.STAFF_HEIGHT - 1.0
+                    return top_y, bottom_y
         
         # Case 1b: Check if this staff is part of a grand staff (when top_staff is passed instead)
         grand_staff = self._find_grand_staff_containing(staff)
         if grand_staff and hasattr(grand_staff, 'top_staff') and hasattr(grand_staff, 'bottom_staff'):
-            # Compute span relative to whichever child we are rendering using preference spacing
-            spacing = float(self._get_effective_grand_staff_spacing(grand_staff))
-            if staff is grand_staff.top_staff:
-                top_y = float(staff_y)
-            elif staff is grand_staff.bottom_staff:
-                # If called with bottom staff, move up by staff_height + spacing + staff_height to find top baseline
-                top_y = float(staff_y) - (self.STAFF_HEIGHT + spacing)
-            else:
-                # Fallback: assume staff_y is already at the top baseline for this system
-                top_y = float(staff_y)
-            bottom_y = top_y + self.STAFF_HEIGHT + spacing + self.STAFF_HEIGHT
-            bottom_y -= 1.0
-            print(f"BARLINES: Grand staff barline span (via child): {top_y} to {bottom_y}")
-            return top_y, bottom_y
+            # Compute span relative to whichever child we are rendering, using actual extents
+            try:
+                if staff is grand_staff.top_staff:
+                    top_line_y = float(staff.y_position)
+                elif staff is grand_staff.bottom_staff:
+                    # If called for bottom staff, derive top from sibling’s y_position
+                    top_line_y = float(grand_staff.top_staff.y_position)
+                else:
+                    top_line_y = float(grand_staff.top_staff.y_position)
+                bottom_line_y = float(grand_staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                bottom_line_y -= 1.0
+                print(f"BARLINES: Grand staff barline span (via child): {top_line_y} to {bottom_line_y}")
+                return top_line_y, bottom_line_y
+            except Exception:
+                # Fallback to spacing-based estimate
+                spacing = float(self._get_effective_grand_staff_spacing(grand_staff))
+                if staff is grand_staff.bottom_staff:
+                    top_y = float(staff_y) - (self.STAFF_HEIGHT + spacing)
+                else:
+                    top_y = float(staff_y)
+                bottom_y = top_y + self.STAFF_HEIGHT + spacing + self.STAFF_HEIGHT - 1.0
+                return top_y, bottom_y
         
         # Case 2: Staff in a section - span the entire section
         staff_section = getattr(staff, 'section', None)
@@ -3742,9 +3864,11 @@ class ScoreRenderer:
                     top_y = g_top.y_position + vertical_shift
                     bottom_y = g_bottom.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
                 elif hasattr(group, 'is_grand_staff') and getattr(group, 'is_grand_staff', False) and hasattr(group, 'top_staff') and hasattr(group, 'bottom_staff'):
-                    # Use exact baselines for grand staff
+                    # Use exact baselines for grand staff - read current spacing dynamically
+                    current_spacing = self._get_effective_grand_staff_spacing(group)
                     top_y = float(group.top_staff.y_position) + vertical_shift
                     bottom_y = float(group.bottom_staff.y_position) + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
+                    print(f"🎯 CONNECTING_BARLINES: Grand staff sys={sys_idx} - top_staff.y={group.top_staff.y_position}, bottom_staff.y={group.bottom_staff.y_position}, spacing={current_spacing}px, calculated_bottom={bottom_y}")
                 else:
                     top_y = group.y_position + vertical_shift
                     bottom_y = group.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING) + vertical_shift
@@ -4318,8 +4442,10 @@ class ScoreRenderer:
                     # Grand staff: span both staves
                     top_y = element.top_staff.y_position
                     bottom_y = element.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
+                    # Get current spacing for logging
+                    current_spacing = self._get_effective_grand_staff_spacing(element)
                     self._draw_single_barline(painter, barline_x, barline_type, top_y, bottom_y, measure)
-                    print(f"BARLINES: Drew {barline_type} barline across GRAND STAFF at x={barline_x} (y={top_y}→{bottom_y})")
+                    print(f"📏 BARLINE_DRAW: {barline_type} barline x={barline_x:.1f} - top={top_y:.1f}, bottom={bottom_y:.1f}, span={bottom_y-top_y:.1f}px (spacing={current_spacing}px)")
                 else:
                     # Single staff
                     top_y = element.y_position
@@ -4860,6 +4986,12 @@ class ScoreRenderer:
         except Exception:
             self._selected_measure_numbers = set()
 
+    def get_selected_measure_numbers(self) -> list[int]:
+        try:
+            return sorted(int(n) for n in getattr(self, '_selected_measure_numbers', set()))
+        except Exception:
+            return []
+
     # Utility
     def _is_selected_barline_x(self, x: float, tolerance: float = 3.0) -> bool:
         """Return True if *x* matches any selected barline within tolerance."""
@@ -4924,9 +5056,14 @@ class ScoreRenderer:
             # Otherwise compute dynamically from longest part/section name + symbol block width.
             from PyQt6.QtGui import QFont, QFontMetrics
             try:
-                from PyQt6.QtCore import QSettings
-                settings = QSettings("ONOTE", "Preferences")
-                custom_left = settings.value("layout/continuous_left_margin")
+                # Document-scoped setting takes precedence; fallback to Preferences
+                custom_left = None
+                if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                    custom_left = self.document.settings.get('layout/continuous_left_margin', None)
+                if custom_left is None:
+                    from PyQt6.QtCore import QSettings
+                    settings = QSettings("ONOTE", "Preferences")
+                    custom_left = settings.value("layout/continuous_left_margin")
             except Exception:
                 custom_left = None
 
@@ -5024,61 +5161,105 @@ class ScoreRenderer:
                  except Exception:
                      pass
 
+            # Define fixed-strip barline 0 X inside the strip so brace/bracket sit to its left
+            strip_bar0_x = 12.0  # px from strip's left edge
+
             # Draw FIXED column (names + clef/time/key + braces) independent of offset
             def draw_fixed_column(row_y: float, name: str | None = None, is_grand: bool = False, bottom_row_y: float | None = None, section_name: str | None = None):
-                # Name above part in continuous mode
+                # Name drawing is handled once per part below, centered vertically.
+                # Keep only section label and initial symbols in the fixed strip here.
                 try:
-                    if show_names and hasattr(self, 'document') and hasattr(self.document, 'layout') and getattr(self.document.layout, 'show_staff_names', True):
-                        label = name if name is not None else getattr(self, 'current_staff_name', '')
-                        if label:
-                            painter.setPen(QPen(QColor('#0e4ba0')))
-                            # Right align 20px from strip edge
-                            text_metrics = painter.fontMetrics()
-                            label_w = text_metrics.horizontalAdvance(label)
-                            name_x = max(0.0, left_strip_width - 20 - label_w)
-                            painter.drawText(QPointF(name_x, row_y - 18), label)
+                    pass
                 except Exception:
                     pass
                 # Optional: section name on the left in orange, aligned with this staff block
                 try:
                     if show_sections and section_name:
+                        from PyQt6.QtCore import QRectF
+                        # Load continuous section-name settings (doc first, then prefs)
+                        font_size = 12
+                        v_off = -25
+                        h_off = -60
+                        try:
+                            if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                                font_size = int(self.document.settings.get('notation/continuous_section_name_font_size', font_size))
+                                v_off = int(self.document.settings.get('notation/continuous_section_name_vertical', v_off))
+                                h_off = int(self.document.settings.get('notation/continuous_section_name_horizontal', h_off))
+                            else:
+                                from PyQt6.QtCore import QSettings
+                                s = QSettings('ONOTE', 'Preferences')
+                                font_size = int(s.value('notation/continuous_section_name_font_size', font_size))
+                                v_off = int(s.value('notation/continuous_section_name_vertical', v_off))
+                                h_off = int(s.value('notation/continuous_section_name_horizontal', h_off))
+                        except Exception:
+                            pass
+                        # Center vertically on the first staff row of the section
+                        y_center = float(row_y + ((self.STAFF_LINE_COUNT - 1) / 2.0) * self.STAFF_LINE_SPACING)
+                        painter.save()
                         painter.setPen(QPen(QColor('#ff8c00')))
-                        painter.drawText(QPointF(6, row_y - 18), section_name)
+                        try:
+                            from PyQt6.QtGui import QFont
+                            f = QFont()
+                            f.setPointSize(int(font_size))
+                            painter.setFont(f)
+                        except Exception:
+                            pass
+                        fm = painter.fontMetrics()
+                        rect_h = fm.height()
+                        # Apply horizontal offset relative to strip inner margin (6 px)
+                        left_edge = 6.0 + float(h_off)
+                        safe_left = max(0.0, left_edge)
+                        rect = QRectF(safe_left, y_center - rect_h / 2.0 + float(v_off), max(0.0, left_strip_width - safe_left - 6.0), rect_h)
+                        painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
+                        painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, section_name)
+                        painter.restore()
                 except Exception:
                     pass
-                # Clef/time/key block anchored to fixed strip right edge
+                # Clef/time/key block anchored to fixed strip right edge, using page-view renderers
                 try:
-                    if (show_clefs or show_time or show_key) and hasattr(self, 'render_initial_symbols_for_staff'):
-                        x_fixed = left_strip_width - symbol_block_w
-                        # Render components conditionally
-                        if show_clefs:
-                            self._render_clef(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
-                            if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
-                                self._render_clef(painter, _staff.bottom_staff, is_first_system=True)
-                        if show_key:
-                            self._render_key_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
-                            if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
-                                self._render_key_signature(painter, _staff.bottom_staff, is_first_system=True)
-                        if show_time:
-                            self._render_time_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
-                            if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
-                                self._render_time_signature(painter, _staff.bottom_staff, is_first_system=True)
+                    if (show_clefs or show_time or show_key):
+                        from PyQt6.QtCore import QRectF
+                        painter.save()
+                        painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
+                        # Temporarily anchor barline 0 inside the strip at a stable inner offset
+                        bar0_x = float(strip_bar0_x)
+                        previous_left_margin = None
+                        try:
+                            previous_left_margin = float(self.margins.get('left', 0.0)) if hasattr(self, 'margins') else None
+                            if hasattr(self, 'margins'):
+                                self.margins['left'] = bar0_x
+                        except Exception:
+                            pass
+                        try:
+                            if show_clefs:
+                                self._render_clef(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
+                                if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
+                                    self._render_clef(painter, _staff.bottom_staff, is_first_system=True)
+                            if show_key:
+                                self._render_key_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
+                                if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
+                                    self._render_key_signature(painter, _staff.bottom_staff, is_first_system=True)
+                            if show_time:
+                                self._render_time_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
+                                if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
+                                    self._render_time_signature(painter, _staff.bottom_staff, is_first_system=True)
+                        finally:
+                            if previous_left_margin is not None and hasattr(self, 'margins'):
+                                self.margins['left'] = previous_left_margin
+                            painter.restore()
                 except Exception:
                     pass
                 # Braces move with the scrolled staff, not fixed column – so skip here
 
-            # Shade the fixed strip subtly to distinguish it
+            # Draw staff lines first; shade the fixed strip afterwards so lines show under it
+            strip_rect = None
             try:
                 from PyQt6.QtCore import QRectF
-                painter.save()
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QColor(230, 233, 238, 90))
-                painter.drawRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
-                painter.restore()
+                strip_rect = QRectF(0, 0, left_strip_width, lane_rect.height())
             except Exception:
-                pass
+                strip_rect = None
 
-            # Draw each staff row scrollable lines
+            # Draw each staff row scrollable lines (staff lines should remain visible under the strip)
             def draw_staff_row(row_y: float):
                 painter.setPen(QPen(QColor(0, 0, 0), 1))
                 for i in range(self.STAFF_LINE_COUNT):
@@ -5109,10 +5290,40 @@ class ScoreRenderer:
                     if _section is not None and section_first_index.get(_section, -1) == row_index:
                         section_name_for_row = getattr(_section, 'name', None)
                     draw_fixed_column(top_y, name, True, bottom_y, section_name_for_row)
+                    # Draw grand-staff name once, centered between treble and bass staves
+                    try:
+                        from PyQt6.QtCore import QRectF
+                        painter.save()
+                        painter.setPen(QPen(QColor('#0e4ba0')))
+                        fm = painter.fontMetrics()
+                        # Compute vertical center between top staff top-line and bottom staff bottom-line
+                        bottom_line_y = float(bottom_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
+                        y_center = float((top_y + bottom_line_y) / 2.0)
+                        # Prefer document-scoped continuous grand-staff vertical offset
+                        try:
+                            v_off = 0.0
+                            if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                                if 'notation/continuous_grand_staff_name_vertical' in self.document.settings:
+                                    v_off = float(self.document.settings.get('notation/continuous_grand_staff_name_vertical') or 0)
+                                elif 'notation/continuous_staff_name_vertical' in self.document.settings:
+                                    v_off = float(self.document.settings.get('notation/continuous_staff_name_vertical') or 0)
+                            else:
+                                v_off = float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
+                        except Exception:
+                            v_off = float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
+                        h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                        right_edge = float(left_strip_width - 18) + h_off
+                        rect_height = fm.height()
+                        rect = QRectF(0.0, y_center - rect_height / 2.0 + v_off, max(0.0, right_edge), rect_height)
+                        painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
+                        painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, name)
+                        painter.restore()
+                    except Exception:
+                        pass
                     # Scrollable rows
                     draw_staff_row(top_y)
                     draw_staff_row(bottom_y)
-                    # Draw brace in scrollable area using the exact same sizing method as page view
+                    # Draw brace fixed inside the strip using the exact same sizing method as page view
                     try:
                         # Use the same constants and vertical extents as _render_brace (page view)
                         try:
@@ -5122,8 +5333,8 @@ class ScoreRenderer:
                             brace_inset = 6.0
                             extension = 0.0
 
-                        # In continuous mode, barline 0 is at left_x; place brace just to its left
-                        brace_x = max(0.0, left_x - brace_inset)
+                        # In continuous mode, barline 0 is fixed inside the strip; place brace just to its left
+                        brace_x = max(0.0, float(strip_bar0_x) - brace_inset)
 
                         # Mirror page-view vertical calculation:
                         # top two lines above the treble top line, bottom at bass bottom line + tiny extension
@@ -5137,6 +5348,7 @@ class ScoreRenderer:
 
                         # Use the same font scaling method as page view (0.85 factor) and the same baseline reference
                         painter.save()
+                        painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
                         painter.setPen(QPen(Qt.GlobalColor.black, 1, Qt.PenStyle.SolidLine))
                         brace_font = QFont("Bravura")
                         brace_font.setPointSizeF(brace_height * 0.85)
@@ -5151,19 +5363,29 @@ class ScoreRenderer:
                         top_system_y = top_y
                     if bottom_system_y is None or bot_span > bottom_system_y:
                         bottom_system_y = bot_span
+                    painter.save()
+                    painter.setClipRect(QRectF(left_strip_width, 0, max(0.0, lane_rect.width() - left_strip_width), lane_rect.height()))
                     for m in measures:
                         x = float(getattr(m, 'end_x', left_x)) - offset_x
                         bar_type = getattr(m, 'barline_type', 'single')
                         is_sel = bool(getattr(self, '_selected_measure_numbers', None) and getattr(m, 'measure_number', None) in self._selected_measure_numbers)
                         color = QColor(255, 165, 0) if is_sel else QColor(0, 0, 0)
+                        # Ensure pixel-perfect vertical span from treble top line to bass bottom line
+                        y1 = float(round(top_span))
+                        y2 = float(round(bot_span))
+                        if x < left_strip_width:
+                            continue
                         if bar_type == 'final':
-                            painter.setPen(QPen(color, 1))
-                            painter.drawLine(QLineF(x - 6, top_span, x - 6, bot_span))
-                            painter.setPen(QPen(color, 4))
-                            painter.drawLine(QLineF(x, top_span, x, bot_span))
+                            pen_thin = QPen(color, 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap)
+                            pen_thick = QPen(color, 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap)
+                            painter.setPen(pen_thin)
+                            painter.drawLine(QLineF(x - 6, y1, x - 6, y2))
+                            painter.setPen(pen_thick)
+                            painter.drawLine(QLineF(x, y1, x, y2))
                         else:
-                            painter.setPen(QPen(color, 1))
-                            painter.drawLine(QLineF(x, top_span, x, bot_span))
+                            painter.setPen(QPen(color, 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
+                            painter.drawLine(QLineF(x, y1, x, y2))
+                    painter.restore()
                     if is_first_row:
                         first_row_top = top_y
                         is_first_row = False
@@ -5175,25 +5397,50 @@ class ScoreRenderer:
                         section_name_for_row = getattr(_section, 'name', None)
                     draw_fixed_column(row_y, name, False, None, section_name_for_row)
                     draw_staff_row(row_y)
+                    # Draw single-staff name centered on its 3rd line
+                    try:
+                        from PyQt6.QtCore import QRectF
+                        if show_names:
+                            painter.save()
+                            painter.setPen(QPen(QColor('#0e4ba0')))
+                            fm = painter.fontMetrics()
+                            y_center = float(row_y + ((self.STAFF_LINE_COUNT - 1) / 2.0) * self.STAFF_LINE_SPACING)
+                            v_off = float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
+                            h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                            right_edge = float(left_strip_width - 18) + h_off
+                            rect_height = fm.height()
+                            rect = QRectF(0.0, y_center - rect_height / 2.0 + v_off, max(0.0, right_edge), rect_height)
+                            painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
+                            painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, name)
+                            painter.restore()
+                    except Exception:
+                        pass
                     top_y = row_y
                     bot_y = row_y + (self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING
                     if top_system_y is None or top_y < top_system_y:
                         top_system_y = top_y
                     if bottom_system_y is None or bot_y > bottom_system_y:
                         bottom_system_y = bot_y
+                    painter.save()
+                    painter.setClipRect(QRectF(left_strip_width, 0, max(0.0, lane_rect.width() - left_strip_width), lane_rect.height()))
                     for m in measures:
                         x = float(getattr(m, 'end_x', left_x)) - offset_x
                         bar_type = getattr(m, 'barline_type', 'single')
                         is_sel = bool(getattr(self, '_selected_measure_numbers', None) and getattr(m, 'measure_number', None) in self._selected_measure_numbers)
                         color = QColor(255, 165, 0) if is_sel else QColor(0, 0, 0)
+                        y1 = float(round(top_y))
+                        y2 = float(round(bot_y))
+                        if x < left_strip_width:
+                            continue
                         if bar_type == 'final':
-                            painter.setPen(QPen(color, 1))
-                            painter.drawLine(QLineF(x - 6, top_y, x - 6, bot_y))
-                            painter.setPen(QPen(color, 4))
-                            painter.drawLine(QLineF(x, top_y, x, bot_y))
+                            painter.setPen(QPen(color, 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
+                            painter.drawLine(QLineF(x - 6, y1, x - 6, y2))
+                            painter.setPen(QPen(color, 4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
+                            painter.drawLine(QLineF(x, y1, x, y2))
                         else:
-                            painter.setPen(QPen(color, 1))
-                            painter.drawLine(QLineF(x, top_y, x, bot_y))
+                            painter.setPen(QPen(color, 1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
+                            painter.drawLine(QLineF(x, y1, x, y2))
+                    painter.restore()
                     if is_first_row:
                         first_row_top = row_y
                         is_first_row = False
@@ -5206,23 +5453,34 @@ class ScoreRenderer:
                             continue
                         first_idx = section_first_index.get(sec)
                         last_idx = section_last_index.get(sec, first_idx)
-                        # Compute top and bottom y positions for bracket span
-                        top_y = base_y + first_idx * staff_gap
-                        # Determine bottom row start for last index (grand staff consumes two rows visually)
+                        # Compute top and bottom y positions for bracket span using actual staff objects
+                        first_staff, _ = rows[first_idx]
                         last_staff, _ = rows[last_idx]
-                        if hasattr(last_staff, 'top_staff') and hasattr(last_staff, 'bottom_staff'):
-                            bottom_row_y = base_y + last_idx * staff_gap + staff_gap
-                        else:
+                        # Top y: if grand staff, use its top_staff y_position; otherwise staff y_position
+                        try:
+                            if hasattr(first_staff, 'top_staff') and hasattr(first_staff.top_staff, 'y_position'):
+                                top_y = float(getattr(first_staff.top_staff, 'y_position'))
+                            else:
+                                top_y = float(getattr(first_staff, 'y_position', base_y + first_idx * staff_gap))
+                        except Exception:
+                            top_y = base_y + first_idx * staff_gap
+                        # Bottom start y: if grand staff, use bottom_staff y_position; otherwise staff y_position
+                        try:
+                            if hasattr(last_staff, 'bottom_staff') and hasattr(last_staff.bottom_staff, 'y_position'):
+                                bottom_row_y = float(getattr(last_staff.bottom_staff, 'y_position'))
+                            else:
+                                bottom_row_y = float(getattr(last_staff, 'y_position', base_y + last_idx * staff_gap))
+                        except Exception:
                             bottom_row_y = base_y + last_idx * staff_gap
                         top_line_y = top_y
                         bottom_line_y = bottom_row_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING)
 
-                        # X position just left of barline 0
+                        # X position just left of fixed barline 0 inside strip
                         try:
                             bracket_inset = float(self.BRACKET_CONSTANTS.get('inset', 10.0))
                         except Exception:
                             bracket_inset = 10.0
-                        bracket_x = max(0.0, left_x - bracket_inset)
+                        bracket_x = max(0.0, float(strip_bar0_x) - bracket_inset)
 
                         painter.save()
                         try:
@@ -5233,8 +5491,10 @@ class ScoreRenderer:
                             bracket_font.setPointSizeF(24.0)
                             painter.setFont(bracket_font)
                             # Draw caps
+                            # Ensure bracket starts at the very first staff of the section
+                            painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
                             painter.drawText(QPointF(bracket_x, top_line_y), bracket_top)
-                            bottom_cap_y = bottom_line_y + 5
+                            bottom_cap_y = bottom_line_y
                             painter.drawText(QPointF(bracket_x, bottom_cap_y), bracket_bottom)
                             # Connect with vertical line
                             painter.save()
@@ -5246,32 +5506,92 @@ class ScoreRenderer:
             except Exception:
                 pass
 
-            # Overlay: measure and barline numbers on top staff only
+            # Finally draw the translucent fixed strip overlay on top of staff lines
+            try:
+                if strip_rect is not None:
+                    painter.save()
+                    painter.setPen(Qt.PenStyle.NoPen)
+                    painter.setBrush(QColor(230, 233, 238, 90))
+                    painter.drawRect(strip_rect)
+                    painter.restore()
+            except Exception:
+                pass
+
+            # Overlay: measure and barline numbers on top staff only (continuous settings)
             try:
                 if measures and first_row_top is not None:
-                    measure_color = QColor('#e8161a')
-                    barline_color = QColor('#229c00')
+                    # Load toggles and offsets for continuous view
+                    show_measure_numbers = True
+                    show_barline_numbers = False
+                    mn_size = 10; mn_voff = 17; mn_hoff = 3
+                    bn_size = 8; bn_voff = -3; bn_hoff = -3
+                    try:
+                        if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                            doc = self.document.settings
+                            show_measure_numbers = bool(doc.get('notation/continuous_show_measure_numbers', True))
+                            show_barline_numbers = bool(doc.get('notation/continuous_show_barline_numbers', False))
+                            mn_size = int(doc.get('notation/continuous_measure_numbers_font_size', mn_size))
+                            mn_voff = int(doc.get('notation/continuous_measure_numbers_vertical_offset', mn_voff))
+                            mn_hoff = int(doc.get('notation/continuous_measure_numbers_horizontal_offset', mn_hoff))
+                            bn_size = int(doc.get('notation/continuous_barline_number_font_size', bn_size))
+                            bn_voff = int(doc.get('notation/continuous_barline_number_vertical_offset', bn_voff))
+                            bn_hoff = int(doc.get('notation/continuous_barline_number_horizontal_offset', bn_hoff))
+                        else:
+                            from PyQt6.QtCore import QSettings
+                            s = QSettings('ONOTE', 'Preferences')
+                            show_measure_numbers = s.value('notation/continuous_show_measure_numbers', True, type=bool)
+                            show_barline_numbers = s.value('notation/continuous_show_barline_numbers', False, type=bool)
+                            mn_size = int(s.value('notation/continuous_measure_numbers_font_size', mn_size))
+                            mn_voff = int(s.value('notation/continuous_measure_numbers_vertical_offset', mn_voff))
+                            mn_hoff = int(s.value('notation/continuous_measure_numbers_horizontal_offset', mn_hoff))
+                            bn_size = int(s.value('notation/continuous_barline_number_font_size', bn_size))
+                            bn_voff = int(s.value('notation/continuous_barline_number_vertical_offset', bn_voff))
+                            bn_hoff = int(s.value('notation/continuous_barline_number_horizontal_offset', bn_hoff))
+                    except Exception:
+                        pass
+
                     for m in measures:
                         start_x = float(getattr(m, 'x_position', getattr(m, 'start_x', left_x))) - offset_x
                         end_x = float(getattr(m, 'end_x', left_x)) - offset_x
                         center_x = (start_x + end_x) / 2.0
                         num = int(getattr(m, 'measure_number', 0) or 0)
-                        if num > 0:
-                            painter.setPen(QPen(measure_color))
-                            painter.drawText(QPointF(center_x - 3, first_row_top - 13), str(num))
-                            painter.setPen(QPen(barline_color))
-                            painter.drawText(QPointF(end_x - 3, first_row_top - 13), str(num))
+                        if num <= 0:
+                            continue
+                        if show_measure_numbers:
+                            try:
+                                from PyQt6.QtGui import QFont
+                                painter.save()
+                                painter.setPen(QPen(QColor('#e8161a')))
+                                f = QFont(); f.setPointSize(int(mn_size)); painter.setFont(f)
+                                painter.drawText(QPointF(center_x + mn_hoff, first_row_top + mn_voff), str(num))
+                                painter.restore()
+                            except Exception:
+                                pass
+                        if show_barline_numbers:
+                            try:
+                                from PyQt6.QtGui import QFont
+                                painter.save()
+                                painter.setPen(QPen(QColor('#229c00')))
+                                f = QFont(); f.setPointSize(int(bn_size)); painter.setFont(f)
+                                painter.drawText(QPointF(end_x + bn_hoff, first_row_top + bn_voff), str(num))
+                                painter.restore()
+                            except Exception:
+                                pass
             except Exception as e:
                 print(f"CONTINUOUS_NUMBERS: error {e}")
 
-            # Global barline 0 spanning all parts (scrolls with content)
+            # Global barline 0 spanning all parts (fixed in strip)
             try:
                 if top_system_y is not None and bottom_system_y is not None:
-                    x0 = left_x  # start of notation area
+                    # Fixed at inner offset from strip's left edge
+                    x0 = float(strip_bar0_x)
                     # Match page view thickness using constants
                     normal_thickness = float(self.BARLINE_CONSTANTS["normal"]["thickness"]) if hasattr(self, 'BARLINE_CONSTANTS') else 2.0
-                    painter.setPen(QPen(QColor(0, 0, 0), normal_thickness))
+                    painter.save()
+                    painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
+                    painter.setPen(QPen(QColor(0, 0, 0), normal_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
                     painter.drawLine(QLineF(x0, top_system_y, x0, bottom_system_y))
+                    painter.restore()
             except Exception:
                 pass
         except Exception as e:

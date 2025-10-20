@@ -8,7 +8,7 @@ Settings Hierarchy:
 3. Dialog overrides - Temporary overrides via Full Score Options dialog
 """
 
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QSettings, QObject, pyqtSignal
 import os
 from typing import Any, Dict, Optional
 
@@ -27,7 +27,7 @@ class SettingsManager:
         if not self._initialized:
             self.settings = QSettings("ONOTE", "Preferences")
             self._initialized = True
-    
+
     # SETTINGS PRECEDENCE SYSTEM
     
     def get_setting_with_precedence(self, key: str, default_value: Any = None, 
@@ -130,6 +130,53 @@ class SettingsManager:
     def get_default_right_margin(self):
         """Get the default right margin"""
         return float(self.settings.value("layout/default_right_margin", 25.0))
+
+    # -----------
+    # Mutators
+    # -----------
+
+    def apply_page_defaults(
+        self,
+        *,
+        top_mm: float,
+        bottom_mm: float,
+        left_mm: float,
+        right_mm: float,
+        page_size_label: str,
+        orientation: str,
+        units: str,
+    ) -> None:
+        """Persist page defaults to QSettings and broadcast update to listeners.
+
+        This method is the single writer for defaults modified by Page Setup.
+        """
+        # Persist values
+        self.settings.setValue("layout/default_top_margin", float(top_mm))
+        self.settings.setValue("layout/default_bottom_margin", float(bottom_mm))
+        self.settings.setValue("layout/default_left_margin", float(left_mm))
+        self.settings.setValue("layout/default_right_margin", float(right_mm))
+        self.settings.setValue("layout/default_page_size", page_size_label)
+        self.settings.setValue("layout/default_orientation", orientation)
+        self.settings.setValue("layout/default_units", units)
+        # Force flush
+        self.settings.sync()
+        # Notify any open dialogs to refresh their UI via a lightweight local bus
+        try:
+            # Lazy import to avoid circulars
+            from src.core.settings_signal_bus import preferences_bus
+            preferences_bus.preferences_updated.emit(
+                {
+                    "layout/default_top_margin": float(top_mm),
+                    "layout/default_bottom_margin": float(bottom_mm),
+                    "layout/default_left_margin": float(left_mm),
+                    "layout/default_right_margin": float(right_mm),
+                    "layout/default_page_size": page_size_label,
+                    "layout/default_orientation": orientation,
+                    "layout/default_units": units,
+                }
+            )
+        except Exception:
+            pass
     
     def get_default_staff_spacing(self):
         """Get the default staff spacing"""
@@ -406,6 +453,98 @@ class SettingsManager:
     def sync(self):
         """Sync settings to disk"""
         self.settings.sync()
+
+    # ---------------------------
+    # Staged defaults management
+    # ---------------------------
+
+    def has_staged_values(self) -> bool:
+        """Return True if any staged/* keys exist."""
+        try:
+            for k in self.settings.allKeys():
+                if isinstance(k, str) and k.startswith("staged/"):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def has_staged_values_with_prefix(self, prefix: str) -> bool:
+        """Return True if staged values exist under a given namespace prefix (e.g., 'layout/' or 'notation/')."""
+        try:
+            look_for = f"staged/{prefix}"
+            for k in self.settings.allKeys():
+                if isinstance(k, str) and k.startswith(look_for):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def clear_staged_values(self) -> None:
+        """Remove all staged/* keys and sync."""
+        try:
+            for k in list(self.settings.allKeys()):
+                if isinstance(k, str) and k.startswith("staged/"):
+                    self.settings.remove(k)
+            self.settings.sync()
+        except Exception:
+            pass
+
+    def stage_page_defaults(self, values: Dict[str, Any]) -> None:
+        """Stage page default values under staged/layout/* keys."""
+        for key, value in values.items():
+            self.settings.setValue(f"staged/layout/{key}", value)
+        self.settings.sync()
+
+    def promote_staged_settings(self) -> None:
+        """Promote staged settings to their final keys, then clear staged keys.
+
+        - staged/layout/* -> layout/default_*
+        - staged/notation/* -> notation/*
+        """
+        try:
+            # Collect staged keys first to avoid mutating while iterating
+            staged_items: Dict[str, Any] = {}
+            for k in self.settings.allKeys():
+                if isinstance(k, str) and k.startswith("staged/"):
+                    staged_items[k] = self.settings.value(k)
+
+            # Promote values according to namespace
+            for staged_key, value in staged_items.items():
+                # Remove 'staged/' prefix
+                bare_key = staged_key[len("staged/") :]
+                if bare_key.startswith("layout/"):
+                    # Map to layout/default_* namespace for page defaults
+                    suffix = bare_key[len("layout/") :]
+                    final_key = f"layout/default_{suffix}" if not suffix.startswith("default_") else f"layout/{suffix}"
+                    self.settings.setValue(final_key, value)
+                    # Also keep legacy non-default_* keys in sync for UI that reads them
+                    if not suffix.startswith("default_"):
+                        self.settings.setValue(f"layout/{suffix}", value)
+                elif bare_key.startswith("notation/"):
+                    # Notation staged values map 1:1 into notation/*
+                    final_key = bare_key
+                    self.settings.setValue(final_key, value)
+                else:
+                    # Fallback: write without staged/
+                    self.settings.setValue(bare_key, value)
+
+            # Clear all staged keys after promotion
+            for staged_key in staged_items.keys():
+                self.settings.remove(staged_key)
+
+            self.settings.sync()
+            # Notify listeners that preferences changed
+            try:
+                from src.core.settings_signal_bus import preferences_bus
+                preferences_bus.preferences_updated.emit({"source": "promote_staged"})
+            except Exception:
+                pass
+        except Exception:
+            # On any failure, try to at least sync
+            try:
+                self.settings.sync()
+            except Exception:
+                pass
 
     def _get_default_settings(self):
         """Get default settings values"""

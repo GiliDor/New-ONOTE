@@ -3,6 +3,18 @@
   "configurations": [
     {
       "name": "ONOTE: Run Dev (Music UI)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "/bin/zsh -lc './onote-dev.sh'",
+      "cwd": "/Users/gilidor/Projects/New-ONOTE"
+    }
+  ]
+}
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "ONOTE: Run Dev (Music UI)",
       "type": "python",
       "request": "launch",
       "module": "src.gui.music.main",

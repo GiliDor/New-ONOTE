@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QTa
                              QGroupBox, QScrollArea, QInputDialog, QDialogButtonBox, QToolBar, QToolButton, QMenu, QMessageBox, QColorDialog, QSlider, QApplication)
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtCore import Qt, QEvent
+from src.core.settings_signal_bus import preferences_bus
 import os
 import sys
 import copy
@@ -25,6 +26,9 @@ class FullScoreOptionsDialog(QDialog):
         self._undo_stack = []
         self._redo_stack = []
         self._dirty = False
+        # Track per-tab dirty state for user feedback
+        self._tab_dirty = {"fonts": False, "layout": False, "notation": False, "continuous": False}
+        self._confirm_buttons = {}
 
         # CRITICAL FIX: Initialize all color variables to default values
         # This prevents save_settings() from reading uninitialized values
@@ -85,6 +89,8 @@ class FullScoreOptionsDialog(QDialog):
         self._undo_stack = []
         self._redo_stack = []
         self._suppress_undo = False
+        # Hold references to non-modal QColorDialogs so GC doesn't close them
+        self._open_color_dialogs = {}
         
         # Capture initial state
         initial_state = self._get_current_state()
@@ -155,6 +161,8 @@ class FullScoreOptionsDialog(QDialog):
             self.font_tab = QWidget()
             self.layout_tab = QWidget()
             self.notation_tab = QWidget()
+            # NEW: Continuous View Setup (document-scoped)
+            self.continuous_setup_tab = QWidget()
             
             # Setup tab contents
             print("[DEBUG] Setting up font tab...")
@@ -163,11 +171,14 @@ class FullScoreOptionsDialog(QDialog):
             self.setup_layout_tab()
             print("[DEBUG] Setting up notation tab...")
             self.setup_notation_tab()
+            print("[DEBUG] Setting up continuous view setup tab...")
+            self.setup_continuous_setup_tab()
             
             # Add tabs to tab widget
             self.tab_widget.addTab(self.font_tab, "Fonts")
             self.tab_widget.addTab(self.layout_tab, "Layout")
             self.tab_widget.addTab(self.notation_tab, "Notation Setup")
+            self.tab_widget.addTab(self.continuous_setup_tab, "Continuous View Setup")
             
             # Add tab widget to content layout
             self.content_layout.addWidget(self.tab_widget)
@@ -219,6 +230,22 @@ class FullScoreOptionsDialog(QDialog):
         # IMPORTANT: Load current settings ONLY after all widgets are created
         # This was moved from __init__ to ensure all widgets exist before loading
         self.load_current_settings()
+
+        # Disable tabs based on current view mode for clarity
+        try:
+            staff_view = self._get_staff_view()
+            is_continuous = False
+            if staff_view and hasattr(staff_view, 'renderer') and staff_view.renderer:
+                is_continuous = (getattr(staff_view.renderer, 'view_mode', '') == 'continuous')
+            # When in continuous view, disable Notation tab; when not, disable Continuous View Setup tab
+            idx_notation = self.tab_widget.indexOf(self.notation_tab)
+            idx_cont = self.tab_widget.indexOf(self.continuous_setup_tab)
+            if idx_notation >= 0:
+                self.tab_widget.setTabEnabled(idx_notation, not is_continuous)
+            if idx_cont >= 0:
+                self.tab_widget.setTabEnabled(idx_cont, is_continuous)
+        except Exception:
+            pass
         
         # Undo/Redo actions
         undo_action = QAction("Undo", self)
@@ -344,12 +371,15 @@ class FullScoreOptionsDialog(QDialog):
                             staff_view.temporal_bridge._force_layout_refresh()
                     except Exception:
                         pass
-                if hasattr(staff_view, 'update'):
-                    staff_view.update()
-                    print("RESET_TO_SAVED: Triggered staff_view.update()")
-                if hasattr(staff_view, 'repaint'):
-                    staff_view.repaint()
-                    print("RESET_TO_SAVED: Triggered staff_view.repaint()")
+                # Avoid affecting Score Setup (pink) mode: skip if layout.is_setup_mode
+                is_setup_mode = bool(getattr(getattr(staff_view, 'document', None), 'layout', None) and getattr(staff_view.document.layout, 'is_setup_mode', False))
+                if not is_setup_mode:
+                    if hasattr(staff_view, 'update'):
+                        staff_view.update()
+                        print("RESET_TO_SAVED: Triggered staff_view.update()")
+                    if hasattr(staff_view, 'repaint'):
+                        staff_view.repaint()
+                        print("RESET_TO_SAVED: Triggered staff_view.repaint()")
                 
                 # Method 2: Try temporal bridge signals
                 if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'temporal_bridge'):
@@ -615,9 +645,20 @@ class FullScoreOptionsDialog(QDialog):
         layout.addLayout(bottom_section)
         
         self.font_name_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('font_name', value))
+        self.font_name_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("fonts"))
         self.style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('font_style', value))
+        self.style_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("fonts"))
         self.size_spin.valueChanged.connect(lambda value: self._apply_single_parameter_change('font_size', value))
+        self.size_spin.valueChanged.connect(lambda _: self._mark_tab_dirty("fonts"))
         self.use_defaults_check.toggled.connect(lambda checked: self._apply_single_parameter_change('use_default_font', checked))
+        self.use_defaults_check.toggled.connect(lambda _: self._mark_tab_dirty("fonts"))
+
+        # Per-tab Confirm button
+        fonts_confirm = QPushButton("Confirm")
+        fonts_confirm.setEnabled(False)
+        fonts_confirm.clicked.connect(lambda: self._confirm_tab("fonts"))
+        self._confirm_buttons["fonts"] = fonts_confirm
+        layout.addWidget(fonts_confirm, 0, Qt.AlignmentFlag.AlignRight)
         
     def setup_layout_tab(self):
         """Set up the Layout tab with document-specific layout options"""
@@ -796,19 +837,40 @@ class FullScoreOptionsDialog(QDialog):
         layout.addWidget(scroll)
         
         self.notation_size_spin.valueChanged.connect(lambda value: self._apply_single_parameter_change('notation_scale', value))
+        self.notation_size_spin.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.page_layout_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('page_layout', value))
+        self.page_layout_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.measures_system_spin.valueChanged.connect(lambda value: self._apply_single_parameter_change('measures_per_system', value))
+        self.measures_system_spin.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.doc_system_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('system_spacing', value))
+        self.doc_system_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.doc_staff_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('staff_spacing', value))
+        self.doc_staff_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.doc_grand_staff_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('grand_staff_spacing', value))
+        self.doc_grand_staff_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.staff_names_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names', value))
+        self.staff_names_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.title_display_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('title_display', value))
+        self.title_display_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.notation_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('notation_style', value))
+        self.notation_style_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.barline_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('barline_style', value))
+        self.barline_style_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.beam_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('beam_style', value))
+        self.beam_style_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.justify_last_system.toggled.connect(lambda checked: self._apply_single_parameter_change('justify_last_system', checked))
+        self.justify_last_system.toggled.connect(lambda _: self._mark_tab_dirty("layout"))
         self.hide_empty_staves.toggled.connect(lambda checked: self._apply_single_parameter_change('hide_empty_staves', checked))
+        self.hide_empty_staves.toggled.connect(lambda _: self._mark_tab_dirty("layout"))
         self.optimize_page_turns.toggled.connect(lambda checked: self._apply_single_parameter_change('optimize_page_turns', checked))
+        self.optimize_page_turns.toggled.connect(lambda _: self._mark_tab_dirty("layout"))
+
+        # Per-tab Confirm button
+        layout_confirm = QPushButton("Confirm")
+        layout_confirm.setEnabled(False)
+        layout_confirm.clicked.connect(lambda: self._confirm_tab("layout"))
+        self._confirm_buttons["layout"] = layout_confirm
+        layout.addWidget(layout_confirm, 0, Qt.AlignmentFlag.AlignRight)
         
     def setup_notation_tab(self):
         """Set up the Notation Setup tab with comprehensive notation controls and immediate score updates"""
@@ -1162,7 +1224,7 @@ class FullScoreOptionsDialog(QDialog):
         
         # Horizontal position
         self.staff_name_horizontal = QSpinBox()
-        self.staff_name_horizontal.setRange(-100, 0)
+        self.staff_name_horizontal.setRange(-100, 100)
         self.staff_name_horizontal.setValue(-50)
         self.staff_name_horizontal.setSuffix(" px")
         self.staff_name_horizontal.setMinimumWidth(80)
@@ -1330,82 +1392,351 @@ class FullScoreOptionsDialog(QDialog):
         
         layout.addLayout(bottom_section)
 
-    def choose_font_color(self, category):
-        """Open color picker dialog for font colors - SAFE VERSION"""
-        print(f"COLOR_PICKER: Starting SAFE color selection for {category}")
-        print(f"COLOR_PICKER: Button clicked for category: {category}")
-        
-        # CRITICAL FIX: Use a safer approach that doesn't trigger system events
+        # Connect all notation controls to mark tab dirty
+        self.show_measure_numbers.toggled.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_frequency.currentTextChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_custom_interval.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_position.currentTextChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_vertical.currentTextChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_vertical_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.measure_numbers_horizontal_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.max_measures_per_system.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.barline_numbering.toggled.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.barline_number_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.barline_number_vertical_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.barline_number_horizontal_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.clef_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.clef_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.clef_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.time_sig_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.time_sig_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.time_sig_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.time_sig_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.key_sig_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.key_sig_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.key_sig_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.key_sig_accidental_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.staff_name_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.staff_name_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.staff_name_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.section_name_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.section_name_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.section_name_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.directions_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.directions_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+        self.directions_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("notation"))
+
+        # Per-tab Confirm button
+        notation_confirm = QPushButton("Confirm")
+        notation_confirm.setEnabled(False)
+        notation_confirm.clicked.connect(lambda: self._confirm_tab("notation"))
+        self._confirm_buttons["notation"] = notation_confirm
+        layout.addWidget(notation_confirm, 0, Qt.AlignmentFlag.AlignRight)
+
+    def setup_continuous_setup_tab(self):
+        """Create document-scoped Continuous View Setup tab mirroring Notation where applicable.
+        MPS/MPC controls are omitted or disabled. Changes apply immediately and can be saved as defaults.
+        """
+        layout = QVBoxLayout(self.continuous_setup_tab)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
+
+        note = QLabel("These settings affect the current document in Continuous View and apply immediately.")
+        note.setStyleSheet("color:#0066cc; font-weight:bold; background:#e7f3ff; padding:6px; border:1px solid #b3d9ff; border-radius:4px;")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        main = QHBoxLayout()
+        main.setSpacing(15)
+
+        # Build a replica of Notation Setup controls (sliders/spinboxes etc.), excluding MPS/MPC
+        left = QVBoxLayout()
+
+        # Staff Names group (replica)
+        staff_name_group = QGroupBox("Staff Names")
+        staff_name_form = QFormLayout(staff_name_group)
+        self.cv_staff_name_font_size = QSpinBox()
+        self.cv_staff_name_font_size.setRange(6, 24)
+        self.cv_staff_name_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_staff_name_font_size', int(v)))
+        self.cv_staff_name_vertical = QSpinBox()
+        self.cv_staff_name_vertical.setRange(-50, 20)
+        self.cv_staff_name_vertical.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_staff_name_vertical', int(v)))
+        self.cv_staff_name_horizontal = QSpinBox()
+        self.cv_staff_name_horizontal.setRange(-100, 100)
+        self.cv_staff_name_horizontal.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_staff_name_horizontal', int(v)))
+        # Grand Staff specific vertical control (continuous-only)
+        self.cv_grand_staff_name_vertical = QSpinBox()
+        self.cv_grand_staff_name_vertical.setRange(-80, 80)
+        self.cv_grand_staff_name_vertical.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_grand_staff_name_vertical', int(v)))
+        staff_name_form.addRow("Font Size:", self.cv_staff_name_font_size)
+        staff_name_form.addRow("Vertical:", self.cv_staff_name_vertical)
+        staff_name_form.addRow("Horizontal:", self.cv_staff_name_horizontal)
+        staff_name_form.addRow("Grand Staff vertical:", self.cv_grand_staff_name_vertical)
+        left.addWidget(staff_name_group)
+
+        # Section Names group
+        section_group = QGroupBox("Section Names")
+        section_form = QFormLayout(section_group)
+        self.cv_section_name_font_size = QSpinBox(); self.cv_section_name_font_size.setRange(8,32)
+        self.cv_section_name_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_section_name_font_size', int(v)))
+        self.cv_section_name_vertical = QSpinBox(); self.cv_section_name_vertical.setRange(-60,10)
+        self.cv_section_name_vertical.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_section_name_vertical', int(v)))
+        self.cv_section_name_horizontal = QSpinBox(); self.cv_section_name_horizontal.setRange(-120,100)
+        self.cv_section_name_horizontal.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_section_name_horizontal', int(v)))
+        section_form.addRow("Font Size:", self.cv_section_name_font_size)
+        section_form.addRow("Vertical:", self.cv_section_name_vertical)
+        section_form.addRow("Horizontal:", self.cv_section_name_horizontal)
+        left.addWidget(section_group)
+
+        # Numbers group (full set like Notation tab)
+        numbers_group = QGroupBox("Numbers")
+        numbers_form = QFormLayout(numbers_group)
+        # Measure numbers controls
+        self.cv_show_measure_numbers = QCheckBox("Show measure numbers")
+        self.cv_measure_numbers_font_size = QSpinBox(); self.cv_measure_numbers_font_size.setRange(6,18)
+        self.cv_measure_numbers_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_measure_numbers_font_size', int(v)))
+        self.cv_measure_numbers_vertical_offset = QSpinBox(); self.cv_measure_numbers_vertical_offset.setRange(-100,50)
+        self.cv_measure_numbers_vertical_offset.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_measure_numbers_vertical_offset', int(v)))
+        self.cv_measure_numbers_horizontal_offset = QSpinBox(); self.cv_measure_numbers_horizontal_offset.setRange(-200,100)
+        self.cv_measure_numbers_horizontal_offset.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_measure_numbers_horizontal_offset', int(v)))
+        numbers_form.addRow(self.cv_show_measure_numbers)
+        numbers_form.addRow("Measure size:", self.cv_measure_numbers_font_size)
+        numbers_form.addRow("Measure V offset:", self.cv_measure_numbers_vertical_offset)
+        numbers_form.addRow("Measure H offset:", self.cv_measure_numbers_horizontal_offset)
+        # Barline numbers controls
+        self.cv_show_barline_numbers = QCheckBox("Show barline numbers (debug)")
+        self.cv_barline_numbers_font_size = QSpinBox(); self.cv_barline_numbers_font_size.setRange(6,16)
+        self.cv_barline_numbers_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_barline_number_font_size', int(v)))
+        self.cv_barline_number_vertical_offset = QSpinBox(); self.cv_barline_number_vertical_offset.setRange(-100,100)
+        self.cv_barline_number_vertical_offset.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_barline_number_vertical_offset', int(v)))
+        self.cv_barline_number_horizontal_offset = QSpinBox(); self.cv_barline_number_horizontal_offset.setRange(-50,50)
+        self.cv_barline_number_horizontal_offset.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_barline_number_horizontal_offset', int(v)))
+        numbers_form.addRow(self.cv_show_barline_numbers)
+        numbers_form.addRow("Barline size:", self.cv_barline_numbers_font_size)
+        numbers_form.addRow("Barline V offset:", self.cv_barline_number_vertical_offset)
+        numbers_form.addRow("Barline H offset:", self.cv_barline_number_horizontal_offset)
+        left.addWidget(numbers_group)
+        left.addStretch(1)
+
+        # Fixed strip and symbol blocks
+        right = QVBoxLayout()
+        strip_group = QGroupBox("Fixed strip")
+        strip_form = QFormLayout(strip_group)
+        self.cv_strip_width = QSpinBox()
+        self.cv_strip_width.setRange(80, 600)
+        self.cv_strip_width.setSuffix(" px")
+        strip_form.addRow("Width:", self.cv_strip_width)
+        right.addWidget(strip_group)
+
+        symbols_group = QGroupBox("Symbols (clef / time / key)")
+        sym_form = QFormLayout(symbols_group)
+        self.cv_clef_font_size = QSpinBox(); self.cv_clef_font_size.setRange(16,48)
+        self.cv_clef_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_clef_font_size', int(v)))
+        self.cv_clef_vertical = QSpinBox(); self.cv_clef_vertical.setRange(-20,20)
+        self.cv_clef_vertical.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_clef_vertical', int(v)))
+        self.cv_clef_horizontal = QSpinBox(); self.cv_clef_horizontal.setRange(-500,2000)
+        self.cv_clef_horizontal.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_clef_horizontal', int(v)))
+        sym_form.addRow("Clef size:", self.cv_clef_font_size)
+        sym_form.addRow("Clef vertical:", self.cv_clef_vertical)
+        sym_form.addRow("Clef horizontal:", self.cv_clef_horizontal)
+        right.addWidget(symbols_group)
+        right.addStretch(1)
+
+        main.addLayout(left, 1)
+        main.addLayout(right, 1)
+        layout.addLayout(main)
+
+        # Bottom buttons
+        bottom = QHBoxLayout()
+        bottom.addStretch()
+        self.cv_set_defaults = QPushButton("Set as Defaults")
+        self.cv_set_defaults.clicked.connect(self.set_as_defaults)
+        self.cv_reset_defaults = QPushButton("Reset to Defaults")
+        self.cv_reset_defaults.clicked.connect(self.reset_to_defaults)
+        bottom.addWidget(self.cv_set_defaults)
+        bottom.addWidget(self.cv_reset_defaults)
+        bottom.addStretch()
+        layout.addLayout(bottom)
+
+        # Load current document settings with fallback to preferences
+        self._load_continuous_setup_values()
+        self._connect_continuous_setup_signals()
+
+        # Connect all continuous controls to mark tab dirty
+        self.cv_staff_name_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_staff_name_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_staff_name_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_grand_staff_name_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_section_name_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_section_name_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_section_name_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_show_measure_numbers.toggled.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_measure_numbers_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_measure_numbers_vertical_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_measure_numbers_horizontal_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_show_barline_numbers.toggled.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_barline_numbers_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_barline_number_vertical_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_barline_number_horizontal_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_clef_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_clef_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_clef_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_strip_width.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
+
+        # Per-tab Confirm button
+        continuous_confirm = QPushButton("Confirm")
+        continuous_confirm.setEnabled(False)
+        continuous_confirm.clicked.connect(lambda: self._confirm_tab("continuous"))
+        self._confirm_buttons["continuous"] = continuous_confirm
+        layout.addWidget(continuous_confirm, 0, Qt.AlignmentFlag.AlignRight)
+
+    def _load_continuous_setup_values(self):
         try:
-            from PyQt6.QtWidgets import QColorDialog
-            from PyQt6.QtCore import Qt
-            from PyQt6.QtGui import QColor
-            
-            # Get current color from button style or stored value
-            current_color = QColor("#000000")  # Default black
-            if category == 'staff_names':
-                button = self.staff_name_font_color
-                current_color = QColor(getattr(self, 'staff_name_color_value', '#000000'))
-            elif category == 'section_names':
-                button = self.section_name_font_color
-                current_color = QColor(getattr(self, 'section_name_color_value', '#000000'))
-            elif category == 'clef':
-                button = self.clef_font_color
-                current_color = QColor(getattr(self, 'clef_color_value', '#000000'))
-            elif category == 'time_sig':
-                button = self.time_sig_font_color
-                current_color = QColor(getattr(self, 'time_sig_color_value', '#000000'))
-            elif category == 'key_sig':
-                button = self.key_sig_font_color
-                current_color = QColor(getattr(self, 'key_sig_color_value', '#000000'))
-            elif category == 'measure_numbers':
-                button = self.measure_numbers_font_color
-                current_color = QColor(getattr(self, 'measure_numbers_color_value', '#000000'))
-            elif category == 'barline_numbers':
-                button = self.barline_number_font_color
-                current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
-                print(f"COLOR_PICKER: Loading barline_numbers_color_value = {getattr(self, 'barline_numbers_color_value', 'NOT SET')}")
-            else:
-                print(f"COLOR_PICKER: Unknown category: {category}")
+            from PyQt6.QtCore import QSettings
+            prefs = QSettings("ONOTE", "Preferences")
+            def pref(key, default):
+                return prefs.value(key, default)
+            def doc_get(key, default):
+                if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                    return self.document.settings.get(key, default)
+                return default
+            # Staff names
+            self.cv_staff_name_font_size.setValue(int(doc_get('notation/continuous_staff_name_font_size', int(pref('notation/continuous_staff_name_font_size', 10)))))
+            self.cv_staff_name_vertical.setValue(int(doc_get('notation/continuous_staff_name_vertical', int(pref('notation/continuous_staff_name_vertical', -8)))))
+            self.cv_staff_name_horizontal.setValue(int(doc_get('notation/continuous_staff_name_horizontal', int(pref('notation/continuous_staff_name_horizontal', -50)))))
+            self.cv_grand_staff_name_vertical.setValue(int(doc_get('notation/continuous_grand_staff_name_vertical', int(pref('notation/continuous_grand_staff_name_vertical', -2)))))
+            # Section names
+            self.cv_section_name_font_size.setValue(int(doc_get('notation/continuous_section_name_font_size', int(pref('notation/continuous_section_name_font_size', 12)))))
+            self.cv_section_name_vertical.setValue(int(doc_get('notation/continuous_section_name_vertical', int(pref('notation/continuous_section_name_vertical', -25)))))
+            self.cv_section_name_horizontal.setValue(int(doc_get('notation/continuous_section_name_horizontal', int(pref('notation/continuous_section_name_horizontal', -60)))))
+            # Numbers
+            self.cv_show_measure_numbers.setChecked(bool(doc_get('notation/continuous_show_measure_numbers', bool(pref('notation/continuous_show_measure_numbers', True)))))
+            self.cv_measure_numbers_font_size.setValue(int(doc_get('notation/continuous_measure_numbers_font_size', int(pref('notation/continuous_measure_numbers_font_size', 10)))))
+            self.cv_measure_numbers_vertical_offset.setValue(int(doc_get('notation/continuous_measure_numbers_vertical_offset', int(pref('notation/continuous_measure_numbers_vertical_offset', 17)))))
+            self.cv_measure_numbers_horizontal_offset.setValue(int(doc_get('notation/continuous_measure_numbers_horizontal_offset', int(pref('notation/continuous_measure_numbers_horizontal_offset', 3)))))
+            self.cv_show_barline_numbers.setChecked(bool(doc_get('notation/continuous_show_barline_numbers', bool(pref('notation/continuous_show_barline_numbers', False)))))
+            self.cv_barline_numbers_font_size.setValue(int(doc_get('notation/continuous_barline_number_font_size', int(pref('notation/continuous_barline_number_font_size', 8)))))
+            self.cv_barline_number_vertical_offset.setValue(int(doc_get('notation/continuous_barline_number_vertical_offset', int(pref('notation/continuous_barline_number_vertical_offset', -3)))))
+            self.cv_barline_number_horizontal_offset.setValue(int(doc_get('notation/continuous_barline_number_horizontal_offset', int(pref('notation/continuous_barline_number_horizontal_offset', -3)))))
+            # Symbols
+            self.cv_clef_font_size.setValue(int(doc_get('notation/continuous_clef_font_size', int(pref('notation/continuous_clef_font_size', 32)))))
+            self.cv_clef_vertical.setValue(int(doc_get('notation/continuous_clef_vertical', int(pref('notation/continuous_clef_vertical', 0)))))
+            self.cv_clef_horizontal.setValue(int(doc_get('notation/continuous_clef_horizontal', int(pref('notation/continuous_clef_horizontal', 20)))))
+            # Strip width
+            self.cv_strip_width.setValue(int(doc_get('layout/continuous_left_margin', int(pref('layout/continuous_left_margin', 160)))))
+        except Exception:
+            pass
+
+    def _connect_continuous_setup_signals(self):
+        try:
+            # Spinboxes already push changes via lambdas set in setup; connect checkboxes here
+            self.cv_show_measure_numbers.toggled.connect(lambda checked: self._apply_doc_setting('notation/continuous_show_measure_numbers', bool(checked)))
+            self.cv_show_barline_numbers.toggled.connect(lambda checked: self._apply_doc_setting('notation/continuous_show_barline_numbers', bool(checked)))
+            self.cv_strip_width.valueChanged.connect(lambda v: self._apply_doc_setting('layout/continuous_left_margin', int(v)))
+        except Exception:
+            pass
+
+    def _apply_doc_setting(self, key, value):
+        try:
+            if not hasattr(self, 'document') or self.document is None:
                 return
+            if not hasattr(self.document, 'settings') or self.document.settings is None:
+                self.document.settings = {}
+            self.document.settings[key] = value
+            # Mark dialog dirty to prompt save on close
+            try:
+                self._dirty = True
+            except Exception:
+                pass
+            # Immediate re-render
+            self._trigger_score_rerender()
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        """Prompt to save the document if options were changed."""
+        try:
+            if getattr(self, '_dirty', False):
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self,
+                    "Save Changes?",
+                    "Full Score Options were changed. Save the document?",
+                    QMessageBox.StandardButton.Save |
+                    QMessageBox.StandardButton.Discard |
+                    QMessageBox.StandardButton.Cancel
+                )
+                if reply == QMessageBox.StandardButton.Save:
+                    # Try to call parent window's save routine
+                    parent = self.parent()
+                    if parent and hasattr(parent, 'save_document'):
+                        if not parent.save_document():
+                            event.ignore()
+                            return
+                    elif hasattr(self, 'document') and self.document and hasattr(self.document, 'filename'):
+                        try:
+                            # Fallback: attempt to route through a higher-level window if present
+                            if parent and hasattr(parent, 'save_score'):
+                                if not parent.save_score():
+                                    event.ignore()
+                                    return
+                        except Exception:
+                            pass
+                elif reply == QMessageBox.StandardButton.Cancel:
+                    event.ignore()
+                    return
+            event.accept()
+        except Exception:
+            event.accept()
+
+    def choose_font_color(self, category):
+        """Open color picker dialog for font colors - uniform with Preferences dialog."""
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtCore import Qt
+        from PyQt6.QtGui import QColor
             
-            print(f"COLOR_PICKER: About to open SAFE color dialog for {category}")
+        # Map category to button and current color
+        current_color = QColor("#000000")
+        if category == 'staff_names':
+            button = self.staff_name_font_color
+            current_color = QColor(getattr(self, 'staff_name_color_value', '#000000'))
+        elif category == 'section_names':
+            button = self.section_name_font_color
+            current_color = QColor(getattr(self, 'section_name_color_value', '#000000'))
+        elif category == 'clef':
+            button = self.clef_font_color
+            current_color = QColor(getattr(self, 'clef_color_value', '#000000'))
+        elif category == 'time_sig':
+            button = self.time_sig_font_color
+            current_color = QColor(getattr(self, 'time_sig_color_value', '#000000'))
+        elif category == 'key_sig':
+            button = self.key_sig_font_color
+            current_color = QColor(getattr(self, 'key_sig_color_value', '#000000'))
+        elif category == 'measure_numbers':
+            button = self.measure_numbers_font_color
+            current_color = QColor(getattr(self, 'measure_numbers_color_value', '#000000'))
+        elif category == 'barline_numbers':
+            button = self.barline_number_font_color
+            current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
+        else:
+            return
             
-            # SAFE VERSION: Use explicit dialog creation to avoid system conflicts
-            color_dialog = QColorDialog(current_color, self)
-            color_dialog.setWindowTitle(f"Choose {category.replace('_', ' ').title()} Color")
-            color_dialog.setModal(True)
-            
-            # Execute dialog safely
-            if color_dialog.exec() == QColorDialog.DialogCode.Accepted:
-                color = color_dialog.currentColor()
-                print(f"COLOR_PICKER: SAFE dialog returned color: {color.name()}")
+        # Use shared ColorButton behavior: open non-native dialog and update swatch
+        # macOS native Colors panel (no DontUseNativeDialog)
+        color = QColorDialog.getColor(
+            current_color,
+            self,
+            f"Choose {category.replace('_', ' ').title()} Color",
+            QColorDialog.ColorDialogOption(0),
+        )
                 
-                if color.isValid():
-                    # Update button appearance
-                    hex_color = color.name()
-                    print(f"COLOR_PICKER: Selected color for {category}: {hex_color}")
-                    
-                    # Choose contrasting text color
-                    text_color = "#FFFFFF" if self.is_dark_color(color) else "#000000"
-                    button.setStyleSheet(f"background-color: {hex_color}; color: {text_color};")
-                    
-                    # Store the color value for saving
-                    setattr(self, f"{category}_color_value", hex_color)
-                    print(f"COLOR_PICKER: Stored {category}_color_value = {hex_color}")
-                    
-                    # IMMEDIATE UPDATE: Apply color change immediately like other Full Score Options
-                    print(f"COLOR_PICKER: Applying {category} color change immediately")
-                    self._apply_color_change_immediately(category, hex_color)
-                else:
-                    print(f"COLOR_PICKER: Invalid color returned for {category}")
-            else:
-                print(f"COLOR_PICKER: Color selection cancelled for {category}")
-                
-        except Exception as e:
-            print(f"COLOR_PICKER: ERROR in choose_font_color: {e}")
-            import traceback
-            traceback.print_exc()
+        if color.isValid():
+            hex_color = color.name()
+            text_color = "#FFFFFF" if self.is_dark_color(color) else "#000000"
+            button.setStyleSheet(f"background-color: {hex_color}; color: {text_color};")
+            setattr(self, f"{category}_color_value", hex_color)
+            self._apply_color_change_immediately(category, hex_color)
     
     def _apply_color_change_immediately(self, category, hex_color):
         """Apply color change immediately without side effects - COMPLETELY ISOLATED"""
@@ -2236,19 +2567,46 @@ class FullScoreOptionsDialog(QDialog):
         # Save all current settings to QSettings for new documents
         settings = QSettings("ONOTE", "Preferences")
         
+        # Detect which tab is active (page view notation vs continuous view)
+        is_continuous_tab = False
+        try:
+            if hasattr(self, 'tab_widget') and hasattr(self, 'continuous_setup_tab'):
+                is_continuous_tab = (self.tab_widget.currentWidget() == self.continuous_setup_tab)
+        except Exception:
+            is_continuous_tab = False
+
+        # Helper to write staged keys (staged only, never commit here)
+        def write_staged_notation(key: str, value):
+            try:
+                settings.setValue(f"staged/{key}", value)
+            except Exception:
+                try:
+                    settings.setValue(key, value)
+                except Exception:
+                    pass
+
+        def write_staged_layout(key: str, value):
+            try:
+                settings.setValue(f"staged/layout/{key}", value)
+            except Exception:
+                try:
+                    settings.setValue(f"layout/{key}", value)
+                except Exception:
+                    pass
+        
         # Staff name settings
         if hasattr(self, 'staff_name_font_size'):
-            settings.setValue("notation/staff_name_font_size", self.staff_name_font_size.value())
+            write_staged_notation("notation/staff_name_font_size", self.staff_name_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving staff_name_font_size = {self.staff_name_font_size.value()}")
         if hasattr(self, 'staff_name_vertical'):
-            settings.setValue("notation/staff_name_vertical", self.staff_name_vertical.value())
+            write_staged_notation("notation/staff_name_vertical", self.staff_name_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving staff_name_vertical = {self.staff_name_vertical.value()}")
         if hasattr(self, 'staff_name_horizontal'):
-            settings.setValue("notation/staff_name_horizontal", self.staff_name_horizontal.value())
+            write_staged_notation("notation/staff_name_horizontal", self.staff_name_horizontal.value())
             print(f"SET_AS_DEFAULTS: Saving staff_name_horizontal = {self.staff_name_horizontal.value()}")
         staff_color = getattr(self, 'staff_name_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving staff_name_font_color = {staff_color}")
-        settings.setValue("notation/staff_name_font_color", staff_color)
+        write_staged_notation("notation/staff_name_font_color", staff_color)
         
         # Staff names display option
         if hasattr(self, 'staff_names_combo'):
@@ -2257,126 +2615,135 @@ class FullScoreOptionsDialog(QDialog):
         
         # Section name settings
         if hasattr(self, 'section_name_font_size'):
-            settings.setValue("notation/section_name_font_size", self.section_name_font_size.value())
+            write_staged_notation("notation/section_name_font_size", self.section_name_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving section_name_font_size = {self.section_name_font_size.value()}")
         if hasattr(self, 'section_name_vertical'):
-            settings.setValue("notation/section_name_vertical", self.section_name_vertical.value())
+            write_staged_notation("notation/section_name_vertical", self.section_name_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving section_name_vertical = {self.section_name_vertical.value()}")
         if hasattr(self, 'section_name_horizontal'):
-            settings.setValue("notation/section_name_horizontal", self.section_name_horizontal.value())
+            write_staged_notation("notation/section_name_horizontal", self.section_name_horizontal.value())
             print(f"SET_AS_DEFAULTS: Saving section_name_horizontal = {self.section_name_horizontal.value()}")
         section_color = getattr(self, 'section_name_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving section_name_font_color = {section_color}")
-        settings.setValue("notation/section_name_font_color", section_color)
+        write_staged_notation("notation/section_name_font_color", section_color)
         
         # Clef settings
         if hasattr(self, 'clef_font_size'):
-            settings.setValue("notation/clef_font_size", self.clef_font_size.value())
+            write_staged_notation("notation/clef_font_size", self.clef_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving clef_font_size = {self.clef_font_size.value()}")
         if hasattr(self, 'clef_vertical'):
-            settings.setValue("notation/clef_vertical", self.clef_vertical.value())
+            write_staged_notation("notation/clef_vertical", self.clef_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving clef_vertical = {self.clef_vertical.value()}")
         if hasattr(self, 'clef_horizontal'):
-            settings.setValue("notation/clef_horizontal", self.clef_horizontal.value())
+            write_staged_notation("notation/clef_horizontal", self.clef_horizontal.value())
             print(f"SET_AS_DEFAULTS: Saving clef_horizontal = {self.clef_horizontal.value()}")
         clef_color = getattr(self, 'clef_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving clef_font_color = {clef_color}")
-        settings.setValue("notation/clef_font_color", clef_color)
+        write_staged_notation("notation/clef_font_color", clef_color)
         
         # Time signature settings
         if hasattr(self, 'time_sig_font_size'):
-            settings.setValue("notation/time_sig_font_size", self.time_sig_font_size.value())
+            write_staged_notation("notation/time_sig_font_size", self.time_sig_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving time_sig_font_size = {self.time_sig_font_size.value()}")
         if hasattr(self, 'time_sig_vertical'):
-            settings.setValue("notation/time_sig_vertical", self.time_sig_vertical.value())
+            write_staged_notation("notation/time_sig_vertical", self.time_sig_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving time_sig_vertical = {self.time_sig_vertical.value()}")
         if hasattr(self, 'time_sig_horizontal'):
-            settings.setValue("notation/time_sig_horizontal", self.time_sig_horizontal.value())
+            write_staged_notation("notation/time_sig_horizontal", self.time_sig_horizontal.value())
             print(f"SET_AS_DEFAULTS: Saving time_sig_horizontal = {self.time_sig_horizontal.value()}")
         if hasattr(self, 'time_sig_spacing'):
-            settings.setValue("notation/time_sig_spacing", self.time_sig_spacing.value())
+            write_staged_notation("notation/time_sig_spacing", self.time_sig_spacing.value())
             print(f"SET_AS_DEFAULTS: Saving time_sig_spacing = {self.time_sig_spacing.value()}")
         time_sig_color = getattr(self, 'time_sig_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving time_sig_font_color = {time_sig_color}")
-        settings.setValue("notation/time_sig_font_color", time_sig_color)
+        write_staged_notation("notation/time_sig_font_color", time_sig_color)
         
         # Key signature settings
         if hasattr(self, 'key_sig_font_size'):
-            settings.setValue("notation/key_sig_font_size", self.key_sig_font_size.value())
+            write_staged_notation("notation/key_sig_font_size", self.key_sig_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving key_sig_font_size = {self.key_sig_font_size.value()}")
         if hasattr(self, 'key_sig_vertical'):
-            settings.setValue("notation/key_sig_vertical", self.key_sig_vertical.value())
+            write_staged_notation("notation/key_sig_vertical", self.key_sig_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving key_sig_vertical = {self.key_sig_vertical.value()}")
         if hasattr(self, 'key_sig_horizontal'):
-            settings.setValue("notation/key_sig_horizontal", self.key_sig_horizontal.value())
+            write_staged_notation("notation/key_sig_horizontal", self.key_sig_horizontal.value())
             print(f"SET_AS_DEFAULTS: Saving key_sig_horizontal = {self.key_sig_horizontal.value()}")
         if hasattr(self, 'key_sig_accidental_spacing'):
-            settings.setValue("notation/key_sig_accidental_spacing", self.key_sig_accidental_spacing.value())
+            write_staged_notation("notation/key_sig_accidental_spacing", self.key_sig_accidental_spacing.value())
             print(f"SET_AS_DEFAULTS: Saving key_sig_accidental_spacing = {self.key_sig_accidental_spacing.value()}")
         key_sig_color = getattr(self, 'key_sig_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving key_sig_font_color = {key_sig_color}")
-        settings.setValue("notation/key_sig_font_color", key_sig_color)
+        write_staged_notation("notation/key_sig_font_color", key_sig_color)
         
         # Musical directions settings
         if hasattr(self, 'directions_font_size'):
-            settings.setValue("notation/directions_font_size", self.directions_font_size.value())
+            write_staged_notation("notation/directions_font_size", self.directions_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving directions_font_size = {self.directions_font_size.value()}")
         if hasattr(self, 'directions_vertical'):
-            settings.setValue("notation/directions_vertical", self.directions_vertical.value())
+            write_staged_notation("notation/directions_vertical", self.directions_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving directions_vertical = {self.directions_vertical.value()}")
         if hasattr(self, 'directions_horizontal'):
-            settings.setValue("notation/directions_horizontal", self.directions_horizontal.value())
+            write_staged_notation("notation/directions_horizontal", self.directions_horizontal.value())
             print(f"SET_AS_DEFAULTS: Saving directions_horizontal = {self.directions_horizontal.value()}")
         
-        # Measure numbers settings
+        # Measure numbers settings (staged)
         if hasattr(self, 'show_measure_numbers'):
-            settings.setValue("notation/show_measure_numbers", self.show_measure_numbers.isChecked())
+            write_staged_notation("notation/show_measure_numbers", self.show_measure_numbers.isChecked())
             print(f"SET_AS_DEFAULTS: Saving show_measure_numbers = {self.show_measure_numbers.isChecked()}")
         if hasattr(self, 'measure_numbers_frequency'):
-            settings.setValue("notation/measure_numbers_frequency", self.measure_numbers_frequency.currentText())
+            write_staged_notation("notation/measure_numbers_frequency", self.measure_numbers_frequency.currentText())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_frequency = {self.measure_numbers_frequency.currentText()}")
         if hasattr(self, 'measure_numbers_custom_interval'):
-            settings.setValue("notation/measure_numbers_custom_interval", self.measure_numbers_custom_interval.value())
+            write_staged_notation("notation/measure_numbers_custom_interval", self.measure_numbers_custom_interval.value())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_custom_interval = {self.measure_numbers_custom_interval.value()}")
         if hasattr(self, 'measure_numbers_position'):
-            settings.setValue("notation/measure_numbers_position", self.measure_numbers_position.currentText())
+            write_staged_notation("notation/measure_numbers_position", self.measure_numbers_position.currentText())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_position = {self.measure_numbers_position.currentText()}")
         if hasattr(self, 'measure_numbers_vertical'):
-            settings.setValue("notation/measure_numbers_vertical", self.measure_numbers_vertical.currentText())
+            write_staged_notation("notation/measure_numbers_vertical", self.measure_numbers_vertical.currentText())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_vertical = {self.measure_numbers_vertical.currentText()}")
         if hasattr(self, 'measure_numbers_font_size'):
-            settings.setValue("notation/measure_numbers_font_size", self.measure_numbers_font_size.value())
+            write_staged_notation("notation/measure_numbers_font_size", self.measure_numbers_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_font_size = {self.measure_numbers_font_size.value()}")
         if hasattr(self, 'measure_numbers_vertical_offset'):
-            settings.setValue("notation/measure_numbers_vertical_offset", self.measure_numbers_vertical_offset.value())
+            write_staged_notation("notation/measure_numbers_vertical_offset", self.measure_numbers_vertical_offset.value())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_vertical_offset = {self.measure_numbers_vertical_offset.value()}")
         if hasattr(self, 'measure_numbers_horizontal_offset'):
-            settings.setValue("notation/measure_numbers_horizontal_offset", self.measure_numbers_horizontal_offset.value())
+            write_staged_notation("notation/measure_numbers_horizontal_offset", self.measure_numbers_horizontal_offset.value())
             print(f"SET_AS_DEFAULTS: Saving measure_numbers_horizontal_offset = {self.measure_numbers_horizontal_offset.value()}")
         measure_numbers_color = getattr(self, 'measure_numbers_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving measure_numbers_font_color = {measure_numbers_color}")
-        settings.setValue("notation/measure_numbers_font_color", measure_numbers_color)
+        write_staged_notation("notation/measure_numbers_font_color", measure_numbers_color)
+
+        # Layout: include grand_staff_spacing so it can be committed via Preferences Apply
+        try:
+            if hasattr(self, 'doc_grand_staff_spacing'):
+                write_staged_layout("default_grand_staff_spacing", int(self.doc_grand_staff_spacing.value()))
+                # Also mirror to legacy for UI overlays
+                settings.setValue("staged/layout/grand_staff_spacing", int(self.doc_grand_staff_spacing.value()))
+        except Exception:
+            pass
         
-        # Barline control settings
+        # Barline control settings (staged)
         if hasattr(self, 'max_measures_per_system'):
-            settings.setValue("notation/max_measures_per_system", self.max_measures_per_system.value())
+            write_staged_notation("notation/max_measures_per_system", self.max_measures_per_system.value())
             print(f"SET_AS_DEFAULTS: Saving max_measures_per_system = {self.max_measures_per_system.value()}")
         if hasattr(self, 'barline_numbering'):
-            settings.setValue("notation/barline_numbering", self.barline_numbering.isChecked())
+            write_staged_notation("notation/barline_numbering", self.barline_numbering.isChecked())
             print(f"SET_AS_DEFAULTS: Saving barline_numbering = {self.barline_numbering.isChecked()}")
         if hasattr(self, 'barline_number_font_size'):
-            settings.setValue("notation/barline_number_font_size", self.barline_number_font_size.value())
+            write_staged_notation("notation/barline_number_font_size", self.barline_number_font_size.value())
             print(f"SET_AS_DEFAULTS: Saving barline_number_font_size = {self.barline_number_font_size.value()}")
         if hasattr(self, 'barline_number_vertical_offset'):
-            settings.setValue("notation/barline_number_vertical_offset", self.barline_number_vertical_offset.value())
+            write_staged_notation("notation/barline_number_vertical_offset", self.barline_number_vertical_offset.value())
             print(f"SET_AS_DEFAULTS: Saving barline_number_vertical_offset = {self.barline_number_vertical_offset.value()}")
         if hasattr(self, 'barline_number_horizontal_offset'):
-            settings.setValue("notation/barline_number_horizontal_offset", self.barline_number_horizontal_offset.value())
+            write_staged_notation("notation/barline_number_horizontal_offset", self.barline_number_horizontal_offset.value())
             print(f"SET_AS_DEFAULTS: Saving barline_number_horizontal_offset = {self.barline_number_horizontal_offset.value()}")
         # DEBUG: Check what color value we're actually saving
         barline_color = getattr(self, 'barline_numbers_color_value', '#666666')
         print(f"SET_AS_DEFAULTS: Saving barline_numbers_font_color = {barline_color}")
-        settings.setValue("notation/barline_numbers_font_color", barline_color)
+        write_staged_notation("notation/barline_numbers_font_color", barline_color)
 
         # Also persist Fonts tab defaults
         try:
@@ -2389,44 +2756,22 @@ class FullScoreOptionsDialog(QDialog):
         except Exception:
             pass
 
-        # Also persist Layout tab defaults (application-wide)
-        try:
-            if hasattr(self, 'notation_size_spin'):
-                settings.setValue("layout/default_notation_size", float(self.notation_size_spin.value()))
-            if hasattr(self, 'measures_system_spin'):
-                settings.setValue("notation/max_measures_per_system", int(self.measures_system_spin.value()))
-                settings.setValue("layout/default_measures_per_system", int(self.measures_system_spin.value()))
-            if hasattr(self, 'doc_system_spacing'):
-                settings.setValue("layout/default_system_spacing", int(self.doc_system_spacing.value()))
-                print(f"SET_AS_DEFAULTS: Saving system_spacing = {self.doc_system_spacing.value()}")
-            if hasattr(self, 'doc_staff_spacing'):
-                settings.setValue("layout/default_staff_spacing", int(self.doc_staff_spacing.value()))
-                print(f"SET_AS_DEFAULTS: Saving staff_spacing = {self.doc_staff_spacing.value()}")
-            if hasattr(self, 'page_layout_combo'):
-                settings.setValue("layout/default_page_layout", self.page_layout_combo.currentText())
-                print(f"SET_AS_DEFAULTS: Saving page_layout = {self.page_layout_combo.currentText()}")
-            if hasattr(self, 'justify_last_system'):
-                settings.setValue("layout/justify_last_system", bool(self.justify_last_system.isChecked()))
-            if hasattr(self, 'hide_empty_staves'):
-                settings.setValue("layout/hide_empty_staves", bool(self.hide_empty_staves.isChecked()))
-        except Exception:
-            pass
+        # NOTE: Do not write Layout tab defaults here. Page Setup dialog owns staging/committing layout defaults.
         
         # Force settings to be written to disk
         settings.sync()
         print("DEBUG: Called settings.sync() to write to disk")
         
-        print("FULL_SCORE_OPTIONS: All notation settings saved as defaults")
+        print("FULL_SCORE_OPTIONS: All notation settings staged as defaults (waiting for Preferences to apply on close)")
         
-        # CRITICAL FIX: Update any open Preferences dialog to reflect the new defaults
-        # This ensures immediate visual consistency between dialogs
-        self._sync_with_preferences_dialog()
-        
-        # CRITICAL FIX: Also force QSettings to sync immediately
-        from PyQt6.QtCore import QSettings
-        settings = QSettings("ONOTE", "Preferences")
-        settings.sync()
-        print("SET_AS_DEFAULTS: Forced QSettings sync to ensure immediate persistence")
+        # Notify Preferences to reload UI (no auto-apply; handled by Apply/Close prompt)
+        try:
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("ONOTE", "Preferences")
+            settings.sync()
+            preferences_bus.preferences_updated.emit({"source": "fso_set_defaults", "scope": "notation"})
+        except Exception:
+            pass
         
         # Show confirmation to user with Cancel button
         reply = QMessageBox.question(
@@ -2597,7 +2942,7 @@ class FullScoreOptionsDialog(QDialog):
             print(f"FULL_SCORE_OPTIONS: Error syncing with Preferences dialog: {e}")
 
     def reset_to_defaults(self):
-        """Reset all settings to the current Preferences defaults (not hard-coded constants)"""
+        """Reset all settings to the current Preferences committed defaults (document-only)."""
         from PyQt6.QtWidgets import QMessageBox
         
         # Ask for confirmation
@@ -2613,7 +2958,7 @@ class FullScoreOptionsDialog(QDialog):
         if reply == QMessageBox.StandardButton.Yes:
             print("FULL_SCORE_OPTIONS: Resetting all settings to Preferences defaults")
             
-            # CRITICAL FIX: Load settings from Preferences instead of hard-coded constants
+            # Load settings from committed Preferences defaults only (ignore any staged/*)
             from PyQt6.QtCore import QSettings
             settings = QSettings("ONOTE", "Preferences")
             
@@ -3085,7 +3430,7 @@ class FullScoreOptionsDialog(QDialog):
             
             # Save ONLY this specific parameter
             # Route layout-related parameters under the 'layout/' namespace
-            layout_params = {'system_spacing', 'staff_spacing', 'measures_per_system'}
+            layout_params = {'system_spacing', 'staff_spacing', 'grand_staff_spacing', 'measures_per_system'}
             key_namespace = 'layout' if parameter_key in layout_params else 'notation'
             full_key = f"{key_namespace}/{parameter_key}"
             
@@ -3202,8 +3547,25 @@ class FullScoreOptionsDialog(QDialog):
                                 setattr(layout_obj, 'staff_spacing', int(value))
                                 if hasattr(layout_obj, '_update_positions'):
                                     layout_obj._update_positions()
-                            if parameter_key == 'grand_staff_spacing' and hasattr(layout_obj, 'grand_staff_spacing'):
-                                setattr(layout_obj, 'grand_staff_spacing', int(value))
+                            if parameter_key == 'grand_staff_spacing':
+                                # Update layout object if it exists
+                                if hasattr(layout_obj, 'grand_staff_spacing'):
+                                    setattr(layout_obj, 'grand_staff_spacing', int(value))
+                                # Invalidate renderer caches to force full re-render with new spacing
+                                if hasattr(renderer, '_unit_width_by_system'):
+                                    renderer._unit_width_by_system = {}
+                                # CRITICAL: Also invalidate any cached barline positions
+                                if hasattr(renderer, '_bar_positions_by_system'):
+                                    renderer._bar_positions_by_system = {}
+                                # Force recalculation by clearing any cached staff rendering
+                                if hasattr(renderer, '_staff_render_cache'):
+                                    renderer._staff_render_cache = {}
+                                print(f"ISOLATED_PARAM: Grand staff spacing changed to {value}px, invalidating all caches")
+                                # CRITICAL: Must call update() which triggers paintEvent, NOT repaint()
+                                # paintEvent will re-run _render_grand_staff which recalculates y_positions
+                                # Then _draw_grouped_barlines will use the updated y_positions
+                                staff_view.update()
+                                print(f"ISOLATED_PARAM: Triggered full view update for grand staff spacing change")
                     except Exception as e:
                         print(f"ISOLATED_PARAM: Layout live update failed: {e}")
                     
@@ -3292,6 +3654,18 @@ class FullScoreOptionsDialog(QDialog):
 
     def _mark_dirty(self):
         self._dirty = True
+
+    def _mark_tab_dirty(self, tab_name):
+        """Mark a specific tab as dirty and enable its Confirm button."""
+        self._tab_dirty[tab_name] = True
+        if tab_name in self._confirm_buttons:
+            self._confirm_buttons[tab_name].setEnabled(True)
+
+    def _confirm_tab(self, tab_name):
+        """Clear the dirty state for a specific tab."""
+        self._tab_dirty[tab_name] = False
+        if tab_name in self._confirm_buttons:
+            self._confirm_buttons[tab_name].setEnabled(False)
 
     def _get_current_state(self):
         # Return a dict of all relevant parameters

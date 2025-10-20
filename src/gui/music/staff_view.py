@@ -385,7 +385,10 @@ class StaffView(QWidget):
         self.page_offset_y = 0.0  # Vertical offset for page positioning
         self.is_dragging_page = False
         self.drag_start_pos = None
-        self.drag_start_offset = None
+        self.drag_start_offset = QPointF(0, 0)
+        
+        # Track currently selected barline x-positions (score coordinates)
+        self._selected_barline_positions = []
         
         # GESTURE SUPPORT: Initialize gesture tracking
         self.last_mouse_pos = None
@@ -402,7 +405,7 @@ class StaffView(QWidget):
         
         # Initialize the renderer
         from .score_renderer import ScoreRenderer
-        self.renderer = ScoreRenderer(self.document)
+        self.renderer = ScoreRenderer()
         
         # Set up UI first
         self.setup_ui()
@@ -1404,7 +1407,10 @@ class StaffView(QWidget):
             print("PAINT: Drawing EDIT mode white background")
         
         # PAGE-BASED RENDERING: Render based on view mode
-        if view_mode == "continuous":
+        if is_in_setup:
+            # In setup mode we always show page view (no continuous)
+            self._render_page_down_mode(painter, background_rect, is_in_setup)
+        elif view_mode == "continuous":
             # Continuous mode: render all content in one long scrollable view
             self._render_continuous_mode(painter, background_rect, is_in_setup)
         elif view_mode == "page_across":
@@ -1458,66 +1464,41 @@ class StaffView(QWidget):
             painter.drawRect(self.drag_select_rect)
             painter.restore()
     
+        # Draw orange overlay lines for selected barlines across all staves
+        # Gate behind a flag to avoid drawing page-height overlays. The renderer
+        # already highlights selected barlines at their exact staff heights.
+        if getattr(self, 'show_selection_overlay', False):
+            self._draw_selected_barline_overlay(painter)
+    
     def _render_continuous_mode(self, painter, viewport_rect, is_in_setup):
-        """Render in continuous scrollable mode with proper A4 page dimensions and unified zoom"""
-        print("PAGE_RENDER: Rendering in continuous mode with A4 dimensions and unified zoom")
-        
-        # Use renderer/document page size instead of hardcoded A4
-        MM_TO_PIXELS = 3.78  # Standard conversion at 96 DPI
-        base_page_width = getattr(self.renderer, 'page_width', int(210 * MM_TO_PIXELS))
-        base_page_height = getattr(self.renderer, 'page_height', int(297 * MM_TO_PIXELS))
-        
-        # Center the page in the viewport, accounting for zoom
-        page_x = (viewport_rect.width() - int(base_page_width * self.zoom_factor)) // 2
-        page_y = (viewport_rect.height() - int(base_page_height * self.zoom_factor)) // 2
-        
+        """True continuous mode: no pages/margins/wrap. Horizontal lane only."""
+        # Fill background
+        painter.fillRect(viewport_rect, QColor(255, 255, 255))
         painter.save()
-        painter.translate(page_x, page_y)
-        painter.scale(self.zoom_factor, self.zoom_factor)  # Apply zoom ONCE
-        
-        # Draw page background - PINK for setup mode, WHITE for edit mode
-        page_rect = QRect(0, 0, base_page_width, base_page_height)
-        if is_in_setup:
-            painter.fillRect(page_rect, QColor(255, 192, 203))  # Light pink
-        else:
-            painter.fillRect(page_rect, QColor(255, 255, 255))
-        
-        # Draw page border
-        painter.setPen(QPen(QColor(200, 200, 200), 1))
-        painter.drawRect(page_rect)
-        
-        # Set clipping region to page boundaries
-        painter.setClipRect(page_rect)
-        
-        # Use current renderer margins if available
-        base_margins = getattr(self.renderer, 'margins', {
-            'left': int(25 * MM_TO_PIXELS),
-            'right': int(25 * MM_TO_PIXELS),
-            'top': int(20 * MM_TO_PIXELS),
-            'bottom': int(20 * MM_TO_PIXELS)
-        })
-        
-        # Keep renderer logical page size from preferences; do not reset per paint
-        self.renderer.set_margins(base_margins)
-        # Pass current page index for pagination-aware rendering
-        if hasattr(self.renderer, 'current_page'):
-            self.renderer.current_page = 0
-        mode = 'setup' if is_in_setup else 'edit'
-        self.renderer.render_score(painter, page_rect, mode)
-        
-        painter.restore()
-        
-        # Update widget size to content so scrollbars know the canvas extents
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.scale(self.zoom_factor, self.zoom_factor)
+
+        # Ask bridge to enforce continuous positions (no wrap)
         try:
-            content_w = int(base_page_width * self.zoom_factor)
-            # Height should accommodate all pages when page-down mode is active
-            total_pages = self._calculate_total_pages()
-            content_h = int(base_page_height * self.zoom_factor * max(1, total_pages))
-            if self.width() != content_w or self.height() != content_h:
-                self.resize(content_w, content_h)
-                self.updateGeometry()
-        except Exception:
-            pass
+            if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
+                self.temporal_bridge.ensure_continuous_positions()
+        except Exception as e:
+            print(f"CONTINUOUS: ensure_continuous_positions error: {e}")
+
+        # Build a simple infinite-lane rect and ask renderer to draw inside it
+        # We skip margins and page, passing a large viewport box.
+        lane_rect = QRect(0, 0, max(2000, viewport_rect.width()), viewport_rect.height())
+        try:
+            if hasattr(self.renderer, 'render_continuous'):
+                self.renderer.render_continuous(painter, lane_rect)
+            else:
+                # Fallback: call standard render with our lane rect
+                mode = 'setup' if is_in_setup else 'edit'
+                self.renderer.render_score(painter, lane_rect, mode)
+        except Exception as e:
+            print(f"CONTINUOUS: renderer.render_continuous fallback error: {e}")
+
+        painter.restore()
     
     def _render_page_across_mode(self, painter, viewport_rect, is_in_setup):
         """Render multiple pages side by side"""
@@ -1880,19 +1861,26 @@ class StaffView(QWidget):
             ctrl_pressed = event.modifiers() & Qt.KeyboardModifier.ControlModifier
             
             # DRAG SELECTION: Start drag selection if Ctrl/Cmd is held
-            meta_pressed = event.modifiers() & Qt.KeyboardModifier.MetaModifier
-            alt_pressed = event.modifiers() & Qt.KeyboardModifier.AltModifier
-            if (ctrl_pressed or (meta_pressed and alt_pressed)) and not shift_pressed:
+            if ctrl_pressed and not shift_pressed:
                 self.start_drag_selection(event.position())
                 return  # Skip barline operations for drag selection
             
             # Track if a barline operation occurred (to prevent page dragging)
             barline_operation_occurred = False
             
+            # Adjust x for continuous horizontal offset when hit-testing
+            try:
+                view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') else 'page'
+                adj_x = click_pos.x()
+                if view_mode == 'continuous' and hasattr(self, 'continuous_offset_x'):
+                    adj_x = click_pos.x() + int(self.continuous_offset_x)
+            except Exception:
+                adj_x = click_pos.x()
+
             # Check if we're in a valid area for barline operations
-            if self.is_position_valid_for_barline(click_pos.x(), click_pos.y()):
+            if self.is_position_valid_for_barline(adj_x, click_pos.y()):
                 # Try to find existing barline first
-                existing_barline = self.find_barline_at_position(click_pos.x(), click_pos.y())
+                existing_barline = self.find_barline_at_position(adj_x, click_pos.y())
                 
                 if existing_barline:
                     barline_operation_occurred = True  # Mark that we handled a barline
@@ -1927,6 +1915,7 @@ class StaffView(QWidget):
                         
                         # Update display to show selection changes
                         self.update()
+                        self._rebuild_selected_barline_positions()
                     else:
                         # Normal click: select only this barline (single select)
                         self.select_barline(existing_barline)
@@ -2090,22 +2079,86 @@ class StaffView(QWidget):
             print(f"KEYPRESS_DELETE: Found {len(selected_barlines)} selected barlines")
             
             if selected_barlines:
-                # Save state for undo BEFORE deletion
-                try:
-                    if hasattr(self, 'document') and hasattr(self.document, 'save_state'):
-                        self.document.save_state("Delete selected barlines")
-                except Exception:
-                    # Fallback to form_widget state if available
+                # Save state for undo BEFORE deletion (one-by-one redo behavior)
+                # Use document.save_state when available for consistent undo/redo
+                if hasattr(self, 'document') and hasattr(self.document, 'save_state'):
+                    if len(selected_barlines) == 1:
+                        self.document.save_state(
+                            f"Delete barline at measure {getattr(selected_barlines[0], 'measure_number', 'unknown')}"
+                        )
+                    else:
+                        self.document.save_state(f"Delete {len(selected_barlines)} barlines")
+                else:
                     form_widget = self.get_form_widget()
                     if form_widget and hasattr(form_widget, 'save_state'):
                         if len(selected_barlines) == 1:
-                            form_widget.save_state(f"Delete barline at measure {getattr(selected_barlines[0], 'measure_number', 'unknown')}")
+                            form_widget.save_state(
+                                f"Delete barline at measure {getattr(selected_barlines[0], 'measure_number', 'unknown')}"
+                            )
                         else:
                             form_widget.save_state(f"Delete {len(selected_barlines)} barlines")
                 
                 # Remove each barline immediately
                 successfully_deleted = 0
                 for barline in selected_barlines:
+                    # If this is a graphical dashed barline overlay, remove only the overlay
+                    try:
+                        if getattr(barline, 'is_graphical_dashed', False):
+                            if hasattr(self.document, 'graphical_dashed_barlines'):
+                                try:
+                                    self.document.graphical_dashed_barlines.remove(barline)
+                                except ValueError:
+                                    pass
+                            if hasattr(barline, 'selected'):
+                                barline.selected = False
+                            self._rebuild_selected_barline_positions()
+                            print("BARLINE_DEMOTE: Removed graphical dashed overlay; underlying single remains")
+                            continue
+                    except Exception:
+                        pass
+                    # Ensure a granular undo boundary per barline
+                    try:
+                        if hasattr(self, 'document') and hasattr(self.document, 'save_state'):
+                            self.document.save_state(
+                                f"Delete barline at measure {getattr(barline, 'measure_number', 'unknown')}"
+                            )
+                    except Exception:
+                        pass
+                    # If this is an overlay type (final/double/repeat variants), only demote to 'single'
+                    barline_type = getattr(barline, 'barline_type', None)
+                    measure_number = getattr(barline, 'measure_number', None)
+                    overlay_types = {'final', 'double', 'repeat_start', 'repeat_end', 'repeat_both', 'dashed'}
+                    # Treat the rightmost measure as a visual final overlay even if stored as 'single'
+                    is_rightmost = False
+                    try:
+                        if hasattr(self.document, 'measures') and isinstance(self.document.measures, dict) and self.document.measures:
+                            rightmost_num = max(k for k in self.document.measures.keys() if isinstance(k, int))
+                            is_rightmost = (int(measure_number) == int(rightmost_num))
+                    except Exception:
+                        is_rightmost = False
+                    if (barline_type in overlay_types or is_rightmost) and measure_number is not None:
+                        try:
+                            if hasattr(barline, 'barline_type'):
+                                barline.barline_type = 'single'
+                            if hasattr(barline, 'selected'):
+                                barline.selected = False
+                            if self.temporal_bridge:
+                                if hasattr(self.temporal_bridge, 'update_barline_type'):
+                                    self.temporal_bridge.update_barline_type(measure_number, 'single')
+                                elif hasattr(self.temporal_bridge, 'modify_barline_type'):
+                                    self.temporal_bridge.modify_barline_type(barline, 'single')
+                        except Exception as e:
+                            print(f"BARLINE_DEMOTE: Failed to demote measure {measure_number}: {e}")
+                        self._rebuild_selected_barline_positions()
+                        # Force immediate repaint and selection resync
+                        try:
+                            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                                self.renderer.set_selected_barline_positions(self._selected_barline_positions)
+                        except Exception:
+                            pass
+                        self.update()
+                        print(f"BARLINE_DEMOTE: Demoted {barline_type or ('rightmost' if is_rightmost else 'unknown')} at measure {measure_number} to single (measure intact)")
+                        continue
                     # Check if barline can be removed
                     can_remove = True
                     if hasattr(self, 'measure_manager') and self.measure_manager:
@@ -2139,12 +2192,18 @@ class StaffView(QWidget):
                         print(f"KEYPRESS_DELETE: Failed to release keyboard: {e}")
                         self._keyboard_grabbed = False
                 
-                # Update display
+                # Update display and force renderer to rebuild selection cache
+                try:
+                    if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                        self.renderer.set_selected_barline_positions([])
+                    if hasattr(self.renderer, 'set_selected_barline_measures'):
+                        self.renderer.set_selected_barline_measures([])
+                except Exception:
+                    pass
                 self.update()
-                # Clear drag rectangle after action
-                self.drag_select_rect = None
                 
                 print(f"BARLINE_DELETE: Successfully deleted {successfully_deleted} barline(s) out of {len(selected_barlines)} selected")
+                # No extra post-delete snapshot; we already wrote a per-barline snapshot above
                 
                 # Accept the event to prevent further propagation
                 event.accept()
@@ -2172,6 +2231,8 @@ class StaffView(QWidget):
                 
                 # Clear selection after successful removal - use proper method
                 self.deselect_all_barlines(skip_form_widget_notification=True)
+                self._selected_barline_positions = []
+                self._rebuild_selected_barline_positions()
                 
                 # Trigger re-render
                 self.update()
@@ -2214,25 +2275,9 @@ class StaffView(QWidget):
             # Emit selection signal for form widget
             self.barline_selected.emit(barline)
         
-        # Propagate selected x-positions to renderer so selection spans all staves
-        try:
-            x_positions = []
-            if hasattr(self.document, 'measures') and self.document.measures:
-                measures = self.document.measures.values() if isinstance(self.document.measures, dict) else self.document.measures
-                for m in measures:
-                    if hasattr(m, 'selected') and m.selected and hasattr(m, 'end_x'):
-                        x_positions.append(float(m.end_x))
-            if hasattr(self.document, 'graphical_dashed_barlines'):
-                for d in self.document.graphical_dashed_barlines:
-                    if hasattr(d, 'selected') and d.selected and hasattr(d, 'x_position'):
-                        x_positions.append(float(d.x_position))
-            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
-                self.renderer.set_selected_barline_positions(x_positions)
-        except Exception:
-            pass
-
         # Update display to show orange highlighting
         self.update()
+        self._rebuild_selected_barline_positions()
         
         print(f"BARLINE_SELECT: Selected barline at measure {getattr(barline, 'measure_number', 'unknown')}, global filter installed: {self._keyboard_grabbed}")
 
@@ -2271,14 +2316,9 @@ class StaffView(QWidget):
             if form_widget and hasattr(form_widget, 'on_deselect_all_barlines'):
                 form_widget.on_deselect_all_barlines()
         
-        # Clear renderer selection highlights and update display
-        try:
-            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
-                self.renderer.set_selected_barline_positions([])
-        except Exception:
-            pass
         # Update display
         self.update()
+        self._rebuild_selected_barline_positions()
     
     def get_selected_barline(self):
         """Get the currently selected barline (returns first selected if multiple)"""
@@ -2361,30 +2401,11 @@ class StaffView(QWidget):
                 element.selected = True
         
         print(f"DRAG_SELECT: Selected {len(draggable_elements)} draggable elements")
+        self._rebuild_selected_barline_positions()
         
-        # Keep rectangle visible and keep keyboard for follow-up actions
-        try:
-            self.grabKeyboard()
-            self._keyboard_grabbed = True
-        except Exception:
-            self._keyboard_grabbed = False
-        
-        # Propagate selection x positions to renderer for cross-staff highlight
-        try:
-            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
-                x_positions = []
-                for e in draggable_elements:
-                    if hasattr(e, 'end_x'):
-                        x_positions.append(float(e.end_x))
-                    elif hasattr(e, 'x_position'):
-                        x_positions.append(float(e.x_position))
-                self.renderer.set_selected_barline_positions(x_positions)
-        except Exception:
-            pass
-        
-        # Stay in selection state; do not clear drag rectangle until action
+        # Keep drag rectangle visible; clear only when explicitly deselected / action done
         self.is_drag_selecting = False
-        # self.drag_select_rect remains to show stable rectangle
+        self.drag_select_rect = None
         self.update()
     
     def find_elements_in_rect(self, rect):
@@ -2583,6 +2604,13 @@ class StaffView(QWidget):
         except Exception:
             score_x, score_y = x, y
 
+        # In continuous mode, adjust score_x by horizontal offset so we test against real positions
+        try:
+            if hasattr(self, 'renderer') and self.renderer.get_view_mode() == 'continuous':
+                score_x = float(score_x + float(getattr(self, 'continuous_offset_x', 0.0)))
+        except Exception:
+            pass
+
         if not self.is_position_valid_for_barline(score_x, score_y):
             print(f"BARLINE_SELECTION: Position x={x}, y={y} not valid for barline operations")
             return None
@@ -2617,7 +2645,7 @@ class StaffView(QWidget):
 
         closest_measure = None
         min_distance = float('inf')
-        
+
         for measure in measures:
             if hasattr(measure, 'end_x'):
                 mnum = getattr(measure, 'measure_number', 0)
@@ -2679,6 +2707,16 @@ class StaffView(QWidget):
         Returns a tuple (score_x, score_y).
         """
         try:
+            # In continuous mode there is no page centering/stacking; only zoom applies
+            try:
+                if hasattr(self, 'renderer') and self.renderer.get_view_mode() == 'continuous':
+                    zoom = float(getattr(self, 'zoom_factor', 1.0))
+                    score_x = float(x) / zoom
+                    score_y = float(y) / zoom
+                    print(f"COORDS: Continuous View({x:.1f},{y:.1f}) -> Score({score_x:.1f},{score_y:.1f}) zoom={zoom}")
+                    return score_x, score_y
+            except Exception:
+                pass
             # Base page size from renderer
             base_page_width = int(getattr(self.renderer, 'page_width', 800))
             base_page_height = int(getattr(self.renderer, 'page_height', 600))
@@ -3534,9 +3572,226 @@ class StaffView(QWidget):
         else:
             # Page navigation (when not zooming)
             delta = event.angleDelta().y()
-            if delta > 0:
-                self.previous_page()
+            view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') else 'page'
+            if view_mode == 'continuous':
+                # Horizontal scrolling in continuous mode
+                try:
+                    if not hasattr(self, 'continuous_offset_x'):
+                        self.continuous_offset_x = 0.0
+                    # Prefer horizontal delta when available, otherwise use vertical
+                    dx = event.angleDelta().x()
+                    step = 60  # logical px per notch
+                    move = -dx if dx != 0 else -delta
+                    self.continuous_offset_x = max(0.0, float(self.continuous_offset_x + (move / 120.0) * step))
+                    self.update()
+                except Exception:
+                    pass
             else:
-                self.next_page()
+                if delta > 0:
+                    if hasattr(self, 'previous_page'):
+                        try:
+                            self.previous_page()
+                        except Exception:
+                            pass
+                else:
+                    if hasattr(self, 'next_page'):
+                        try:
+                            self.next_page()
+                        except Exception:
+                            pass
             event.accept()
     
+    def _zoom_at_point(self, zoom_factor, zoom_center):
+        """Zoom in or out at a specific point on the screen"""
+        # Calculate the zoom center in view coordinates
+        zoom_center_view = zoom_center - self.rect().center()
+        zoom_center_view /= self.zoom_factor
+        zoom_center_view += self.rect().center()
+            
+        # Apply zoom
+        self.zoom_factor *= zoom_factor
+        self.update()
+
+        # Update the selected barline positions
+        try:
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                self.renderer.set_selected_barline_positions(self._selected_barline_positions)
+        except Exception:
+            pass
+
+    def _draw_selected_barline_overlay(self, painter):
+        if not getattr(self, '_selected_barline_positions', None):
+            return
+            
+        try:
+            zoom = float(getattr(self, 'zoom_factor', 1.0))
+            renderer = getattr(self, 'renderer', None)
+            if not renderer:
+                return
+            
+            page_width = float(getattr(renderer, 'page_width', self.width()))
+            page_height = float(getattr(renderer, 'page_height', self.height()))
+            margins = getattr(renderer, 'margins', {}) or {}
+            top_margin = float(margins.get('top', 0))
+            bottom_margin = float(margins.get('bottom', 0))
+
+            # Compute page origin similar to continuous/page-down mode centering
+            page_x = (self.width() - int(page_width * zoom)) / 2.0
+            page_y = (self.height() - int(page_height * zoom)) / 2.0 + float(self.page_offset_y) * zoom
+
+            top_y = page_y + top_margin * zoom
+            bottom_y = page_y + (page_height - bottom_margin) * zoom
+
+            painter.save()
+            pen = QPen(QColor(255, 165, 0, 180), 2)
+            pen.setCosmetic(True)
+            painter.setPen(pen)
+
+            # Positions are absolute score coordinates (already include left margin).
+            # Convert to view by applying page centering and zoom only.
+            # Group selected positions by their system so vertical selection lines don't span wrapped systems
+            # Build system boundaries using temporal bridge justification/grid
+            system_groups = {}
+            try:
+                if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
+                    measures = self.temporal_bridge._get_current_measures()
+                    mps = int(getattr(self.temporal_bridge, 'measures_per_system', 4) or 4)
+                    for idx, m in enumerate(measures):
+                        sys_idx = idx // max(1, mps)
+                        system_groups.setdefault(sys_idx, []).append(float(getattr(m, 'end_x', 0.0)))
+                else:
+                    # Fallback: treat all as one system
+                    system_groups = {0: list(map(float, self._selected_barline_positions))}
+            except Exception:
+                system_groups = {0: list(map(float, self._selected_barline_positions))}
+
+            for score_x in self._selected_barline_positions:
+                try:
+                    sx = float(score_x)
+                except Exception:
+                    sx = score_x
+                view_x = page_x + sx * zoom
+                # Determine which system this x belongs to and clamp to that system's staff heights
+                try:
+                    sys_top = top_y
+                    sys_bottom = bottom_y
+                    if hasattr(self, 'renderer') and hasattr(self.renderer, 'document') and hasattr(self.renderer.document, 'layout'):
+                        # Approximate by finding nearest system group index
+                        sys_idx = 0
+                        if system_groups:
+                            # Choose the system whose barline set contains/nearest this x
+                            best = None
+                            for idx, xs in system_groups.items():
+                                if any(abs(x - sx) <= 3.0 for x in xs):
+                                    best = idx
+                                    break
+                            if best is None:
+                                best = 0
+                            sys_idx = best
+                        # Compute vertical bounds for that system using staff spacing
+                        # Assume single-staff systems; clamp to single staff lines
+                        staff_y = None
+                        try:
+                            # Single staff position (first staff)
+                            if hasattr(self.renderer.document.layout, 'ungrouped_staves') and self.renderer.document.layout.ungrouped_staves:
+                                staff_y = float(self.renderer.document.layout.ungrouped_staves[0].y_position)
+                        except Exception:
+                            staff_y = None
+                        if staff_y is not None:
+                            # Offset by system index using spacing preference
+                            spacing_pref = 80
+                            try:
+                                from PyQt6.QtCore import QSettings
+                                spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                            except Exception:
+                                spacing_pref = 80
+                            sys_top = page_y + (staff_y + sys_idx * spacing_pref) * zoom
+                            sys_bottom = sys_top + (self.renderer.STAFF_LINE_SPACING * (self.renderer.STAFF_LINE_COUNT - 1)) * zoom
+                    painter.drawLine(QPointF(view_x, sys_top), QPointF(view_x, sys_bottom))
+                except Exception:
+                    painter.drawLine(QPointF(view_x, top_y), QPointF(view_x, bottom_y))
+
+            painter.restore()
+        except Exception as e:
+            print(f"OVERLAY_DRAW: Failed to draw selection overlay: {e}")
+
+    def _rebuild_selected_barline_positions(self):
+        """Synchronize overlay positions with the currently selected barlines."""
+        positions = []
+        selected_measure_numbers = []
+        try:
+            # Collect positions from standard measures
+            if hasattr(self.document, 'measures') and self.document.measures:
+                measures = self.document.measures
+                if isinstance(measures, dict):
+                    measures = measures.values()
+                for measure in measures:
+                    if getattr(measure, 'selected', False) and hasattr(measure, 'end_x'):
+                        positions.append(float(measure.end_x))
+                        try:
+                            selected_measure_numbers.append(int(getattr(measure, 'measure_number', 0)))
+                        except Exception:
+                            pass
+            
+            # Collect positions from graphical dashed barlines
+            if hasattr(self.document, 'graphical_dashed_barlines'):
+                for dashed_barline in self.document.graphical_dashed_barlines:
+                    if getattr(dashed_barline, 'selected', False) and hasattr(dashed_barline, 'x_position'):
+                        positions.append(float(dashed_barline.x_position))
+
+            # Store and pass to renderer (positions in absolute score coordinates)
+            self._selected_barline_positions = positions
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'set_selected_barline_positions'):
+                self.renderer.set_selected_barline_positions(positions)
+                if hasattr(self.renderer, 'set_selected_barline_measures'):
+                    self.renderer.set_selected_barline_measures(selected_measure_numbers)
+        except Exception as e:
+            print(f"BARLINE_OVERLAY: Failed to rebuild selected positions: {e}")
+
+    def keyPressEvent(self, event):
+        """Handle key press events for navigation and editing shortcuts"""
+        try:
+            view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') else 'page'
+        except Exception:
+            view_mode = 'page'
+        # Horizontal scroll in continuous mode via arrow keys
+        if view_mode == 'continuous' and event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+            try:
+                if not hasattr(self, 'continuous_offset_x'):
+                    self.continuous_offset_x = 0.0
+                step = 60
+                if event.key() == Qt.Key.Key_Left:
+                    self.continuous_offset_x = max(0.0, float(self.continuous_offset_x - step))
+                else:
+                    self.continuous_offset_x = max(0.0, float(self.continuous_offset_x + step))
+                self.update()
+                event.accept()
+                return
+            except Exception:
+                pass
+
+        # Delete selected barlines/measures
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            try:
+                # Ensure selection state is current
+                if hasattr(self, '_rebuild_selected_barline_positions'):
+                    self._rebuild_selected_barline_positions()
+                selected_measures = []
+                if hasattr(self, 'renderer') and hasattr(self.renderer, 'get_selected_measure_numbers'):
+                    selected_measures = list(self.renderer.get_selected_measure_numbers() or [])
+                if not selected_measures and hasattr(self, 'overlay_selected_measures'):
+                    selected_measures = list(getattr(self, 'overlay_selected_measures') or [])
+                if selected_measures and hasattr(self, 'document') and hasattr(self.document, 'temporal_bridge') and hasattr(self.document.temporal_bridge, 'delete_measures'):
+                    self.document.temporal_bridge.delete_measures(selected_measures)
+                    # Clear renderer selection & refresh
+                    if hasattr(self, 'renderer'):
+                        try:
+                            self.renderer.set_selected_barline_measures([])
+                        except Exception:
+                            pass
+                    self.update()
+                    event.accept()
+                    return
+            except Exception as e:
+                print(f"DELETE_MEASURE: Failed to delete selected measures: {e}")
+
