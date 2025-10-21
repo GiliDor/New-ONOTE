@@ -414,7 +414,7 @@ class PreferencesDialog(QDialog):
             )
         except Exception:
             pass
-        self.show_staff_names.setChecked(self.settings.value("layout/show_staff_names", True, type=bool))
+        # Removed: legacy layout/show_staff_names checkbox
         self.show_page_numbers.setChecked(self.settings.value("layout/show_page_numbers", True, type=bool))
         self.justify_last_system.setChecked(self.settings.value("layout/justify_last_system", False, type=bool))
         self.hide_empty_staves.setChecked(self.settings.value("layout/hide_empty_staves", False, type=bool))
@@ -705,7 +705,7 @@ class PreferencesDialog(QDialog):
             self.settings.setValue("notation/continuous_staff_name_display", self.pref_continuous_staff_name_display.currentText())
         except Exception:
             pass
-        self.settings.setValue("layout/show_staff_names", self.show_staff_names.isChecked())
+        # Removed legacy layout/show_staff_names persistence (replaced by dropdowns)
         self.settings.setValue("layout/show_page_numbers", self.show_page_numbers.isChecked())
         self.settings.setValue("layout/justify_last_system", self.justify_last_system.isChecked())
         self.settings.setValue("layout/hide_empty_staves", self.hide_empty_staves.isChecked())
