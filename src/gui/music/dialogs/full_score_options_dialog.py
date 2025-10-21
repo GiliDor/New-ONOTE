@@ -374,12 +374,12 @@ class FullScoreOptionsDialog(QDialog):
                 # Avoid affecting Score Setup (pink) mode: skip if layout.is_setup_mode
                 is_setup_mode = bool(getattr(getattr(staff_view, 'document', None), 'layout', None) and getattr(staff_view.document.layout, 'is_setup_mode', False))
                 if not is_setup_mode:
-                    if hasattr(staff_view, 'update'):
-                        staff_view.update()
-                        print("RESET_TO_SAVED: Triggered staff_view.update()")
-                    if hasattr(staff_view, 'repaint'):
-                        staff_view.repaint()
-                        print("RESET_TO_SAVED: Triggered staff_view.repaint()")
+                if hasattr(staff_view, 'update'):
+                    staff_view.update()
+                    print("RESET_TO_SAVED: Triggered staff_view.update()")
+                if hasattr(staff_view, 'repaint'):
+                    staff_view.repaint()
+                    print("RESET_TO_SAVED: Triggered staff_view.repaint()")
                 
                 # Method 2: Try temporal bridge signals
                 if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'temporal_bridge'):
@@ -747,20 +747,24 @@ class FullScoreOptionsDialog(QDialog):
         
         scroll_layout.addWidget(doc_layout_group)
         
-        # Text and Markings section
-        text_group = QGroupBox("Text and Markings")
+        # Staff Names Display section
+        text_group = QGroupBox("Staff Names Display")
         text_layout = QFormLayout(text_group)
         text_layout.setSpacing(8)
         
-
+        # First system staff names
+        self.staff_names_first_system = QComboBox()
+        self.staff_names_first_system.addItems(["Full Title", "Abbreviation", "None"])
+        self.staff_names_first_system.setCurrentText("Full Title")
+        text_layout.addRow("First system:", self.staff_names_first_system)
         
-        # Staff Names
-        self.staff_names_combo = QComboBox()
-        self.staff_names_combo.addItems(["Full Names", "Abbreviations", "First System Only", "None"])
-        self.staff_names_combo.setCurrentText("First System Only")
-        text_layout.addRow("Staff Names:", self.staff_names_combo)
+        # Following systems staff names
+        self.staff_names_following_systems = QComboBox()
+        self.staff_names_following_systems.addItems(["Full Title", "Abbreviation", "None"])
+        self.staff_names_following_systems.setCurrentText("Abbreviation")
+        text_layout.addRow("Following Systems:", self.staff_names_following_systems)
         
-        # Title Display
+        # Title Display (keeping for backward compatibility if needed)
         self.title_display_combo = QComboBox()
         self.title_display_combo.addItems(["Full Title", "Abbreviated", "None"])
         self.title_display_combo.setCurrentText("Full Title")
@@ -848,8 +852,10 @@ class FullScoreOptionsDialog(QDialog):
         self.doc_staff_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.doc_grand_staff_spacing.valueChanged.connect(lambda value: self._apply_single_parameter_change('grand_staff_spacing', value))
         self.doc_grand_staff_spacing.valueChanged.connect(lambda _: self._mark_tab_dirty("layout"))
-        self.staff_names_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names', value))
-        self.staff_names_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
+        self.staff_names_first_system.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names_first_system', value))
+        self.staff_names_first_system.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
+        self.staff_names_following_systems.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names_following_systems', value))
+        self.staff_names_following_systems.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.title_display_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('title_display', value))
         self.title_display_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.notation_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('notation_style', value))
@@ -1526,11 +1532,14 @@ class FullScoreOptionsDialog(QDialog):
         self.cv_strip_width = QSpinBox()
         self.cv_strip_width.setRange(80, 600)
         self.cv_strip_width.setSuffix(" px")
+        self.cv_strip_width.valueChanged.connect(lambda v: self._apply_doc_setting('layout/continuous_left_margin', int(v)))
         strip_form.addRow("Width:", self.cv_strip_width)
         right.addWidget(strip_group)
 
-        symbols_group = QGroupBox("Symbols (clef / time / key)")
+        symbols_group = QGroupBox("Symbols Positioning")
         sym_form = QFormLayout(symbols_group)
+        
+        # Clef controls
         self.cv_clef_font_size = QSpinBox(); self.cv_clef_font_size.setRange(16,48)
         self.cv_clef_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_clef_font_size', int(v)))
         self.cv_clef_vertical = QSpinBox(); self.cv_clef_vertical.setRange(-20,20)
@@ -1540,6 +1549,29 @@ class FullScoreOptionsDialog(QDialog):
         sym_form.addRow("Clef size:", self.cv_clef_font_size)
         sym_form.addRow("Clef vertical:", self.cv_clef_vertical)
         sym_form.addRow("Clef horizontal:", self.cv_clef_horizontal)
+        
+        # Key signature controls
+        self.cv_key_font_size = QSpinBox(); self.cv_key_font_size.setRange(16,48)
+        self.cv_key_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_key_sig_font_size', int(v)))
+        self.cv_key_vertical = QSpinBox(); self.cv_key_vertical.setRange(-20,20)
+        self.cv_key_vertical.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_key_sig_vertical', int(v)))
+        self.cv_key_horizontal = QSpinBox(); self.cv_key_horizontal.setRange(-500,2000)
+        self.cv_key_horizontal.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_key_sig_horizontal', int(v)))
+        sym_form.addRow("Key size:", self.cv_key_font_size)
+        sym_form.addRow("Key vertical:", self.cv_key_vertical)
+        sym_form.addRow("Key horizontal:", self.cv_key_horizontal)
+        
+        # Time signature controls
+        self.cv_time_font_size = QSpinBox(); self.cv_time_font_size.setRange(16,48)
+        self.cv_time_font_size.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_time_sig_font_size', int(v)))
+        self.cv_time_vertical = QSpinBox(); self.cv_time_vertical.setRange(-20,20)
+        self.cv_time_vertical.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_time_sig_vertical', int(v)))
+        self.cv_time_horizontal = QSpinBox(); self.cv_time_horizontal.setRange(-500,2000)
+        self.cv_time_horizontal.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_time_sig_horizontal', int(v)))
+        sym_form.addRow("Time size:", self.cv_time_font_size)
+        sym_form.addRow("Time vertical:", self.cv_time_vertical)
+        sym_form.addRow("Time horizontal:", self.cv_time_horizontal)
+        
         right.addWidget(symbols_group)
         right.addStretch(1)
 
@@ -1692,35 +1724,35 @@ class FullScoreOptionsDialog(QDialog):
 
     def choose_font_color(self, category):
         """Open color picker dialog for font colors - uniform with Preferences dialog."""
-        from PyQt6.QtWidgets import QColorDialog
-        from PyQt6.QtCore import Qt
-        from PyQt6.QtGui import QColor
+            from PyQt6.QtWidgets import QColorDialog
+            from PyQt6.QtCore import Qt
+            from PyQt6.QtGui import QColor
             
         # Map category to button and current color
         current_color = QColor("#000000")
-        if category == 'staff_names':
-            button = self.staff_name_font_color
-            current_color = QColor(getattr(self, 'staff_name_color_value', '#000000'))
-        elif category == 'section_names':
-            button = self.section_name_font_color
-            current_color = QColor(getattr(self, 'section_name_color_value', '#000000'))
-        elif category == 'clef':
-            button = self.clef_font_color
-            current_color = QColor(getattr(self, 'clef_color_value', '#000000'))
-        elif category == 'time_sig':
-            button = self.time_sig_font_color
-            current_color = QColor(getattr(self, 'time_sig_color_value', '#000000'))
-        elif category == 'key_sig':
-            button = self.key_sig_font_color
-            current_color = QColor(getattr(self, 'key_sig_color_value', '#000000'))
-        elif category == 'measure_numbers':
-            button = self.measure_numbers_font_color
-            current_color = QColor(getattr(self, 'measure_numbers_color_value', '#000000'))
-        elif category == 'barline_numbers':
-            button = self.barline_number_font_color
-            current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
-        else:
-            return
+            if category == 'staff_names':
+                button = self.staff_name_font_color
+                current_color = QColor(getattr(self, 'staff_name_color_value', '#000000'))
+            elif category == 'section_names':
+                button = self.section_name_font_color
+                current_color = QColor(getattr(self, 'section_name_color_value', '#000000'))
+            elif category == 'clef':
+                button = self.clef_font_color
+                current_color = QColor(getattr(self, 'clef_color_value', '#000000'))
+            elif category == 'time_sig':
+                button = self.time_sig_font_color
+                current_color = QColor(getattr(self, 'time_sig_color_value', '#000000'))
+            elif category == 'key_sig':
+                button = self.key_sig_font_color
+                current_color = QColor(getattr(self, 'key_sig_color_value', '#000000'))
+            elif category == 'measure_numbers':
+                button = self.measure_numbers_font_color
+                current_color = QColor(getattr(self, 'measure_numbers_color_value', '#000000'))
+            elif category == 'barline_numbers':
+                button = self.barline_number_font_color
+                current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
+            else:
+                return
             
         # Use shared ColorButton behavior: open non-native dialog and update swatch
         # macOS native Colors panel (no DontUseNativeDialog)
@@ -1731,12 +1763,12 @@ class FullScoreOptionsDialog(QDialog):
             QColorDialog.ColorDialogOption(0),
         )
                 
-        if color.isValid():
-            hex_color = color.name()
-            text_color = "#FFFFFF" if self.is_dark_color(color) else "#000000"
-            button.setStyleSheet(f"background-color: {hex_color}; color: {text_color};")
-            setattr(self, f"{category}_color_value", hex_color)
-            self._apply_color_change_immediately(category, hex_color)
+                if color.isValid():
+                    hex_color = color.name()
+                    text_color = "#FFFFFF" if self.is_dark_color(color) else "#000000"
+                    button.setStyleSheet(f"background-color: {hex_color}; color: {text_color};")
+                    setattr(self, f"{category}_color_value", hex_color)
+                    self._apply_color_change_immediately(category, hex_color)
     
     def _apply_color_change_immediately(self, category, hex_color):
         """Apply color change immediately without side effects - COMPLETELY ISOLATED"""
@@ -2766,9 +2798,9 @@ class FullScoreOptionsDialog(QDialog):
         
         # Notify Preferences to reload UI (no auto-apply; handled by Apply/Close prompt)
         try:
-            from PyQt6.QtCore import QSettings
-            settings = QSettings("ONOTE", "Preferences")
-            settings.sync()
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("ONOTE", "Preferences")
+        settings.sync()
             preferences_bus.preferences_updated.emit({"source": "fso_set_defaults", "scope": "notation"})
         except Exception:
             pass
@@ -3140,6 +3172,26 @@ class FullScoreOptionsDialog(QDialog):
             self.doc_staff_spacing.setValue(get_setting_with_precedence('layout/staff_spacing', 40))
             self.doc_grand_staff_spacing.setValue(get_setting_with_precedence('layout/grand_staff_spacing', 32))
             
+            # Load staff name display settings
+            first_system = get_setting_with_precedence('layout/staff_names_first_system', 'Full Title')
+            if first_system in ['Full Title', 'Abbreviation', 'None']:
+                self.staff_names_first_system.setCurrentText(first_system)
+            following_systems = get_setting_with_precedence('layout/staff_names_following_systems', 'Abbreviation')
+            if following_systems in ['Full Title', 'Abbreviation', 'None']:
+                self.staff_names_following_systems.setCurrentText(following_systems)
+            
+            # Load continuous view settings
+            self.cv_strip_width.setValue(get_setting_with_precedence('layout/continuous_left_margin', 150))
+            self.cv_clef_font_size.setValue(get_setting_with_precedence('notation/continuous_clef_font_size', 32))
+            self.cv_clef_vertical.setValue(get_setting_with_precedence('notation/continuous_clef_vertical', 0))
+            self.cv_clef_horizontal.setValue(get_setting_with_precedence('notation/continuous_clef_horizontal', 0))
+            self.cv_key_font_size.setValue(get_setting_with_precedence('notation/continuous_key_sig_font_size', 32))
+            self.cv_key_vertical.setValue(get_setting_with_precedence('notation/continuous_key_sig_vertical', 0))
+            self.cv_key_horizontal.setValue(get_setting_with_precedence('notation/continuous_key_sig_horizontal', 0))
+            self.cv_time_font_size.setValue(get_setting_with_precedence('notation/continuous_time_sig_font_size', 32))
+            self.cv_time_vertical.setValue(get_setting_with_precedence('notation/continuous_time_sig_vertical', 0))
+            self.cv_time_horizontal.setValue(get_setting_with_precedence('notation/continuous_time_sig_horizontal', 0))
+            
             # Note: Measure numbers and barline control settings are now handled in this dialog
             print("FULL_SCORE_OPTIONS: Loaded notation and layout settings from document and QSettings")
             
@@ -3430,7 +3482,8 @@ class FullScoreOptionsDialog(QDialog):
             
             # Save ONLY this specific parameter
             # Route layout-related parameters under the 'layout/' namespace
-            layout_params = {'system_spacing', 'staff_spacing', 'grand_staff_spacing', 'measures_per_system'}
+            layout_params = {'system_spacing', 'staff_spacing', 'grand_staff_spacing', 'measures_per_system', 
+                           'staff_names_first_system', 'staff_names_following_systems'}
             key_namespace = 'layout' if parameter_key in layout_params else 'notation'
             full_key = f"{key_namespace}/{parameter_key}"
             
@@ -3503,6 +3556,8 @@ class FullScoreOptionsDialog(QDialog):
                     'measures_per_system': 'measures_per_system',
                     'system_spacing': 'system_spacing',
                     'staff_names': 'staff_names',
+                    'staff_names_first_system': 'staff_names_first_system',
+                    'staff_names_following_systems': 'staff_names_following_systems',
                     'title_display': 'title_display',
                     'notation_style': 'notation_style',
                     'barline_style': 'barline_style',
@@ -3550,7 +3605,7 @@ class FullScoreOptionsDialog(QDialog):
                             if parameter_key == 'grand_staff_spacing':
                                 # Update layout object if it exists
                                 if hasattr(layout_obj, 'grand_staff_spacing'):
-                                    setattr(layout_obj, 'grand_staff_spacing', int(value))
+                                setattr(layout_obj, 'grand_staff_spacing', int(value))
                                 # Invalidate renderer caches to force full re-render with new spacing
                                 if hasattr(renderer, '_unit_width_by_system'):
                                     renderer._unit_width_by_system = {}

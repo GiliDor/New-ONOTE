@@ -1959,6 +1959,11 @@ class MainWindow(QMainWindow):
             if hasattr(self.staff_view, 'renderer'):
                 self.staff_view.renderer.set_continuous_mode(self.continuous_view_action.isChecked())
                 print(f"VIEW_MODE: Set renderer to continuous mode: {self.continuous_view_action.isChecked()}")
+                
+                # Refresh renderer settings from document snapshot
+                if hasattr(self.staff_view.renderer, 'refresh_from_document'):
+                    self.staff_view.renderer.refresh_from_document()
+                    print(f"VIEW_MODE: Refreshed renderer settings from document snapshot")
             
             # Update the measure manager if available
             if hasattr(self.staff_view, 'measure_manager') and self.staff_view.measure_manager:
@@ -1997,6 +2002,11 @@ class MainWindow(QMainWindow):
             if hasattr(self.staff_view, 'renderer'):
                 self.staff_view.renderer.set_page_across_mode(self.page_across_action.isChecked())
                 print(f"VIEW_MODE: Set renderer to page across mode: {self.page_across_action.isChecked()}")
+                
+                # Refresh renderer settings from document snapshot
+                if hasattr(self.staff_view.renderer, 'refresh_from_document'):
+                    self.staff_view.renderer.refresh_from_document()
+                    print(f"VIEW_MODE: Refreshed renderer settings from document snapshot")
             
             # Update total pages for page navigation
             if hasattr(self.staff_view, 'update_total_pages'):
@@ -2029,6 +2039,11 @@ class MainWindow(QMainWindow):
             if hasattr(self.staff_view, 'renderer'):
                 self.staff_view.renderer.set_page_down_mode(self.page_down_action.isChecked())
                 print(f"VIEW_MODE: Set renderer to page down mode: {self.page_down_action.isChecked()}")
+                
+                # Refresh renderer settings from document snapshot
+                if hasattr(self.staff_view.renderer, 'refresh_from_document'):
+                    self.staff_view.renderer.refresh_from_document()
+                    print(f"VIEW_MODE: Refreshed renderer settings from document snapshot")
             
             # Update total pages for page navigation
             if hasattr(self.staff_view, 'update_total_pages'):

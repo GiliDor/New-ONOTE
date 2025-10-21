@@ -500,6 +500,73 @@ class ScoreRenderer:
         except Exception as e:
             print(f"RENDERER: Error applying document layout: {e}")
 
+    def refresh_from_document(self):
+        """Refresh renderer settings from the current document snapshot."""
+        if not hasattr(self, 'document') or not self.document:
+            print("RENDERER: No document to refresh from")
+            return
+        
+        print("RENDERER: Refreshing settings from document snapshot")
+        
+        # Get document settings
+        document_settings = {}
+        if hasattr(self.document, 'settings') and self.document.settings:
+            document_settings = self.document.settings
+        
+        # Get QSettings for fallback
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("ONOTE", "Preferences")
+        
+        # Determine whether we are in continuous view
+        is_continuous = (getattr(self, 'view_mode', '') == 'continuous')
+
+        # Helper: fetch from doc/prefs with precedence
+        def _fetch(key, default_value):
+            if key in document_settings:
+                return document_settings[key]
+            return settings.value(key, default_value)
+
+        # Wrapper that tries continuous key first when applicable
+        def get_setting_with_precedence(key, default_value):
+            if is_continuous and key.startswith('notation/'):
+                cont_key = key.replace('notation/', 'notation/continuous_', 1) if '/continuous_' not in key else key
+                if '/continuous_' in key:
+                    return _fetch(key, default_value)
+                val = _fetch(cont_key, None)
+                if val is not None:
+                    return val
+            return _fetch(key, default_value)
+        
+        # Reload notation settings
+        self.staff_name_font_size = int(get_setting_with_precedence("notation/staff_name_font_size", 10))
+        self.staff_name_vertical_offset = int(get_setting_with_precedence("notation/staff_name_vertical", -8))
+        self.staff_name_horizontal_offset = int(get_setting_with_precedence("notation/staff_name_horizontal", -50))
+        self.staff_name_font_color = get_setting_with_precedence("notation/staff_name_font_color", "#000000")
+        
+        self.section_name_font_size = int(get_setting_with_precedence("notation/section_name_font_size", 12))
+        self.section_name_vertical_offset = int(get_setting_with_precedence("notation/section_name_vertical", -10))
+        self.section_name_horizontal_offset = int(get_setting_with_precedence("notation/section_name_horizontal", -60))
+        self.section_name_font_color = get_setting_with_precedence("notation/section_name_font_color", "#000000")
+        
+        self.clef_font_size = int(get_setting_with_precedence("notation/clef_font_size", 32))
+        self.clef_vertical_offset = int(get_setting_with_precedence("notation/clef_vertical", 0))
+        self.clef_horizontal_offset = int(get_setting_with_precedence("notation/clef_horizontal", 0))
+        self.clef_font_color = get_setting_with_precedence("notation/clef_font_color", "#000000")
+        
+        self.time_sig_font_size = int(get_setting_with_precedence("notation/time_sig_font_size", 24))
+        self.time_sig_vertical_offset = int(get_setting_with_precedence("notation/time_sig_vertical", 0))
+        self.time_sig_horizontal_offset = int(get_setting_with_precedence("notation/time_sig_horizontal", 40))
+        self.time_sig_spacing = int(get_setting_with_precedence("notation/time_sig_spacing", 18))
+        self.time_sig_font_color = get_setting_with_precedence("notation/time_sig_font_color", "#000000")
+        
+        self.key_sig_font_size = int(get_setting_with_precedence("notation/key_sig_font_size", 14))
+        self.key_sig_vertical_offset = int(get_setting_with_precedence("notation/key_sig_vertical", 0))
+        self.key_sig_horizontal_offset = int(get_setting_with_precedence("notation/key_sig_horizontal", 75))
+        self.key_sig_accidental_spacing = int(get_setting_with_precedence("notation/key_sig_accidental_spacing", 12))
+        self.key_sig_font_color = get_setting_with_precedence("notation/key_sig_font_color", "#000000")
+        
+        print(f"RENDERER: Refreshed settings - view_mode: {self.view_mode}, is_continuous: {is_continuous}")
+
     def set_page_size(self, width, height):
         """Set the page size for rendering with dynamic layout refresh."""
         old_width = self.page_width
@@ -1739,13 +1806,17 @@ class ScoreRenderer:
                         if isinstance(staff, _GS) and hasattr(staff, 'instrument_name') and staff.instrument_name:
                             name_x = self.margins["left"] + self.staff_name_horizontal_offset
                             name_y = getattr(staff, 'instrument_name_y', staff.y_position)
+                            # Get abbreviation if available
+                            staff_abbrev = getattr(staff, 'abbreviation', None)
                             PartNameRenderer.render_part_name(
                                 painter,
                                 staff.instrument_name,
                                 name_x,
                                 name_y,
                                 is_grand_staff=True,
-                                document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None
+                                document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None,
+                                system_idx=system_idx,
+                                abbreviation=staff_abbrev
                             )
                     except Exception:
                         pass
@@ -5039,6 +5110,11 @@ class ScoreRenderer:
     # ------------------------------
     # Continuous rendering (no pages)
     # ------------------------------
+    def _is_visible_in_continuous(self, x_pos, offset_x, strip_width):
+        """Check if x position is outside the fixed strip (visible)"""
+        adjusted_x = x_pos - offset_x
+        return adjusted_x >= strip_width
+    
     def render_continuous(self, painter, lane_rect):
         """Draw a single horizontal system with all measures left→right.
         No margins/pages/wrap. Selection by measure number when provided.
@@ -5102,12 +5178,27 @@ class ScoreRenderer:
                 pass
             fm = QFontMetrics(QFont())
             name_w = max([fm.horizontalAdvance(n) for n in names if n] + [0])
-            symbol_block_w = 105 if (show_clefs or show_time or show_key) else 0
+            
+            # Calculate symbol block width dynamically based on what's shown
+            symbol_block_w = 0
+            if show_clefs:
+                symbol_block_w += 50  # Clef width
+            if show_time:
+                # Time signature width (simple heuristic)
+                symbol_block_w += 40  # Width for time signature
+            if show_key:
+                # Key signature width (estimate for most common keys)
+                symbol_block_w += 30  # Width for key signature
+            
             computed_strip = float(max(120, name_w + symbol_block_w + 24))
             left_strip_width = float(custom_left) if custom_left is not None else computed_strip
 
-            # left_x is the start of scrollable notation area after horizontal offset
-            left_x = max(0.0, left_strip_width - offset_x)
+            # Define fixed-strip barline 0 X position (inside strip, near left edge)
+            strip_bar0_x = 12.0  # px from strip's left edge
+            
+            # Staff lines should align with barline 0 when offset_x = 0
+            barline_0_x = strip_bar0_x
+            left_x = barline_0_x - offset_x
             # Vertical layout for all staves/parts in parallel
             base_y = 102.0
             staff_gap = 80.0
@@ -5161,11 +5252,9 @@ class ScoreRenderer:
                  except Exception:
                      pass
 
-            # Define fixed-strip barline 0 X inside the strip so brace/bracket sit to its left
-            strip_bar0_x = 12.0  # px from strip's left edge
-
+            # strip_bar0_x already defined above (line 5126)
             # Draw FIXED column (names + clef/time/key + braces) independent of offset
-            def draw_fixed_column(row_y: float, name: str | None = None, is_grand: bool = False, bottom_row_y: float | None = None, section_name: str | None = None):
+            def draw_fixed_column(row_y: float, name: str | None = None, is_grand: bool = False, bottom_row_y: float | None = None, section_name: str | None = None, staff_obj=None):
                 # Name drawing is handled once per part below, centered vertically.
                 # Keep only section label and initial symbols in the fixed strip here.
                 try:
@@ -5232,17 +5321,57 @@ class ScoreRenderer:
                             pass
                         try:
                             if show_clefs:
-                                self._render_clef(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
-                                if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
-                                    self._render_clef(painter, _staff.bottom_staff, is_first_system=True)
+                                # Render clef for top staff (or single staff)
+                                if is_grand and staff_obj and hasattr(staff_obj, 'top_staff'):
+                                    # Read current grand_staff_spacing from document settings
+                                    grand_staff_spacing = 32
+                                    try:
+                                        if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                                            grand_staff_spacing = int(self.document.settings.get('layout/grand_staff_spacing', 32))
+                                    except Exception:
+                                        pass
+                                    # Update bottom staff y_position based on current spacing
+                                    staff_obj.bottom_staff.y_position = staff_obj.top_staff.y_position + self.STAFF_HEIGHT + grand_staff_spacing
+                                    self._render_clef(painter, staff_obj.top_staff, is_first_system=True)
+                                elif staff_obj:
+                                    self._render_clef(painter, staff_obj, is_first_system=True)
+                                # Render clef for bottom staff if grand staff
+                                if is_grand and staff_obj and hasattr(staff_obj, 'bottom_staff'):
+                                    self._render_clef(painter, staff_obj.bottom_staff, is_first_system=True)
                             if show_key:
-                                self._render_key_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
-                                if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
-                                    self._render_key_signature(painter, _staff.bottom_staff, is_first_system=True)
+                                # Render key signature for top staff (or single staff)
+                                if is_grand and staff_obj and hasattr(staff_obj, 'top_staff'):
+                                    # Ensure bottom staff y_position is updated for key signature
+                                    grand_staff_spacing = 32
+                                    try:
+                                        if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                                            grand_staff_spacing = int(self.document.settings.get('layout/grand_staff_spacing', 32))
+                                    except Exception:
+                                        pass
+                                    staff_obj.bottom_staff.y_position = staff_obj.top_staff.y_position + self.STAFF_HEIGHT + grand_staff_spacing
+                                    self._render_key_signature(painter, staff_obj.top_staff, is_first_system=True)
+                                elif staff_obj:
+                                    self._render_key_signature(painter, staff_obj, is_first_system=True)
+                                # Render key for bottom staff if grand staff
+                                if is_grand and staff_obj and hasattr(staff_obj, 'bottom_staff'):
+                                    self._render_key_signature(painter, staff_obj.bottom_staff, is_first_system=True)
                             if show_time:
-                                self._render_time_signature(painter, getattr(self, 'current_staff_obj', None) or _staff, is_first_system=True)
-                                if is_grand and bottom_row_y is not None and hasattr(_staff, 'bottom_staff'):
-                                    self._render_time_signature(painter, _staff.bottom_staff, is_first_system=True)
+                                # Render time signature for top staff (or single staff)
+                                if is_grand and staff_obj and hasattr(staff_obj, 'top_staff'):
+                                    # Ensure bottom staff y_position is updated for time signature
+                                    grand_staff_spacing = 32
+                                    try:
+                                        if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
+                                            grand_staff_spacing = int(self.document.settings.get('layout/grand_staff_spacing', 32))
+                                    except Exception:
+                                        pass
+                                    staff_obj.bottom_staff.y_position = staff_obj.top_staff.y_position + self.STAFF_HEIGHT + grand_staff_spacing
+                                    self._render_time_signature(painter, staff_obj.top_staff, is_first_system=True)
+                                elif staff_obj:
+                                    self._render_time_signature(painter, staff_obj, is_first_system=True)
+                                # Render time for bottom staff if grand staff
+                                if is_grand and staff_obj and hasattr(staff_obj, 'bottom_staff'):
+                                    self._render_time_signature(painter, staff_obj.bottom_staff, is_first_system=True)
                         finally:
                             if previous_left_margin is not None and hasattr(self, 'margins'):
                                 self.margins['left'] = previous_left_margin
@@ -5264,6 +5393,7 @@ class ScoreRenderer:
                 painter.setPen(QPen(QColor(0, 0, 0), 1))
                 for i in range(self.STAFF_LINE_COUNT):
                     line_y = row_y + i * self.STAFF_LINE_SPACING
+                    # Staff lines start at barline 0 position (scrollable with content)
                     painter.drawLine(QLineF(left_x, line_y, rightmost - offset_x, line_y))
 
             # Measures sequence (shared across rows)
@@ -5289,7 +5419,7 @@ class ScoreRenderer:
                     section_name_for_row = None
                     if _section is not None and section_first_index.get(_section, -1) == row_index:
                         section_name_for_row = getattr(_section, 'name', None)
-                    draw_fixed_column(top_y, name, True, bottom_y, section_name_for_row)
+                    draw_fixed_column(top_y, name, True, bottom_y, section_name_for_row, _staff)
                     # Draw grand-staff name once, centered between treble and bass staves
                     try:
                         from PyQt6.QtCore import QRectF
@@ -5395,7 +5525,7 @@ class ScoreRenderer:
                     section_name_for_row = None
                     if _section is not None and section_first_index.get(_section, -1) == row_index:
                         section_name_for_row = getattr(_section, 'name', None)
-                    draw_fixed_column(row_y, name, False, None, section_name_for_row)
+                    draw_fixed_column(row_y, name, False, None, section_name_for_row, _staff)
                     draw_staff_row(row_y)
                     # Draw single-staff name centered on its 3rd line
                     try:
@@ -5580,7 +5710,11 @@ class ScoreRenderer:
             except Exception as e:
                 print(f"CONTINUOUS_NUMBERS: error {e}")
 
-            # Global barline 0 spanning all parts (fixed in strip)
+            # Fixed strip is completely transparent - no overlay needed
+            # Staff lines and barlines remain visible throughout
+            # The strip area is just a designated zone for fixed elements (barline 0, clef, key, time)
+            
+            # Global barline 0 spanning all parts (drawn ON TOP of strip overlay)
             try:
                 if top_system_y is not None and bottom_system_y is not None:
                     # Fixed at inner offset from strip's left edge
@@ -5588,7 +5722,6 @@ class ScoreRenderer:
                     # Match page view thickness using constants
                     normal_thickness = float(self.BARLINE_CONSTANTS["normal"]["thickness"]) if hasattr(self, 'BARLINE_CONSTANTS') else 2.0
                     painter.save()
-                    painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
                     painter.setPen(QPen(QColor(0, 0, 0), normal_thickness, Qt.PenStyle.SolidLine, Qt.PenCapStyle.FlatCap))
                     painter.drawLine(QLineF(x0, top_system_y, x0, bottom_system_y))
                     painter.restore()
