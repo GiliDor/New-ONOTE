@@ -612,24 +612,43 @@ class PartNameRenderer:
         if not name:
             return
         
-        # Determine which name to display based on system and settings
+        # Determine which name to display based on view mode and system
         display_mode = None
-        if system_idx == 0:
-            # First system
-            if document_settings and 'layout/staff_names_first_system' in document_settings:
-                display_mode = document_settings['layout/staff_names_first_system']
+        use_cv = False
+        try:
+            # If caller passed document_settings, attempt to detect continuous view flag there
+            use_cv = bool(document_settings and document_settings.get('view/mode') == 'continuous')
+        except Exception:
+            use_cv = False
+        if not use_cv:
+            # allow renderer to set a view_mode attribute and pass via settings
+            try:
+                use_cv = bool(document_settings and document_settings.get('view_mode') == 'continuous')
+            except Exception:
+                pass
+        if use_cv:
+            # Continuous view: use CV-specific dropdown
+            if document_settings and 'notation/continuous_staff_name_display' in document_settings:
+                display_mode = document_settings['notation/continuous_staff_name_display']
             else:
                 from PyQt6.QtCore import QSettings
                 qsettings = QSettings("ONOTE", "Preferences")
-                display_mode = qsettings.value("layout/staff_names_first_system", "Full Title")
+                display_mode = qsettings.value("notation/continuous_staff_name_display", "Abbreviation")
         else:
-            # Following systems
-            if document_settings and 'layout/staff_names_following_systems' in document_settings:
-                display_mode = document_settings['layout/staff_names_following_systems']
+            if system_idx == 0:
+                if document_settings and 'layout/staff_names_first_system' in document_settings:
+                    display_mode = document_settings['layout/staff_names_first_system']
+                else:
+                    from PyQt6.QtCore import QSettings
+                    qsettings = QSettings("ONOTE", "Preferences")
+                    display_mode = qsettings.value("layout/staff_names_first_system", "Full Title")
             else:
-                from PyQt6.QtCore import QSettings
-                qsettings = QSettings("ONOTE", "Preferences")
-                display_mode = qsettings.value("layout/staff_names_following_systems", "Abbreviation")
+                if document_settings and 'layout/staff_names_following_systems' in document_settings:
+                    display_mode = document_settings['layout/staff_names_following_systems']
+                else:
+                    from PyQt6.QtCore import QSettings
+                    qsettings = QSettings("ONOTE", "Preferences")
+                    display_mode = qsettings.value("layout/staff_names_following_systems", "Abbreviation")
         
         # Apply display mode
         if display_mode == "None":

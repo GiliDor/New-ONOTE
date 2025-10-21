@@ -374,12 +374,12 @@ class FullScoreOptionsDialog(QDialog):
                 # Avoid affecting Score Setup (pink) mode: skip if layout.is_setup_mode
                 is_setup_mode = bool(getattr(getattr(staff_view, 'document', None), 'layout', None) and getattr(staff_view.document.layout, 'is_setup_mode', False))
                 if not is_setup_mode:
-                if hasattr(staff_view, 'update'):
-                    staff_view.update()
-                    print("RESET_TO_SAVED: Triggered staff_view.update()")
-                if hasattr(staff_view, 'repaint'):
-                    staff_view.repaint()
-                    print("RESET_TO_SAVED: Triggered staff_view.repaint()")
+                    if hasattr(staff_view, 'update'):
+                        staff_view.update()
+                        print("RESET_TO_SAVED: Triggered staff_view.update()")
+                    if hasattr(staff_view, 'repaint'):
+                        staff_view.repaint()
+                        print("RESET_TO_SAVED: Triggered staff_view.repaint()")
                 
                 # Method 2: Try temporal bridge signals
                 if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'temporal_bridge'):
@@ -763,12 +763,12 @@ class FullScoreOptionsDialog(QDialog):
         self.staff_names_following_systems.addItems(["Full Title", "Abbreviation", "None"])
         self.staff_names_following_systems.setCurrentText("Abbreviation")
         text_layout.addRow("Following Systems:", self.staff_names_following_systems)
-        
-        # Title Display (keeping for backward compatibility if needed)
-        self.title_display_combo = QComboBox()
-        self.title_display_combo.addItems(["Full Title", "Abbreviated", "None"])
-        self.title_display_combo.setCurrentText("Full Title")
-        text_layout.addRow("Title Display:", self.title_display_combo)
+
+        # Continuous view staff names (new)
+        self.continuous_staff_name_display = QComboBox()
+        self.continuous_staff_name_display.addItems(["Full Title", "Abbreviation", "None"])
+        self.continuous_staff_name_display.setCurrentText("Abbreviation")
+        text_layout.addRow("Continuous view title:", self.continuous_staff_name_display)
         
         scroll_layout.addWidget(text_group)
         
@@ -856,6 +856,8 @@ class FullScoreOptionsDialog(QDialog):
         self.staff_names_first_system.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.staff_names_following_systems.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('staff_names_following_systems', value))
         self.staff_names_following_systems.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
+        self.continuous_staff_name_display.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('continuous_staff_name_display', value))
+        self.continuous_staff_name_display.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.title_display_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('title_display', value))
         self.title_display_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.notation_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('notation_style', value))
@@ -1724,35 +1726,34 @@ class FullScoreOptionsDialog(QDialog):
 
     def choose_font_color(self, category):
         """Open color picker dialog for font colors - uniform with Preferences dialog."""
-            from PyQt6.QtWidgets import QColorDialog
-            from PyQt6.QtCore import Qt
-            from PyQt6.QtGui import QColor
-            
+        from PyQt6.QtWidgets import QColorDialog
+        from PyQt6.QtGui import QColor
+
         # Map category to button and current color
         current_color = QColor("#000000")
-            if category == 'staff_names':
-                button = self.staff_name_font_color
-                current_color = QColor(getattr(self, 'staff_name_color_value', '#000000'))
-            elif category == 'section_names':
-                button = self.section_name_font_color
-                current_color = QColor(getattr(self, 'section_name_color_value', '#000000'))
-            elif category == 'clef':
-                button = self.clef_font_color
-                current_color = QColor(getattr(self, 'clef_color_value', '#000000'))
-            elif category == 'time_sig':
-                button = self.time_sig_font_color
-                current_color = QColor(getattr(self, 'time_sig_color_value', '#000000'))
-            elif category == 'key_sig':
-                button = self.key_sig_font_color
-                current_color = QColor(getattr(self, 'key_sig_color_value', '#000000'))
-            elif category == 'measure_numbers':
-                button = self.measure_numbers_font_color
-                current_color = QColor(getattr(self, 'measure_numbers_color_value', '#000000'))
-            elif category == 'barline_numbers':
-                button = self.barline_number_font_color
-                current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
-            else:
-                return
+        if category == 'staff_names':
+            button = self.staff_name_font_color
+            current_color = QColor(getattr(self, 'staff_name_color_value', '#000000'))
+        elif category == 'section_names':
+            button = self.section_name_font_color
+            current_color = QColor(getattr(self, 'section_name_color_value', '#000000'))
+        elif category == 'clef':
+            button = self.clef_font_color
+            current_color = QColor(getattr(self, 'clef_color_value', '#000000'))
+        elif category == 'time_sig':
+            button = self.time_sig_font_color
+            current_color = QColor(getattr(self, 'time_sig_color_value', '#000000'))
+        elif category == 'key_sig':
+            button = self.key_sig_font_color
+            current_color = QColor(getattr(self, 'key_sig_color_value', '#000000'))
+        elif category == 'measure_numbers':
+            button = self.measure_numbers_font_color
+            current_color = QColor(getattr(self, 'measure_numbers_color_value', '#000000'))
+        elif category == 'barline_numbers':
+            button = self.barline_number_font_color
+            current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
+        else:
+            return
             
         # Use shared ColorButton behavior: open non-native dialog and update swatch
         # macOS native Colors panel (no DontUseNativeDialog)
@@ -1762,13 +1763,13 @@ class FullScoreOptionsDialog(QDialog):
             f"Choose {category.replace('_', ' ').title()} Color",
             QColorDialog.ColorDialogOption(0),
         )
-                
-                if color.isValid():
-                    hex_color = color.name()
-                    text_color = "#FFFFFF" if self.is_dark_color(color) else "#000000"
-                    button.setStyleSheet(f"background-color: {hex_color}; color: {text_color};")
-                    setattr(self, f"{category}_color_value", hex_color)
-                    self._apply_color_change_immediately(category, hex_color)
+        
+        if color.isValid():
+            hex_color = color.name()
+            text_color = "#FFFFFF" if self.is_dark_color(color) else "#000000"
+            button.setStyleSheet(f"background-color: {hex_color}; color: {text_color};")
+            setattr(self, f"{category}_color_value", hex_color)
+            self._apply_color_change_immediately(category, hex_color)
     
     def _apply_color_change_immediately(self, category, hex_color):
         """Apply color change immediately without side effects - COMPLETELY ISOLATED"""
@@ -2798,9 +2799,9 @@ class FullScoreOptionsDialog(QDialog):
         
         # Notify Preferences to reload UI (no auto-apply; handled by Apply/Close prompt)
         try:
-        from PyQt6.QtCore import QSettings
-        settings = QSettings("ONOTE", "Preferences")
-        settings.sync()
+            from PyQt6.QtCore import QSettings
+            settings = QSettings("ONOTE", "Preferences")
+            settings.sync()
             preferences_bus.preferences_updated.emit({"source": "fso_set_defaults", "scope": "notation"})
         except Exception:
             pass
@@ -3179,6 +3180,10 @@ class FullScoreOptionsDialog(QDialog):
             following_systems = get_setting_with_precedence('layout/staff_names_following_systems', 'Abbreviation')
             if following_systems in ['Full Title', 'Abbreviation', 'None']:
                 self.staff_names_following_systems.setCurrentText(following_systems)
+            # Continuous view title display
+            cv_title = get_setting_with_precedence('notation/continuous_staff_name_display', 'Abbreviation')
+            if cv_title in ['Full Title', 'Abbreviation', 'None'] and hasattr(self, 'continuous_staff_name_display'):
+                self.continuous_staff_name_display.setCurrentText(cv_title)
             
             # Load continuous view settings
             self.cv_strip_width.setValue(get_setting_with_precedence('layout/continuous_left_margin', 150))
@@ -3558,7 +3563,7 @@ class FullScoreOptionsDialog(QDialog):
                     'staff_names': 'staff_names',
                     'staff_names_first_system': 'staff_names_first_system',
                     'staff_names_following_systems': 'staff_names_following_systems',
-                    'title_display': 'title_display',
+                    'continuous_staff_name_display': 'continuous_staff_name_display',
                     'notation_style': 'notation_style',
                     'barline_style': 'barline_style',
                     'beam_style': 'beam_style',
@@ -3605,22 +3610,22 @@ class FullScoreOptionsDialog(QDialog):
                             if parameter_key == 'grand_staff_spacing':
                                 # Update layout object if it exists
                                 if hasattr(layout_obj, 'grand_staff_spacing'):
-                                setattr(layout_obj, 'grand_staff_spacing', int(value))
-                                # Invalidate renderer caches to force full re-render with new spacing
-                                if hasattr(renderer, '_unit_width_by_system'):
-                                    renderer._unit_width_by_system = {}
-                                # CRITICAL: Also invalidate any cached barline positions
-                                if hasattr(renderer, '_bar_positions_by_system'):
-                                    renderer._bar_positions_by_system = {}
-                                # Force recalculation by clearing any cached staff rendering
-                                if hasattr(renderer, '_staff_render_cache'):
-                                    renderer._staff_render_cache = {}
-                                print(f"ISOLATED_PARAM: Grand staff spacing changed to {value}px, invalidating all caches")
-                                # CRITICAL: Must call update() which triggers paintEvent, NOT repaint()
-                                # paintEvent will re-run _render_grand_staff which recalculates y_positions
-                                # Then _draw_grouped_barlines will use the updated y_positions
-                                staff_view.update()
-                                print(f"ISOLATED_PARAM: Triggered full view update for grand staff spacing change")
+                                    setattr(layout_obj, 'grand_staff_spacing', int(value))
+                                    # Invalidate renderer caches to force full re-render with new spacing
+                                    if hasattr(renderer, '_unit_width_by_system'):
+                                        renderer._unit_width_by_system = {}
+                                    # CRITICAL: Also invalidate any cached barline positions
+                                    if hasattr(renderer, '_bar_positions_by_system'):
+                                        renderer._bar_positions_by_system = {}
+                                    # Force recalculation by clearing any cached staff rendering
+                                    if hasattr(renderer, '_staff_render_cache'):
+                                        renderer._staff_render_cache = {}
+                                    print(f"ISOLATED_PARAM: Grand staff spacing changed to {value}px, invalidating all caches")
+                                    # CRITICAL: Must call update() which triggers paintEvent, NOT repaint()
+                                    # paintEvent will re-run _render_grand_staff which recalculates y_positions
+                                    # Then _draw_grouped_barlines will use the updated y_positions
+                                    staff_view.update()
+                                    print(f"ISOLATED_PARAM: Triggered full view update for grand staff spacing change")
                     except Exception as e:
                         print(f"ISOLATED_PARAM: Layout live update failed: {e}")
                     

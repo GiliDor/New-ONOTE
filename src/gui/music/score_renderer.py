@@ -567,6 +567,19 @@ class ScoreRenderer:
         
         print(f"RENDERER: Refreshed settings - view_mode: {self.view_mode}, is_continuous: {is_continuous}")
 
+    def _get_document_settings_with_view_mode(self):
+        """Return document.settings merged with renderer view mode hint for helpers."""
+        try:
+            base = {}
+            if hasattr(self, 'document') and hasattr(self.document, 'settings') and isinstance(self.document.settings, dict):
+                base = dict(self.document.settings)
+            # Provide a simple hint for PartNameRenderer
+            base['view_mode'] = getattr(self, 'view_mode', '')
+            base['view/mode'] = getattr(self, 'view_mode', '')
+            return base
+        except Exception:
+            return {'view_mode': getattr(self, 'view_mode', ''), 'view/mode': getattr(self, 'view_mode', '')}
+
     def set_page_size(self, width, height):
         """Set the page size for rendering with dynamic layout refresh."""
         old_width = self.page_width
@@ -745,7 +758,6 @@ class ScoreRenderer:
         except Exception as e:
             print(f"RENDERER: Warning: Could not initialize measure number manager: {e}")
             self.measure_number_manager = None
-
     def render_score(self, painter, viewport_rect=None, mode="edit"):
         """Render the entire score with all its elements."""
         print(f"MEASURE_NUMBERS: render_score called with mode={mode}")
@@ -1488,7 +1500,6 @@ class ScoreRenderer:
         except Exception as e:
             print(f"SECTION_BRACKET ERROR: Failed to render bracket: {e}")
             # Continue without bracket if it fails
-
     def _render_staff(self, painter, staff):
         """Render a single staff or grand staff based on its type with basic system wrapping for single-staff scores."""
         # Determine measures per system, preferring TemporalBridge over QSettings for consistency
@@ -1814,7 +1825,7 @@ class ScoreRenderer:
                                 name_x,
                                 name_y,
                                 is_grand_staff=True,
-                                document_settings=getattr(self, 'document', {}).settings if hasattr(self, 'document') else None,
+                                document_settings=self._get_document_settings_with_view_mode(),
                                 system_idx=system_idx,
                                 abbreviation=staff_abbrev
                             )
@@ -3214,7 +3225,7 @@ class ScoreRenderer:
                 if staff is grand_staff.top_staff:
                     top_line_y = float(staff.y_position)
                 elif staff is grand_staff.bottom_staff:
-                    # If called for bottom staff, derive top from sibling’s y_position
+                    # If called for bottom staff, derive top from sibling's y_position
                     top_line_y = float(grand_staff.top_staff.y_position)
                 else:
                     top_line_y = float(grand_staff.top_staff.y_position)
@@ -3361,7 +3372,6 @@ class ScoreRenderer:
         """Render notes on a staff."""
         # To be implemented: Draw notes
         pass
-
     def _render_connecting_barlines(self, painter):
         """
         Render barlines that connect multiple staves in the document.
@@ -4156,7 +4166,6 @@ class ScoreRenderer:
             staff._already_rendered_final_barline = True
         except Exception as e:
             print(f"GRAND_STAFF ERROR: Could not draw connecting final barline: {e}")
-
     def _calculate_initial_elements_width(self, staff):
         """Calculate the width needed for initial elements (clef, key signature, time signature) dynamically."""
         # Base width for clef
@@ -4907,7 +4916,6 @@ class ScoreRenderer:
         painter.drawText(int(number_x), int(number_y), str(barline_number))
         
         painter.restore()
-
     def _render_barline_0_number(self, painter, barline_x, all_staves):
         """
         Render barline number 0 (system barline) if enabled in settings.

@@ -401,6 +401,19 @@ class PreferencesDialog(QDialog):
         if hasattr(self, 'initial_mps_enabled') and self.initial_mps_enabled is not None:
             self.initial_mps_enabled.setChecked(self.settings.value("layout/initial_mps_enabled", True, type=bool))
         self.default_notation_size.setValue(float(self.settings.value("layout/default_notation_size", 1.0)))
+        # Staff name display (Preferences-level defaults)
+        try:
+            self.pref_staff_names_first_system.setCurrentText(
+                self.settings.value("notation/staff_names_first_system", "Full Title")
+            )
+            self.pref_staff_names_following.setCurrentText(
+                self.settings.value("notation/staff_names_following_systems", "Abbreviation")
+            )
+            self.pref_continuous_staff_name_display.setCurrentText(
+                self.settings.value("notation/continuous_staff_name_display", "Abbreviation")
+            )
+        except Exception:
+            pass
         self.show_staff_names.setChecked(self.settings.value("layout/show_staff_names", True, type=bool))
         self.show_page_numbers.setChecked(self.settings.value("layout/show_page_numbers", True, type=bool))
         self.justify_last_system.setChecked(self.settings.value("layout/justify_last_system", False, type=bool))
@@ -685,6 +698,13 @@ class PreferencesDialog(QDialog):
         if hasattr(self, 'initial_mps_enabled') and self.initial_mps_enabled is not None:
             self.settings.setValue("layout/initial_mps_enabled", self.initial_mps_enabled.isChecked())
         self.settings.setValue("layout/default_notation_size", self.default_notation_size.value())
+        # Staff name display (Preferences-level defaults)
+        try:
+            self.settings.setValue("notation/staff_names_first_system", self.pref_staff_names_first_system.currentText())
+            self.settings.setValue("notation/staff_names_following_systems", self.pref_staff_names_following.currentText())
+            self.settings.setValue("notation/continuous_staff_name_display", self.pref_continuous_staff_name_display.currentText())
+        except Exception:
+            pass
         self.settings.setValue("layout/show_staff_names", self.show_staff_names.isChecked())
         self.settings.setValue("layout/show_page_numbers", self.show_page_numbers.isChecked())
         self.settings.setValue("layout/justify_last_system", self.justify_last_system.isChecked())
@@ -1230,17 +1250,22 @@ class PreferencesDialog(QDialog):
         display_layout = QVBoxLayout(display_group)
         display_layout.setSpacing(6)
         
-        self.show_staff_names = QCheckBox("Show staff names by default")
-        self.show_staff_names.setChecked(True)
-        display_layout.addWidget(self.show_staff_names)
+        # Staff names display controls
+        names_form = QFormLayout()
+        self.pref_staff_names_first_system = QComboBox()
+        self.pref_staff_names_first_system.addItems(["Full Title", "Abbreviation", "None"])
+        names_form.addRow("First system:", self.pref_staff_names_first_system)
+        self.pref_staff_names_following = QComboBox()
+        self.pref_staff_names_following.addItems(["Full Title", "Abbreviation", "None"])
+        names_form.addRow("Following Systems:", self.pref_staff_names_following)
+        self.pref_continuous_staff_name_display = QComboBox()
+        self.pref_continuous_staff_name_display.addItems(["Full Title", "Abbreviation", "None"])
+        names_form.addRow("Continuous view title:", self.pref_continuous_staff_name_display)
+        display_layout.addLayout(names_form)
         
         self.show_page_numbers = QCheckBox("Show page numbers by default")
         self.show_page_numbers.setChecked(True)
         display_layout.addWidget(self.show_page_numbers)
-        
-        self.justify_last_system = QCheckBox("Justify measures in last system")
-        self.justify_last_system.setChecked(False)
-        display_layout.addWidget(self.justify_last_system)
         
         self.hide_empty_staves = QCheckBox("Hide empty staves by default")
         self.hide_empty_staves.setChecked(False)
