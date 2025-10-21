@@ -10,6 +10,8 @@ from PyQt6.QtCore import Qt, QDir, QSettings, pyqtSignal
 from src.core.settings_signal_bus import preferences_bus
 from PyQt6.QtGui import QColor
 import os
+import sounddevice as sd
+import rtmidi
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from plugins.plugin_scanner import PluginScanner, Plugin
