@@ -858,8 +858,7 @@ class FullScoreOptionsDialog(QDialog):
         self.staff_names_following_systems.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.continuous_staff_name_display.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('continuous_staff_name_display', value))
         self.continuous_staff_name_display.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
-        self.title_display_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('title_display', value))
-        self.title_display_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
+        # removed legacy Title Display wiring
         self.notation_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('notation_style', value))
         self.notation_style_combo.currentTextChanged.connect(lambda _: self._mark_tab_dirty("layout"))
         self.barline_style_combo.currentTextChanged.connect(lambda value: self._apply_single_parameter_change('barline_style', value))
@@ -2040,7 +2039,7 @@ class FullScoreOptionsDialog(QDialog):
             
             # Other text and markings
             'staff_names': self.staff_names_combo.currentText(),
-            'title_display': self.title_display_combo.currentText(),
+            # removed legacy title_display
             
             # Formatting
             'notation_style': self.notation_style_combo.currentText(),
@@ -3785,7 +3784,7 @@ class FullScoreOptionsDialog(QDialog):
             'system_spacing': self.doc_system_spacing.value() if hasattr(self, 'doc_system_spacing') else None,
             'staff_spacing': self.doc_staff_spacing.value() if hasattr(self, 'doc_staff_spacing') else None,
             'staff_names': self.staff_names_combo.currentText() if hasattr(self, 'staff_names_combo') else None,
-            'title_display': self.title_display_combo.currentText() if hasattr(self, 'title_display_combo') else None,
+            # removed legacy title_display
             'notation_style': self.notation_style_combo.currentText() if hasattr(self, 'notation_style_combo') else None,
             'barline_style': self.barline_style_combo.currentText() if hasattr(self, 'barline_style_combo') else None,
             'beam_style': self.beam_style_combo.currentText() if hasattr(self, 'beam_style_combo') else None,

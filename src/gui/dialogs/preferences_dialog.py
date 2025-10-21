@@ -416,7 +416,6 @@ class PreferencesDialog(QDialog):
             pass
         # Removed: legacy layout/show_staff_names checkbox
         self.show_page_numbers.setChecked(self.settings.value("layout/show_page_numbers", True, type=bool))
-        self.justify_last_system.setChecked(self.settings.value("layout/justify_last_system", False, type=bool))
         self.hide_empty_staves.setChecked(self.settings.value("layout/hide_empty_staves", False, type=bool))
         self.default_print_quality.setCurrentText(self.settings.value("layout/default_print_quality", "Normal"))
         self.default_print_resolution.setCurrentText(self.settings.value("layout/default_print_resolution", "600 DPI"))
@@ -707,7 +706,6 @@ class PreferencesDialog(QDialog):
             pass
         # Removed legacy layout/show_staff_names persistence (replaced by dropdowns)
         self.settings.setValue("layout/show_page_numbers", self.show_page_numbers.isChecked())
-        self.settings.setValue("layout/justify_last_system", self.justify_last_system.isChecked())
         self.settings.setValue("layout/hide_empty_staves", self.hide_empty_staves.isChecked())
         self.settings.setValue("layout/default_print_quality", self.default_print_quality.currentText())
         self.settings.setValue("layout/default_print_resolution", self.default_print_resolution.currentText())
