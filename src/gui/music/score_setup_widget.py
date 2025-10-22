@@ -2179,9 +2179,11 @@ class ScoreSetupWidget(QWidget):
                 if len(selected_items) == 1 or (new_custom_abbr and new_custom_abbr != staff_data.get("custom_abbr", "")):
                     if new_custom_abbr:
                         staff_data["custom_abbr"] = new_custom_abbr
+                        # Also set instrument_abbr so downstream rendering uses the custom abbreviation
+                        staff_data["instrument_abbr"] = new_custom_abbr
                         print(f"STAFF ATTRIBUTES: Updated abbreviation for {original_name} from '{original_abbr}' to '{new_custom_abbr}'")
                     elif "custom_abbr" in staff_data:
-                        # If the field was cleared, remove the custom abbreviation
+                        # If the field was cleared, remove the custom abbreviation and keep instrument_abbr as-is or default
                         del staff_data["custom_abbr"]
                         print(f"STAFF ATTRIBUTES: Cleared abbreviation for {original_name}")
                 else:

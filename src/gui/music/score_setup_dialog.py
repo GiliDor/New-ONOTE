@@ -526,7 +526,9 @@ class ScoreSetupDialog(QDialog):
                 # Ensure all required fields are present in the final item_data.
                 item_data.setdefault("instrument_id", instrument_id)
                 item_data.setdefault("instrument_name", instrument_name)
-                item_data.setdefault("instrument_abbr", instrument_name[:3].upper())
+                # If a custom_abbr exists, prefer it for instrument_abbr
+                preferred_abbr = item_data.get("custom_abbr", item_data.get("instrument_abbr", instrument_name[:3].upper()))
+                item_data["instrument_abbr"] = preferred_abbr
                 item_data.setdefault("clef", clef if staff_type != "grand_staff" else "treble")
                 item_data.setdefault("plugin", plugin)
                 item_data["section"] = section
