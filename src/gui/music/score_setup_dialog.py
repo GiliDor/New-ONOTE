@@ -495,70 +495,47 @@ class ScoreSetupDialog(QDialog):
                     else:
                         clef_display = "Treble"  # Default for single staff
 
-                # Create list item with correct display values
+                # --- ROBUST REPOPULATION LOGIC ---
+                # The complete data is usually in a nested 'staff_data' dictionary.
+                item_data_source = staff_data.get("staff_data", staff_data)
+
+                # Use custom_name for display if it exists, otherwise fall back to instrument_name.
+                display_name = item_data_source.get("custom_name", instrument_name)
+
+                # Create and populate the tree widget item.
                 staff_item = QTreeWidgetItem(self.setup_widget.staff_list)
-                staff_item.setText(0, instrument_name)
+                staff_item.setText(0, display_name)
                 staff_item.setText(1, staff_type_display)
                 staff_item.setText(2, clef_display)
                 staff_item.setText(3, section)
 
                 # Get plugin information - try multiple sources
-                plugin = "Default"  # Start with default
-                
-                # First try to get plugin from top level
+                plugin = "Default"
                 if "plugin" in staff_data and staff_data["plugin"] != "Default":
                     plugin = staff_data["plugin"]
-                    print(f"POPULATE_ADDED_STAVES: Found plugin '{plugin}' at top level for {instrument_id}")
-                # Then try staff_data nested structure
-                elif "staff_data" in staff_data and isinstance(staff_data["staff_data"], dict) and "plugin" in staff_data["staff_data"]:
+                elif "staff_data" in staff_data and isinstance(staff_data.get("staff_data"), dict) and "plugin" in staff_data["staff_data"]:
                     plugin = staff_data["staff_data"]["plugin"]
-                    print(f"POPULATE_ADDED_STAVES: Found plugin '{plugin}' in staff_data for {instrument_id}")
-                # Finally check plugin_map if available
-                elif hasattr(self, 'plugin_map') and instrument_id in self.plugin_map:
-                    plugin = self.plugin_map[instrument_id]
-                    print(f"POPULATE_ADDED_STAVES: Found plugin '{plugin}' in plugin_map for {instrument_id}")
-                # Try to get from existing plugin_map in settings
                 elif "plugin_map" in settings and instrument_id in settings["plugin_map"]:
                     plugin = settings["plugin_map"][instrument_id]
-                    print(f"POPULATE_ADDED_STAVES: Found plugin '{plugin}' in settings plugin_map for {instrument_id}")
                 
-                print(f"POPULATE_ADDED_STAVES: Using plugin '{plugin}' for {instrument_id}")
-
                 staff_item.setText(4, plugin)
 
-                # Store complete staff data with section
-                item_data = {}
-                if "staff_data" in staff_data:
-                    item_data = staff_data["staff_data"].copy() if staff_data["staff_data"] else {}
-
-                # Ensure minimum required data is present
-                if "instrument_id" not in item_data:
-                    item_data["instrument_id"] = instrument_id
-                if "instrument_name" not in item_data:
-                    item_data["instrument_name"] = instrument_name
-                if "instrument_abbr" not in item_data:
-                    item_data["instrument_abbr"] = instrument_name[:3].upper()
-
-                # Ensure clef is set in item data
-                if "clef" not in item_data:
-                    if staff_type == "grand_staff":
-                        item_data["clef"] = "treble"  # Grand staff uses treble for top staff
-                    else:
-                        item_data["clef"] = clef
-
-                # Ensure plugin is set in item data
-                if "plugin" not in item_data:
-                    item_data["plugin"] = plugin
-
-                item_data["section"] = section  # Ensure section is set in the data
-                item_data["staff_type"] = staff_type  # Ensure staff_type is set
+                # Build the item_data to be stored on the widget item, ensuring all custom fields are preserved.
+                item_data = item_data_source.copy()
+                
+                # Ensure all required fields are present in the final item_data.
+                item_data.setdefault("instrument_id", instrument_id)
+                item_data.setdefault("instrument_name", instrument_name)
+                item_data.setdefault("instrument_abbr", instrument_name[:3].upper())
+                item_data.setdefault("clef", clef if staff_type != "grand_staff" else "treble")
+                item_data.setdefault("plugin", plugin)
+                item_data["section"] = section
+                item_data["staff_type"] = staff_type
 
                 staff_item.setData(0, Qt.ItemDataRole.UserRole, item_data)
                 staves_added += 1
 
-                print(
-                    f"POPULATE_ADDED_STAVES: Added staff: {instrument_name}, section: '{section}', staff_type: {staff_type_display}, clef: {clef_display}"
-                )
+                print(f"POPULATE_ADDED_STAVES: Added staff: {display_name}, section: '{section}', staff_type: {staff_type_display}, clef: {clef_display}")
 
         # Set initial column widths
         self.setup_widget.staff_list.setColumnWidth(0, 180)  # Instrument name

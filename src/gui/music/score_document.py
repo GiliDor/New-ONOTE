@@ -61,6 +61,9 @@ class ScoreDocument:
             ('notation/staff_name_vertical', -8),
             ('notation/staff_name_horizontal', -50),
             ('notation/staff_name_font_color', '#000000'),
+            ('notation/staff_names_first_system', 'Full Title'),
+            ('notation/staff_names_following_systems', 'Abbreviation'),
+            ('notation/continuous_staff_name_display', 'Full Title'),
             # Section names
             ('notation/section_name_font_size', 12),
             ('notation/section_name_vertical', -25),

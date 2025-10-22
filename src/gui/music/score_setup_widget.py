@@ -1556,6 +1556,14 @@ class ScoreSetupWidget(QWidget):
                 if plugin_text:
                     staff_data_copy["plugin"] = plugin_text
 
+                # CRITICAL: Preserve custom_name and custom_abbr if they exist
+                if "custom_name" in staff_data:
+                    staff_data_copy["custom_name"] = staff_data["custom_name"]
+                    print(f"GET_OPTIONS: Preserving custom_name '{staff_data['custom_name']}' for {instrument_name}")
+                if "custom_abbr" in staff_data:
+                    staff_data_copy["custom_abbr"] = staff_data["custom_abbr"]
+                    print(f"GET_OPTIONS: Preserving custom_abbr '{staff_data['custom_abbr']}' for {instrument_name}")
+
                 # Add staff data to the entry
                 staff_entry["staff_data"] = staff_data_copy
 
@@ -2681,6 +2689,13 @@ class ScoreSetupWidget(QWidget):
             clef = staff_data.get("clef", "treble")
             section = staff_data.get("section", "")
 
+            # Use custom_name if available, otherwise use instrument_name
+            display_name = staff_data.get("custom_name", instrument_name)
+            if "custom_name" in staff_data:
+                print(f"POPULATE: Using custom_name '{display_name}' for {instrument_name}")
+            if "custom_abbr" in staff_data:
+                print(f"POPULATE: Preserving custom_abbr '{staff_data['custom_abbr']}' for {instrument_name}")
+
             # Determine display values for staff type and clef
             if staff_type == "grand_staff":
                 staff_type_display = "Grand Staff"
@@ -2698,7 +2713,7 @@ class ScoreSetupWidget(QWidget):
 
             # Create list item with correct display values
             staff_item = QTreeWidgetItem(self.staff_list)
-            staff_item.setText(0, instrument_name)
+            staff_item.setText(0, display_name)  # Use custom_name if available
             staff_item.setText(1, staff_type_display)
             staff_item.setText(2, clef_display)
             staff_item.setText(3, section)
