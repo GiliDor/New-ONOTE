@@ -5668,7 +5668,6 @@ class ScoreRenderer:
                     painter.restore()
             except Exception:
                 pass
-
             # Overlay: measure and barline numbers on top staff only (continuous settings)
             try:
                 if measures and first_row_top is not None:
