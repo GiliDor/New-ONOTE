@@ -538,7 +538,15 @@ class ScoreRenderer:
             return _fetch(key, default_value)
         
         # Reload notation settings
+        # Support CV-specific staff name font size
         self.staff_name_font_size = int(get_setting_with_precedence("notation/staff_name_font_size", 10))
+        if is_continuous:
+            try:
+                cv_size = _fetch("notation/continuous_staff_name_font_size", None)
+                if cv_size is not None:
+                    self.staff_name_font_size = int(cv_size)
+            except Exception:
+                pass
         self.staff_name_vertical_offset = int(get_setting_with_precedence("notation/staff_name_vertical", -8))
         self.staff_name_horizontal_offset = int(get_setting_with_precedence("notation/staff_name_horizontal", -50))
         self.staff_name_font_color = get_setting_with_precedence("notation/staff_name_font_color", "#000000")
