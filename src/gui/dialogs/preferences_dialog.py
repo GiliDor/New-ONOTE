@@ -278,65 +278,107 @@ class PreferencesDialog(QDialog):
             super().accept()
 
     def setup_continuous_defaults_tab(self):
-        """Create the 'Continuous View defaults' tab mirroring Default Notation where relevant.
-        This affects only new documents (saved to QSettings). MPS and MPC are disabled.
-        """
-        layout = QVBoxLayout(self.continuous_defaults_tab)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        """Complete Continuous View notation defaults - mirrors FSO Continuous View Setup tab."""
+        main_layout = QVBoxLayout(self.continuous_defaults_tab)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
 
-        info = QLabel("These defaults apply to new scores in Continuous View only.")
+        info = QLabel("Default notation settings for Continuous View in new scores.")
         info.setStyleSheet("color:#0066cc; font-weight:bold; background:#e7f3ff; padding:6px; border:1px solid #b3d9ff; border-radius:4px;")
         info.setWordWrap(True)
-        layout.addWidget(info)
+        main_layout.addWidget(info)
 
-        # Visibility group
-        vis_group = QGroupBox("Show in Continuous View")
-        vis_form = QFormLayout(vis_group)
-        self.cvd_show_staff_names = QCheckBox("Staff names")
-        self.cvd_show_section_names = QCheckBox("Section names")
-        self.cvd_show_clefs = QCheckBox("Clefs")
-        self.cvd_show_time = QCheckBox("Time Signature")
-        self.cvd_show_key = QCheckBox("Key Signature")
-        vis_form.addRow(self.cvd_show_staff_names)
-        vis_form.addRow(self.cvd_show_section_names)
-        vis_form.addRow(self.cvd_show_clefs)
-        vis_form.addRow(self.cvd_show_time)
-        vis_form.addRow(self.cvd_show_key)
-        layout.addWidget(vis_group)
-
-        # Fixed strip width
-        strip_group = QGroupBox("Fixed strip width")
+        # Main scroll area for all controls
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QHBoxLayout(content)
+        
+        # Left column
+        left = QVBoxLayout()
+        
+        # Staff Names group
+        staff_name_group = QGroupBox("Staff Names")
+        staff_name_form = QFormLayout(staff_name_group)
+        self.pref_cv_staff_name_font_size = QSpinBox(); self.pref_cv_staff_name_font_size.setRange(6, 24); self.pref_cv_staff_name_font_size.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_staff_name_vertical = QSpinBox(); self.pref_cv_staff_name_vertical.setRange(-50, 20); self.pref_cv_staff_name_vertical.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_staff_name_horizontal = QSpinBox(); self.pref_cv_staff_name_horizontal.setRange(-300, 100); self.pref_cv_staff_name_horizontal.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_grand_staff_name_vertical = QSpinBox(); self.pref_cv_grand_staff_name_vertical.setRange(-80, 80); self.pref_cv_grand_staff_name_vertical.valueChanged.connect(self._mark_dirty)
+        staff_name_form.addRow("Font Size:", self.pref_cv_staff_name_font_size)
+        staff_name_form.addRow("Vertical:", self.pref_cv_staff_name_vertical)
+        staff_name_form.addRow("Horizontal:", self.pref_cv_staff_name_horizontal)
+        staff_name_form.addRow("Grand Staff vertical:", self.pref_cv_grand_staff_name_vertical)
+        left.addWidget(staff_name_group)
+        
+        # Section Names group
+        section_name_group = QGroupBox("Section Names")
+        section_name_form = QFormLayout(section_name_group)
+        self.pref_cv_section_name_font_size = QSpinBox(); self.pref_cv_section_name_font_size.setRange(8, 24); self.pref_cv_section_name_font_size.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_section_name_vertical = QSpinBox(); self.pref_cv_section_name_vertical.setRange(-60, 10); self.pref_cv_section_name_vertical.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_section_name_horizontal = QSpinBox(); self.pref_cv_section_name_horizontal.setRange(-120, 100); self.pref_cv_section_name_horizontal.valueChanged.connect(self._mark_dirty)
+        section_name_form.addRow("Font Size:", self.pref_cv_section_name_font_size)
+        section_name_form.addRow("Vertical:", self.pref_cv_section_name_vertical)
+        section_name_form.addRow("Horizontal:", self.pref_cv_section_name_horizontal)
+        left.addWidget(section_name_group)
+        
+        # Numbers group
+        numbers_group = QGroupBox("Numbers")
+        numbers_form = QFormLayout(numbers_group)
+        self.pref_cv_show_measure_numbers = QCheckBox("Show measure numbers"); self.pref_cv_show_measure_numbers.toggled.connect(self._mark_dirty)
+        self.pref_cv_measure_numbers_font_size = QSpinBox(); self.pref_cv_measure_numbers_font_size.setRange(6, 18); self.pref_cv_measure_numbers_font_size.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_measure_numbers_vertical_offset = QSpinBox(); self.pref_cv_measure_numbers_vertical_offset.setRange(-100, 50); self.pref_cv_measure_numbers_vertical_offset.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_measure_numbers_horizontal_offset = QSpinBox(); self.pref_cv_measure_numbers_horizontal_offset.setRange(-200, 100); self.pref_cv_measure_numbers_horizontal_offset.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_measure_numbers_position = QComboBox(); self.pref_cv_measure_numbers_position.addItems(["Beginning", "Center", "End"]); self.pref_cv_measure_numbers_position.currentTextChanged.connect(self._mark_dirty)
+        numbers_form.addRow(self.pref_cv_show_measure_numbers)
+        numbers_form.addRow("Measure size:", self.pref_cv_measure_numbers_font_size)
+        numbers_form.addRow("Measure V offset:", self.pref_cv_measure_numbers_vertical_offset)
+        numbers_form.addRow("Measure H offset:", self.pref_cv_measure_numbers_horizontal_offset)
+        numbers_form.addRow("Position:", self.pref_cv_measure_numbers_position)
+        left.addWidget(numbers_group)
+        left.addStretch(1)
+        
+        # Right column
+        right = QVBoxLayout()
+        
+        # Fixed Strip group
+        strip_group = QGroupBox("Fixed Strip")
         strip_form = QFormLayout(strip_group)
-        self.cvd_strip_width = QSpinBox()
-        self.cvd_strip_width.setRange(80, 600)
-        self.cvd_strip_width.setSuffix(" px")
-        strip_form.addRow("Width:", self.cvd_strip_width)
-        layout.addWidget(strip_group)
-
-        layout.addStretch(1)
-
-        # Load current defaults
-        try:
-            self.cvd_show_staff_names.setChecked(self.settings.value("continuous/show_staff_names", True, type=bool))
-            self.cvd_show_section_names.setChecked(self.settings.value("continuous/show_section_names", True, type=bool))
-            self.cvd_show_clefs.setChecked(self.settings.value("continuous/show_clefs", True, type=bool))
-            self.cvd_show_time.setChecked(self.settings.value("continuous/show_time_signature", True, type=bool))
-            self.cvd_show_key.setChecked(self.settings.value("continuous/show_key_signature", True, type=bool))
-            self.cvd_strip_width.setValue(int(self.settings.value("layout/continuous_left_margin", 160)))
-        except Exception:
-            pass
-
-        # Mark dialog dirty on changes
-        for w in [self.cvd_show_staff_names, self.cvd_show_section_names, self.cvd_show_clefs,
-                  self.cvd_show_time, self.cvd_show_key, self.cvd_strip_width]:
-            try:
-                if isinstance(w, QCheckBox):
-                    w.toggled.connect(self._mark_dirty)
-                else:
-                    w.valueChanged.connect(self._mark_dirty)
-            except Exception:
-                pass
+        self.pref_cv_strip_width = QSpinBox(); self.pref_cv_strip_width.setRange(80, 600); self.pref_cv_strip_width.setSuffix(" px"); self.pref_cv_strip_width.valueChanged.connect(self._mark_dirty)
+        strip_form.addRow("Width:", self.pref_cv_strip_width)
+        right.addWidget(strip_group)
+        
+        # Symbols Positioning group
+        symbols_group = QGroupBox("Symbols Positioning")
+        symbols_form = QFormLayout(symbols_group)
+        # Clef
+        self.pref_cv_clef_font_size = QSpinBox(); self.pref_cv_clef_font_size.setRange(16, 48); self.pref_cv_clef_font_size.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_clef_vertical = QSpinBox(); self.pref_cv_clef_vertical.setRange(-20, 20); self.pref_cv_clef_vertical.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_clef_horizontal = QSpinBox(); self.pref_cv_clef_horizontal.setRange(-500, 2000); self.pref_cv_clef_horizontal.valueChanged.connect(self._mark_dirty)
+        symbols_form.addRow("Clef size:", self.pref_cv_clef_font_size)
+        symbols_form.addRow("Clef V:", self.pref_cv_clef_vertical)
+        symbols_form.addRow("Clef H:", self.pref_cv_clef_horizontal)
+        # Key signature
+        self.pref_cv_key_font_size = QSpinBox(); self.pref_cv_key_font_size.setRange(16, 48); self.pref_cv_key_font_size.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_key_vertical = QSpinBox(); self.pref_cv_key_vertical.setRange(-20, 20); self.pref_cv_key_vertical.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_key_horizontal = QSpinBox(); self.pref_cv_key_horizontal.setRange(-500, 2000); self.pref_cv_key_horizontal.valueChanged.connect(self._mark_dirty)
+        symbols_form.addRow("Key size:", self.pref_cv_key_font_size)
+        symbols_form.addRow("Key V:", self.pref_cv_key_vertical)
+        symbols_form.addRow("Key H:", self.pref_cv_key_horizontal)
+        # Time signature
+        self.pref_cv_time_font_size = QSpinBox(); self.pref_cv_time_font_size.setRange(16, 48); self.pref_cv_time_font_size.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_time_vertical = QSpinBox(); self.pref_cv_time_vertical.setRange(-20, 20); self.pref_cv_time_vertical.valueChanged.connect(self._mark_dirty)
+        self.pref_cv_time_horizontal = QSpinBox(); self.pref_cv_time_horizontal.setRange(-500, 2000); self.pref_cv_time_horizontal.valueChanged.connect(self._mark_dirty)
+        symbols_form.addRow("Time size:", self.pref_cv_time_font_size)
+        symbols_form.addRow("Time V:", self.pref_cv_time_vertical)
+        symbols_form.addRow("Time H:", self.pref_cv_time_horizontal)
+        right.addWidget(symbols_group)
+        right.addStretch(1)
+        
+        layout.addLayout(left)
+        layout.addLayout(right)
+        scroll.setWidget(content)
+        main_layout.addWidget(scroll)
 
     def _mark_dirty(self):
         self._dirty = True
@@ -643,6 +685,63 @@ class PreferencesDialog(QDialog):
         except Exception:
             pass
 
+        # Load Continuous View Defaults
+        try:
+            # Staff names
+            if hasattr(self, 'pref_cv_staff_name_font_size'):
+                self.pref_cv_staff_name_font_size.setValue(int(self.settings.value("notation/continuous_staff_name_font_size", 10)))
+            if hasattr(self, 'pref_cv_staff_name_vertical'):
+                self.pref_cv_staff_name_vertical.setValue(int(self.settings.value("notation/continuous_staff_name_vertical", -8)))
+            if hasattr(self, 'pref_cv_staff_name_horizontal'):
+                self.pref_cv_staff_name_horizontal.setValue(int(self.settings.value("notation/continuous_staff_name_horizontal", -50)))
+            if hasattr(self, 'pref_cv_grand_staff_name_vertical'):
+                self.pref_cv_grand_staff_name_vertical.setValue(int(self.settings.value("notation/continuous_grand_staff_name_vertical", -2)))
+            # Section names
+            if hasattr(self, 'pref_cv_section_name_font_size'):
+                self.pref_cv_section_name_font_size.setValue(int(self.settings.value("notation/continuous_section_name_font_size", 12)))
+            if hasattr(self, 'pref_cv_section_name_vertical'):
+                self.pref_cv_section_name_vertical.setValue(int(self.settings.value("notation/continuous_section_name_vertical", -25)))
+            if hasattr(self, 'pref_cv_section_name_horizontal'):
+                self.pref_cv_section_name_horizontal.setValue(int(self.settings.value("notation/continuous_section_name_horizontal", -60)))
+            # Measure numbers
+            if hasattr(self, 'pref_cv_show_measure_numbers'):
+                self.pref_cv_show_measure_numbers.setChecked(self.settings.value("notation/continuous_show_measure_numbers", True, type=bool))
+            if hasattr(self, 'pref_cv_measure_numbers_font_size'):
+                self.pref_cv_measure_numbers_font_size.setValue(int(self.settings.value("notation/continuous_measure_numbers_font_size", 10)))
+            if hasattr(self, 'pref_cv_measure_numbers_vertical_offset'):
+                self.pref_cv_measure_numbers_vertical_offset.setValue(int(self.settings.value("notation/continuous_measure_numbers_vertical_offset", 17)))
+            if hasattr(self, 'pref_cv_measure_numbers_horizontal_offset'):
+                self.pref_cv_measure_numbers_horizontal_offset.setValue(int(self.settings.value("notation/continuous_measure_numbers_horizontal_offset", 3)))
+            if hasattr(self, 'pref_cv_measure_numbers_position'):
+                position = self.settings.value("notation/continuous_measure_numbers_position", "Center")
+                index = self.pref_cv_measure_numbers_position.findText(position)
+                if index >= 0:
+                    self.pref_cv_measure_numbers_position.setCurrentIndex(index)
+            # Symbols
+            if hasattr(self, 'pref_cv_clef_font_size'):
+                self.pref_cv_clef_font_size.setValue(int(self.settings.value("notation/continuous_clef_font_size", 32)))
+            if hasattr(self, 'pref_cv_clef_vertical'):
+                self.pref_cv_clef_vertical.setValue(int(self.settings.value("notation/continuous_clef_vertical", 0)))
+            if hasattr(self, 'pref_cv_clef_horizontal'):
+                self.pref_cv_clef_horizontal.setValue(int(self.settings.value("notation/continuous_clef_horizontal", 18)))
+            if hasattr(self, 'pref_cv_key_font_size'):
+                self.pref_cv_key_font_size.setValue(int(self.settings.value("notation/continuous_key_font_size", 28)))
+            if hasattr(self, 'pref_cv_key_vertical'):
+                self.pref_cv_key_vertical.setValue(int(self.settings.value("notation/continuous_key_vertical", 0)))
+            if hasattr(self, 'pref_cv_key_horizontal'):
+                self.pref_cv_key_horizontal.setValue(int(self.settings.value("notation/continuous_key_horizontal", 85)))
+            if hasattr(self, 'pref_cv_time_font_size'):
+                self.pref_cv_time_font_size.setValue(int(self.settings.value("notation/continuous_time_font_size", 28)))
+            if hasattr(self, 'pref_cv_time_vertical'):
+                self.pref_cv_time_vertical.setValue(int(self.settings.value("notation/continuous_time_vertical", 0)))
+            if hasattr(self, 'pref_cv_time_horizontal'):
+                self.pref_cv_time_horizontal.setValue(int(self.settings.value("notation/continuous_time_horizontal", 140)))
+            # Fixed strip
+            if hasattr(self, 'pref_cv_strip_width'):
+                self.pref_cv_strip_width.setValue(int(self.settings.value("layout/continuous_left_margin", 160)))
+        except Exception:
+            pass
+
         self._dirty = False if not staged_overrides else True
         
         # Enable Apply button when staged values exist
@@ -816,16 +915,57 @@ class PreferencesDialog(QDialog):
         # Measure numbers font color
         self.settings.setValue("notation/measure_numbers_font_color", getattr(self, 'measure_numbers_color_value', '#000000'))
 
-        # Continuous mode settings
-        # Continuous View defaults are now saved from the dedicated tab controls
+        # Continuous View Defaults - comprehensive notation settings
         try:
-            if hasattr(self, 'cvd_show_staff_names'):
-                self.settings.setValue("continuous/show_staff_names", self.cvd_show_staff_names.isChecked())
-                self.settings.setValue("continuous/show_section_names", self.cvd_show_section_names.isChecked())
-                self.settings.setValue("continuous/show_clefs", self.cvd_show_clefs.isChecked())
-                self.settings.setValue("continuous/show_time_signature", self.cvd_show_time.isChecked())
-                self.settings.setValue("continuous/show_key_signature", self.cvd_show_key.isChecked())
-                self.settings.setValue("layout/continuous_left_margin", self.cvd_strip_width.value())
+            # Staff names
+            if hasattr(self, 'pref_cv_staff_name_font_size'):
+                self.settings.setValue("notation/continuous_staff_name_font_size", self.pref_cv_staff_name_font_size.value())
+            if hasattr(self, 'pref_cv_staff_name_vertical'):
+                self.settings.setValue("notation/continuous_staff_name_vertical", self.pref_cv_staff_name_vertical.value())
+            if hasattr(self, 'pref_cv_staff_name_horizontal'):
+                self.settings.setValue("notation/continuous_staff_name_horizontal", self.pref_cv_staff_name_horizontal.value())
+            if hasattr(self, 'pref_cv_grand_staff_name_vertical'):
+                self.settings.setValue("notation/continuous_grand_staff_name_vertical", self.pref_cv_grand_staff_name_vertical.value())
+            # Section names
+            if hasattr(self, 'pref_cv_section_name_font_size'):
+                self.settings.setValue("notation/continuous_section_name_font_size", self.pref_cv_section_name_font_size.value())
+            if hasattr(self, 'pref_cv_section_name_vertical'):
+                self.settings.setValue("notation/continuous_section_name_vertical", self.pref_cv_section_name_vertical.value())
+            if hasattr(self, 'pref_cv_section_name_horizontal'):
+                self.settings.setValue("notation/continuous_section_name_horizontal", self.pref_cv_section_name_horizontal.value())
+            # Measure numbers
+            if hasattr(self, 'pref_cv_show_measure_numbers'):
+                self.settings.setValue("notation/continuous_show_measure_numbers", self.pref_cv_show_measure_numbers.isChecked())
+            if hasattr(self, 'pref_cv_measure_numbers_font_size'):
+                self.settings.setValue("notation/continuous_measure_numbers_font_size", self.pref_cv_measure_numbers_font_size.value())
+            if hasattr(self, 'pref_cv_measure_numbers_vertical_offset'):
+                self.settings.setValue("notation/continuous_measure_numbers_vertical_offset", self.pref_cv_measure_numbers_vertical_offset.value())
+            if hasattr(self, 'pref_cv_measure_numbers_horizontal_offset'):
+                self.settings.setValue("notation/continuous_measure_numbers_horizontal_offset", self.pref_cv_measure_numbers_horizontal_offset.value())
+            if hasattr(self, 'pref_cv_measure_numbers_position'):
+                self.settings.setValue("notation/continuous_measure_numbers_position", self.pref_cv_measure_numbers_position.currentText())
+            # Symbols
+            if hasattr(self, 'pref_cv_clef_font_size'):
+                self.settings.setValue("notation/continuous_clef_font_size", self.pref_cv_clef_font_size.value())
+            if hasattr(self, 'pref_cv_clef_vertical'):
+                self.settings.setValue("notation/continuous_clef_vertical", self.pref_cv_clef_vertical.value())
+            if hasattr(self, 'pref_cv_clef_horizontal'):
+                self.settings.setValue("notation/continuous_clef_horizontal", self.pref_cv_clef_horizontal.value())
+            if hasattr(self, 'pref_cv_key_font_size'):
+                self.settings.setValue("notation/continuous_key_font_size", self.pref_cv_key_font_size.value())
+            if hasattr(self, 'pref_cv_key_vertical'):
+                self.settings.setValue("notation/continuous_key_vertical", self.pref_cv_key_vertical.value())
+            if hasattr(self, 'pref_cv_key_horizontal'):
+                self.settings.setValue("notation/continuous_key_horizontal", self.pref_cv_key_horizontal.value())
+            if hasattr(self, 'pref_cv_time_font_size'):
+                self.settings.setValue("notation/continuous_time_font_size", self.pref_cv_time_font_size.value())
+            if hasattr(self, 'pref_cv_time_vertical'):
+                self.settings.setValue("notation/continuous_time_vertical", self.pref_cv_time_vertical.value())
+            if hasattr(self, 'pref_cv_time_horizontal'):
+                self.settings.setValue("notation/continuous_time_horizontal", self.pref_cv_time_horizontal.value())
+            # Fixed strip
+            if hasattr(self, 'pref_cv_strip_width'):
+                self.settings.setValue("layout/continuous_left_margin", self.pref_cv_strip_width.value())
         except Exception:
             pass
     

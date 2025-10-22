@@ -1340,6 +1340,9 @@ class ScoreRenderer:
                 bracket_font_size = 24.0  # Base font size
                 bracket_font = QFont("Bravura")
                 bracket_font.setPointSizeF(bracket_font_size)
+                # Ensure black color for bracket glyphs
+                painter.setPen(QPen(Qt.GlobalColor.black))
+                painter.setBrush(QBrush(Qt.GlobalColor.black))
                 painter.setFont(bracket_font)
 
                 # Get font metrics for measurements
@@ -5635,6 +5638,9 @@ class ScoreRenderer:
                             bracket_bottom = "\uE004"
                             bracket_font = QFont("Bravura")
                             bracket_font.setPointSizeF(24.0)
+                            # Ensure black color for bracket glyphs
+                            painter.setPen(QPen(Qt.GlobalColor.black))
+                            painter.setBrush(QBrush(Qt.GlobalColor.black))
                             painter.setFont(bracket_font)
                             # Draw caps
                             # Ensure bracket starts at the very first staff of the section
@@ -5670,6 +5676,7 @@ class ScoreRenderer:
                     show_measure_numbers = True
                     show_barline_numbers = False
                     mn_size = 10; mn_voff = 17; mn_hoff = 3
+                    mn_position = "Center"  # Default position
                     bn_size = 8; bn_voff = -3; bn_hoff = -3
                     try:
                         if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings is not None:
@@ -5679,6 +5686,7 @@ class ScoreRenderer:
                             mn_size = int(doc.get('notation/continuous_measure_numbers_font_size', mn_size))
                             mn_voff = int(doc.get('notation/continuous_measure_numbers_vertical_offset', mn_voff))
                             mn_hoff = int(doc.get('notation/continuous_measure_numbers_horizontal_offset', mn_hoff))
+                            mn_position = str(doc.get('notation/continuous_measure_numbers_position', mn_position))
                             bn_size = int(doc.get('notation/continuous_barline_number_font_size', bn_size))
                             bn_voff = int(doc.get('notation/continuous_barline_number_vertical_offset', bn_voff))
                             bn_hoff = int(doc.get('notation/continuous_barline_number_horizontal_offset', bn_hoff))
@@ -5690,6 +5698,7 @@ class ScoreRenderer:
                             mn_size = int(s.value('notation/continuous_measure_numbers_font_size', mn_size))
                             mn_voff = int(s.value('notation/continuous_measure_numbers_vertical_offset', mn_voff))
                             mn_hoff = int(s.value('notation/continuous_measure_numbers_horizontal_offset', mn_hoff))
+                            mn_position = str(s.value('notation/continuous_measure_numbers_position', mn_position))
                             bn_size = int(s.value('notation/continuous_barline_number_font_size', bn_size))
                             bn_voff = int(s.value('notation/continuous_barline_number_vertical_offset', bn_voff))
                             bn_hoff = int(s.value('notation/continuous_barline_number_horizontal_offset', bn_hoff))
@@ -5705,11 +5714,23 @@ class ScoreRenderer:
                             continue
                         if show_measure_numbers:
                             try:
-                                from PyQt6.QtGui import QFont
+                                from PyQt6.QtGui import QFont, QFontMetrics
                                 painter.save()
                                 painter.setPen(QPen(QColor('#e8161a')))
                                 f = QFont(); f.setPointSize(int(mn_size)); painter.setFont(f)
-                                painter.drawText(QPointF(center_x + mn_hoff, first_row_top + mn_voff), str(num))
+                                
+                                # Calculate x position based on position setting
+                                if mn_position == "Beginning":
+                                    x_pos = start_x + 5 + mn_hoff
+                                elif mn_position == "End":
+                                    # Get text width to position at end
+                                    metrics = QFontMetrics(f)
+                                    text_width = metrics.horizontalAdvance(str(num))
+                                    x_pos = end_x - text_width - 5 + mn_hoff
+                                else:  # "Center" (default)
+                                    x_pos = center_x + mn_hoff
+                                
+                                painter.drawText(QPointF(x_pos, first_row_top + mn_voff), str(num))
                                 painter.restore()
                             except Exception:
                                 pass

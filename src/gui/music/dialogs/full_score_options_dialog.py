@@ -1276,7 +1276,7 @@ class FullScoreOptionsDialog(QDialog):
         
         # Horizontal position
         self.section_name_horizontal = QSpinBox()
-        self.section_name_horizontal.setRange(-120, 0)
+        self.section_name_horizontal.setRange(-120, 120)
         self.section_name_horizontal.setValue(-60)
         self.section_name_horizontal.setSuffix(" px")
         self.section_name_horizontal.setMinimumWidth(80)
@@ -1507,10 +1507,14 @@ class FullScoreOptionsDialog(QDialog):
         self.cv_measure_numbers_vertical_offset.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_measure_numbers_vertical_offset', int(v)))
         self.cv_measure_numbers_horizontal_offset = QSpinBox(); self.cv_measure_numbers_horizontal_offset.setRange(-200,100)
         self.cv_measure_numbers_horizontal_offset.valueChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_measure_numbers_horizontal_offset', int(v)))
+        self.cv_measure_numbers_position = QComboBox()
+        self.cv_measure_numbers_position.addItems(["Beginning", "Center", "End"])
+        self.cv_measure_numbers_position.currentTextChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_measure_numbers_position', v))
         numbers_form.addRow(self.cv_show_measure_numbers)
         numbers_form.addRow("Measure size:", self.cv_measure_numbers_font_size)
         numbers_form.addRow("Measure V offset:", self.cv_measure_numbers_vertical_offset)
         numbers_form.addRow("Measure H offset:", self.cv_measure_numbers_horizontal_offset)
+        numbers_form.addRow("Position:", self.cv_measure_numbers_position)
         # Barline numbers controls
         self.cv_show_barline_numbers = QCheckBox("Show barline numbers (debug)")
         self.cv_barline_numbers_font_size = QSpinBox(); self.cv_barline_numbers_font_size.setRange(6,16)
@@ -1605,6 +1609,7 @@ class FullScoreOptionsDialog(QDialog):
         self.cv_section_name_vertical.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
         self.cv_section_name_horizontal.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
         self.cv_show_measure_numbers.toggled.connect(lambda _: self._mark_tab_dirty("continuous"))
+        self.cv_measure_numbers_position.currentTextChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
         self.cv_measure_numbers_font_size.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
         self.cv_measure_numbers_vertical_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
         self.cv_measure_numbers_horizontal_offset.valueChanged.connect(lambda _: self._mark_tab_dirty("continuous"))
@@ -1648,6 +1653,10 @@ class FullScoreOptionsDialog(QDialog):
             self.cv_measure_numbers_font_size.setValue(int(doc_get('notation/continuous_measure_numbers_font_size', int(pref('notation/continuous_measure_numbers_font_size', 10)))))
             self.cv_measure_numbers_vertical_offset.setValue(int(doc_get('notation/continuous_measure_numbers_vertical_offset', int(pref('notation/continuous_measure_numbers_vertical_offset', 17)))))
             self.cv_measure_numbers_horizontal_offset.setValue(int(doc_get('notation/continuous_measure_numbers_horizontal_offset', int(pref('notation/continuous_measure_numbers_horizontal_offset', 3)))))
+            position = doc_get('notation/continuous_measure_numbers_position', pref('notation/continuous_measure_numbers_position', 'Center'))
+            index = self.cv_measure_numbers_position.findText(position)
+            if index >= 0:
+                self.cv_measure_numbers_position.setCurrentIndex(index)
             self.cv_show_barline_numbers.setChecked(bool(doc_get('notation/continuous_show_barline_numbers', bool(pref('notation/continuous_show_barline_numbers', False)))))
             self.cv_barline_numbers_font_size.setValue(int(doc_get('notation/continuous_barline_number_font_size', int(pref('notation/continuous_barline_number_font_size', 8)))))
             self.cv_barline_number_vertical_offset.setValue(int(doc_get('notation/continuous_barline_number_vertical_offset', int(pref('notation/continuous_barline_number_vertical_offset', -3)))))
@@ -1727,7 +1736,7 @@ class FullScoreOptionsDialog(QDialog):
         """Open color picker dialog for font colors - uniform with Preferences dialog."""
         from PyQt6.QtWidgets import QColorDialog
         from PyQt6.QtGui import QColor
-
+        
         # Map category to button and current color
         current_color = QColor("#000000")
         if category == 'staff_names':
@@ -1753,7 +1762,7 @@ class FullScoreOptionsDialog(QDialog):
             current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
         else:
             return
-            
+        
         # Use shared ColorButton behavior: open non-native dialog and update swatch
         # macOS native Colors panel (no DontUseNativeDialog)
         color = QColorDialog.getColor(
@@ -2787,6 +2796,70 @@ class FullScoreOptionsDialog(QDialog):
                 settings.setValue("fonts/default_font_size", self.size_spin.value())
         except Exception:
             pass
+
+        # Save Continuous View Setup settings if on that tab
+        if is_continuous_tab:
+            print("SET_AS_DEFAULTS: Saving Continuous View Setup settings as defaults")
+            # Staff names
+            if hasattr(self, 'cv_staff_name_font_size'):
+                write_staged_notation("notation/continuous_staff_name_font_size", self.cv_staff_name_font_size.value())
+            if hasattr(self, 'cv_staff_name_vertical'):
+                write_staged_notation("notation/continuous_staff_name_vertical", self.cv_staff_name_vertical.value())
+            if hasattr(self, 'cv_staff_name_horizontal'):
+                write_staged_notation("notation/continuous_staff_name_horizontal", self.cv_staff_name_horizontal.value())
+            if hasattr(self, 'cv_grand_staff_name_vertical'):
+                write_staged_notation("notation/continuous_grand_staff_name_vertical", self.cv_grand_staff_name_vertical.value())
+            # Section names
+            if hasattr(self, 'cv_section_name_font_size'):
+                write_staged_notation("notation/continuous_section_name_font_size", self.cv_section_name_font_size.value())
+            if hasattr(self, 'cv_section_name_vertical'):
+                write_staged_notation("notation/continuous_section_name_vertical", self.cv_section_name_vertical.value())
+            if hasattr(self, 'cv_section_name_horizontal'):
+                write_staged_notation("notation/continuous_section_name_horizontal", self.cv_section_name_horizontal.value())
+            # Measure numbers
+            if hasattr(self, 'cv_show_measure_numbers'):
+                write_staged_notation("notation/continuous_show_measure_numbers", self.cv_show_measure_numbers.isChecked())
+            if hasattr(self, 'cv_measure_numbers_font_size'):
+                write_staged_notation("notation/continuous_measure_numbers_font_size", self.cv_measure_numbers_font_size.value())
+            if hasattr(self, 'cv_measure_numbers_vertical_offset'):
+                write_staged_notation("notation/continuous_measure_numbers_vertical_offset", self.cv_measure_numbers_vertical_offset.value())
+            if hasattr(self, 'cv_measure_numbers_horizontal_offset'):
+                write_staged_notation("notation/continuous_measure_numbers_horizontal_offset", self.cv_measure_numbers_horizontal_offset.value())
+            if hasattr(self, 'cv_measure_numbers_position'):
+                write_staged_notation("notation/continuous_measure_numbers_position", self.cv_measure_numbers_position.currentText())
+                print(f"SET_AS_DEFAULTS: Saving continuous_measure_numbers_position = {self.cv_measure_numbers_position.currentText()}")
+            # Barline numbers
+            if hasattr(self, 'cv_show_barline_numbers'):
+                write_staged_notation("notation/continuous_show_barline_numbers", self.cv_show_barline_numbers.isChecked())
+            if hasattr(self, 'cv_barline_numbers_font_size'):
+                write_staged_notation("notation/continuous_barline_number_font_size", self.cv_barline_numbers_font_size.value())
+            if hasattr(self, 'cv_barline_number_vertical_offset'):
+                write_staged_notation("notation/continuous_barline_number_vertical_offset", self.cv_barline_number_vertical_offset.value())
+            if hasattr(self, 'cv_barline_number_horizontal_offset'):
+                write_staged_notation("notation/continuous_barline_number_horizontal_offset", self.cv_barline_number_horizontal_offset.value())
+            # Symbols
+            if hasattr(self, 'cv_clef_font_size'):
+                write_staged_notation("notation/continuous_clef_font_size", self.cv_clef_font_size.value())
+            if hasattr(self, 'cv_clef_vertical'):
+                write_staged_notation("notation/continuous_clef_vertical", self.cv_clef_vertical.value())
+            if hasattr(self, 'cv_clef_horizontal'):
+                write_staged_notation("notation/continuous_clef_horizontal", self.cv_clef_horizontal.value())
+            if hasattr(self, 'cv_key_font_size'):
+                write_staged_notation("notation/continuous_key_font_size", self.cv_key_font_size.value())
+            if hasattr(self, 'cv_key_vertical'):
+                write_staged_notation("notation/continuous_key_vertical", self.cv_key_vertical.value())
+            if hasattr(self, 'cv_key_horizontal'):
+                write_staged_notation("notation/continuous_key_horizontal", self.cv_key_horizontal.value())
+            if hasattr(self, 'cv_time_font_size'):
+                write_staged_notation("notation/continuous_time_font_size", self.cv_time_font_size.value())
+            if hasattr(self, 'cv_time_vertical'):
+                write_staged_notation("notation/continuous_time_vertical", self.cv_time_vertical.value())
+            if hasattr(self, 'cv_time_horizontal'):
+                write_staged_notation("notation/continuous_time_horizontal", self.cv_time_horizontal.value())
+            # Fixed strip
+            if hasattr(self, 'cv_strip_width'):
+                write_staged_layout("continuous_left_margin", self.cv_strip_width.value())
+            print("SET_AS_DEFAULTS: Continuous View Setup settings saved")
 
         # NOTE: Do not write Layout tab defaults here. Page Setup dialog owns staging/committing layout defaults.
         

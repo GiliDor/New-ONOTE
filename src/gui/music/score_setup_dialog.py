@@ -287,10 +287,20 @@ class ScoreSetupDialog(QDialog):
                     "section": "",  # No section for ungrouped staves
                     "plugin": plugin,  # Use the plugin from document or staff
                 }
+                
+                # Load custom_name and custom_abbr if they exist on the staff object
+                if hasattr(staff, 'custom_name') and staff.custom_name:
+                    staff_data["custom_name"] = staff.custom_name
+                    print(f"POPULATE: Loaded custom_name '{staff.custom_name}' for {staff.instrument_name}")
+                if hasattr(staff, 'custom_abbr') and staff.custom_abbr:
+                    staff_data["custom_abbr"] = staff.custom_abbr
+                    print(f"POPULATE: Loaded custom_abbr '{staff.custom_abbr}' for {staff.instrument_name}")
 
                 # Create staff item
                 staff_item = QTreeWidgetItem(self.setup_widget.staff_list)
-                staff_item.setText(0, staff.instrument_name)
+                # Use custom_name if available, otherwise default instrument_name
+                display_name = staff_data.get("custom_name", staff.instrument_name)
+                staff_item.setText(0, display_name)
                 staff_item.setText(
                     1, "Single Staff" if isinstance(staff, SingleStaff) else "Grand Staff"
                 )
@@ -327,10 +337,20 @@ class ScoreSetupDialog(QDialog):
                     "section": section.name,  # Set section from the group
                     "plugin": plugin,  # Use the plugin from document or staff
                 }
+                
+                # Load custom_name and custom_abbr if they exist on the staff object
+                if hasattr(staff, 'custom_name') and staff.custom_name:
+                    staff_data["custom_name"] = staff.custom_name
+                    print(f"POPULATE: Loaded custom_name '{staff.custom_name}' for {staff.instrument_name}")
+                if hasattr(staff, 'custom_abbr') and staff.custom_abbr:
+                    staff_data["custom_abbr"] = staff.custom_abbr
+                    print(f"POPULATE: Loaded custom_abbr '{staff.custom_abbr}' for {staff.instrument_name}")
 
                 # Create staff item
                 staff_item = QTreeWidgetItem(self.setup_widget.staff_list)
-                staff_item.setText(0, staff.instrument_name)
+                # Use custom_name if available, otherwise default instrument_name
+                display_name = staff_data.get("custom_name", staff.instrument_name)
+                staff_item.setText(0, display_name)
                 staff_item.setText(
                     1, "Single Staff" if isinstance(staff, SingleStaff) else "Grand Staff"
                 )
@@ -941,6 +961,13 @@ class ScoreSetupDialog(QDialog):
                         staff_data["staff_type"] = staff_type
                         staff_type_map[instrument_id] = staff_type
 
+                    # Preserve custom_name and custom_abbr if they exist
+                    # The item text (column 0) is the display name
+                    if "custom_name" in staff_data:
+                        print(f"APPLY: Preserving custom_name '{staff_data['custom_name']}' for '{instrument_id}'")
+                    if "custom_abbr" in staff_data:
+                        print(f"APPLY: Preserving custom_abbr '{staff_data['custom_abbr']}' for '{instrument_id}'")
+
                     # Update the item's data
                     item.setData(0, Qt.ItemDataRole.UserRole, staff_data)
 
@@ -1040,6 +1067,23 @@ class ScoreSetupDialog(QDialog):
                     staff_entry["plugin"] = plugin
                     if "staff_data" in staff_entry:
                         staff_entry["staff_data"]["plugin"] = plugin
+
+                # Also preserve custom_name and custom_abbr from the UI item's staff_data
+                for i in range(self.setup_widget.staff_list.topLevelItemCount()):
+                    item = self.setup_widget.staff_list.topLevelItem(i)
+                    item_data = item.data(0, Qt.ItemDataRole.UserRole)
+                    if item_data and item_data.get('instrument_id') == instrument_id:
+                        if "custom_name" in item_data:
+                            staff_entry["custom_name"] = item_data["custom_name"]
+                            if "staff_data" in staff_entry:
+                                staff_entry["staff_data"]["custom_name"] = item_data["custom_name"]
+                            print(f"APPLY: Saved custom_name '{item_data['custom_name']}' for '{instrument_id}'")
+                        if "custom_abbr" in item_data:
+                            staff_entry["custom_abbr"] = item_data["custom_abbr"]
+                            if "staff_data" in staff_entry:
+                                staff_entry["staff_data"]["custom_abbr"] = item_data["custom_abbr"]
+                            print(f"APPLY: Saved custom_abbr '{item_data['custom_abbr']}' for '{instrument_id}'")
+                        break
 
             # Debug check of options
             print("APPLY: Final options structure:")
