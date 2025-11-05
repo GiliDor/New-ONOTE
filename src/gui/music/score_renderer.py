@@ -106,7 +106,8 @@ class UniversalSystemManager:
                 bottom_margin_px = 120.0
                 available_height = int(max(0, self.renderer.page_height - 220))
 
-            # Calculate the vertical span of the entire score-system (all staves together)
+            # ONOTE SPECIFICATION: Calculate the vertical span of the entire score-system
+            # (all staves together) - this treats the full score as one "thick" line unit
             group_span = self._calculate_group_span(staff_spacing)
             # Expose span to renderer for downstream calculations that expect it
             try:
@@ -114,11 +115,24 @@ class UniversalSystemManager:
             except Exception:
                 pass
 
-            # Total advance per wrapped system = group height + configured inter-system gap
-            system_advance = int((float(group_span) if group_span > 0 else 0) + int(system_spacing))
+            # ONOTE SPECIFICATION: Total advance per wrapped system = full score height (group_span) + wrapping spacing
+            # Wrapping spacing is used between wrapped systems (when score wraps to next line)
+            # Get wrapping spacing with document precedence
+            wrapping_spacing = system_spacing  # Default to system spacing if wrapping spacing not set
+            if hasattr(self.renderer.document, 'settings') and self.renderer.document.settings:
+                wrapping_spacing = int(self.renderer.document.settings.get('layout/wrapping_spacing', 0) or 0)
+            if wrapping_spacing <= 0:
+                from PyQt6.QtCore import QSettings
+                wrapping_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_wrapping_spacing", 80))
+            wrapping_spacing = max(40, min(200, int(wrapping_spacing)))
+            
+            # Total advance = full score height + wrapping spacing
+            # This ensures pagination accounts for the full score height with all nested systems
+            system_advance = int((float(group_span) if group_span > 0 else 0) + int(wrapping_spacing))
             if system_advance <= 0:
-                system_advance = int(system_spacing)
+                system_advance = int(wrapping_spacing)
 
+            # Calculate systems per page based on full score height (treating score as "thick" line)
             systems_per_page = max(1, available_height // max(1, system_advance))
             
             print(f"SYSTEM_MANAGER: Calculated system_spacing={system_spacing}, staff_spacing={staff_spacing}, measures_per_system={measures_per_system}")
@@ -168,14 +182,23 @@ class UniversalSystemManager:
             return range(0, system_info['total_systems'])
     
     def calculate_system_vertical_shift(self, system_idx, system_info):
-        """Calculate vertical shift for a given system index."""
+        """
+        Calculate vertical shift for a given system index.
+        
+        ONOTE SPECIFICATION: Pagination accounts for full score height (all nested systems).
+        Each system's vertical position is calculated based on:
+        - Page breaks (when system_advance exceeds page height)
+        - Full score height (group_span) per system
+        - Inter-system spacing
+        """
         if getattr(self.renderer, 'page_down_mode', True):
             # In page-down mode, use page-local positioning
             systems_per_page = system_info['systems_per_page']
             page_idx = system_idx // systems_per_page
             local_idx = system_idx % systems_per_page
             
-            # Each page adds page_height, each local system adds system_spacing
+            # ONOTE SPEC: Each page adds page_height, each local system adds system_advance
+            # system_advance includes full score height (group_span) + spacing
             page_height = getattr(self.renderer, 'page_height', 800)
             advance = int(system_info.get('system_advance', system_info.get('system_spacing', 80)))
             vertical_shift = (page_idx * page_height) + (local_idx * advance)
@@ -183,7 +206,7 @@ class UniversalSystemManager:
             print(f"SYSTEM_MANAGER: System {system_idx} -> page {page_idx}, local {local_idx}, shift {vertical_shift}")
             return vertical_shift
         else:
-            # In continuous mode, simple linear spacing using system_spacing
+            # In continuous mode, simple linear spacing using system_advance (includes full score height)
             advance = int(system_info.get('system_advance', system_info.get('system_spacing', 80)))
             return system_idx * advance
 
@@ -1018,19 +1041,31 @@ class ScoreRenderer:
                     
                     if all_staves:
                         top_staff = all_staves[0]  # The topmost staff
-                        top_y = float(top_staff.y_position)
+                        base_top_y = float(top_staff.y_position)
                         
                     for sys_idx in range(page_start_idx, page_end_idx):
                         start = sys_idx * mps
                         end = min(total, start + mps)
                         sys_measures = measures[start:end]
-                        local_idx = sys_idx - page_start_idx
-                        system_y = top_y + local_idx * spacing_pref
+                        
+                        # CRITICAL FIX: Calculate system_y to match actual staff positions
+                        # For wrapped systems, we need to match the staff_y calculation used in _render_measures_impl
+                        # Check if universal wrapping is active
+                        is_universal_wrapping = hasattr(self, '_rendering_universal_wrapping')
+                        
+                        if is_universal_wrapping:
+                            # Universal wrapping: staff positions are already shifted, use base position
+                            system_y = float(top_staff.y_position)
+                        else:
+                            # Standard wrapping: calculate vertical shift
+                            local_idx = sys_idx - page_start_idx if getattr(self, 'page_down_mode', True) else sys_idx
+                            system_y = base_top_y + (local_idx * spacing_pref)
+                        
                         # Only render measure numbers above the TOP staff system
                         # Use instrument_name attribute for SingleStaff objects
                         staff_label = getattr(top_staff, 'instrument_name', getattr(top_staff, 'name', 'Staff'))
                         self.measure_number_manager.render_for_staff(painter, staff_label, sys_measures, system_y, start + 1)
-                        print(f"MEASURE_NUMBERS: Rendered for system {sys_idx} on top staff '{staff_label}' at y={system_y}")
+                        print(f"MEASURE_NUMBERS: Rendered for system {sys_idx} on top staff '{staff_label}' at y={system_y} (base={base_top_y}, spacing={spacing_pref}, universal={is_universal_wrapping})")
                 else:
                     print("MEASURE_NUMBERS: No staves found, skipping measure number rendering")
             except Exception as e:
@@ -1637,14 +1672,47 @@ class ScoreRenderer:
                 except Exception as e:
                     print(f"GRAND_STAFF ERROR: Brace rendering failed for system {system_idx}: {e}")
 
-                # Render part name for this system (only on first system). Align exactly like single-staff names.
+                # Render part name for this system (only on first system). Align exactly like before, but honor display options.
                 try:
                     if system_idx == 0 and hasattr(staff, 'instrument_name') and staff.instrument_name:
-                        original_pen = painter.pen()
-                        painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
-                        name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
-                        painter.setFont(name_font)
-                        display_name = staff.instrument_name
+                        # Determine display mode from document settings with Preferences fallback
+                        display_mode = None
+                        try:
+                            doc_settings = self._get_document_settings_with_view_mode()
+                        except Exception:
+                            doc_settings = {}
+                        # First system uses first_system setting
+                        if doc_settings and 'notation/staff_names_first_system' in doc_settings:
+                            display_mode = doc_settings['notation/staff_names_first_system']
+                        elif doc_settings and 'layout/staff_names_first_system' in doc_settings:
+                            display_mode = doc_settings['layout/staff_names_first_system']
+                        else:
+                            from PyQt6.QtCore import QSettings
+                            qs = QSettings("ONOTE", "Preferences")
+                            display_mode = qs.value("notation/staff_names_first_system", qs.value("layout/staff_names_first_system", "Full Title"))
+
+                        if display_mode == "None":
+                            pass  # Do not render
+                        else:
+                            original_pen = painter.pen()
+                            painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
+                            name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
+                            painter.setFont(name_font)
+                            # Choose full or abbreviation
+                            display_name = getattr(staff, 'custom_name', None) or staff.instrument_name
+                            if display_mode == "Abbreviation":
+                                abbr = (
+                                    getattr(staff, 'custom_abbr', None)
+                                    or getattr(staff, 'instrument_abbr', None)
+                                )
+                                if abbr:
+                                    display_name = abbr
+                                else:
+                                    # Fallback short form
+                                    if display_name.startswith("Part "):
+                                        display_name = "Pt" + display_name[4:]
+                                    elif len(display_name) > 4:
+                                        display_name = display_name[:4]
                         # Compute right edge at barline 0 minus padding plus horizontal offset
                         base_right = float(self.margins["left"] + self.barline_0_offset - 18)
                         h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
@@ -1725,26 +1793,28 @@ class ScoreRenderer:
             except Exception as e:
                 print(f"GRAND_STAFF_SYSTEM ERROR: Brace rendering failed for system {system_idx}: {e}")
 
-            # Render part name for this system (only for first system) with same alignment as single-staff
+            # Render part name for this system using PartNameRenderer (respects first/following/continuous settings)
             try:
-                if system_idx == 0 and hasattr(staff, 'instrument_name') and staff.instrument_name:
-                    original_pen = painter.pen()
-                    painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
-                    name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
-                    painter.setFont(name_font)
-                    display_name = staff.instrument_name
-                    base_right = float(self.margins["left"] + self.barline_0_offset - 18)
-                    h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
-                    right_edge = base_right + h_off
-                    left_edge = float(self.margins.get("left", 0))
+                if hasattr(staff, 'instrument_name') and staff.instrument_name:
                     # Use exact midpoint between top staff top-line and bottom staff bottom-line
                     top_y = float(staff.top_staff.y_position)
                     bottom_end = float(staff.bottom_staff.y_position + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
                     center_between_staves = (top_y + bottom_end) / 2.0
+                    name_x = self.margins["left"] + self.staff_name_horizontal_offset
                     name_y = center_between_staves + float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
-                    rect = QRectF(left_edge, name_y - painter.fontMetrics().ascent(), max(0.0, right_edge - left_edge), painter.fontMetrics().height())
-                    painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
-                    painter.setPen(original_pen)
+                    # Get abbreviation if available
+                    staff_abbrev = getattr(staff, 'abbreviation', None)
+                    # Use PartNameRenderer to respect Preferences/Full Score Options settings
+                    PartNameRenderer.render_part_name(
+                        painter,
+                        staff.instrument_name,
+                        name_x,
+                        name_y,
+                        is_grand_staff=True,
+                        document_settings=self._get_document_settings_with_view_mode(),
+                        system_idx=system_idx,
+                        abbreviation=staff_abbrev
+                    )
             except Exception:
                 pass
 
@@ -1882,6 +1952,10 @@ class ScoreRenderer:
             print(f"UNIVERSAL_WRAPPING ERROR: Failed to render with universal wrapping: {e}")
             # Fall back to original rendering approach
             self._render_score_fallback(painter)
+        finally:
+            # Clear flag
+            if hasattr(self, '_rendering_universal_wrapping'):
+                delattr(self, '_rendering_universal_wrapping')
 
     def _render_score_fallback(self, painter):
         """Fallback to original rendering approach if universal wrapping fails."""
@@ -2091,8 +2165,15 @@ class ScoreRenderer:
         # Get the calculated offset for proper staff positioning
         staff_offset = self.first_system_offset if system_idx == 0 else self.continuation_system_offset
         
-        # Calculate barline 0 position using the dynamic offset
-        barline_0_x = self.margins["left"] + (self.barline_0_offset if system_idx == 0 else 0)
+        # ONOTE SPECIFICATION: Calculate barline 0 position using dynamic offsets
+        # First system: use name_offset (full title width)
+        # Wrapped systems: use abbr_offset (abbreviation width) to ensure staff lines align
+        if system_idx == 0:
+            barline_0_x = self.margins["left"] + self.barline_0_offset
+        else:
+            # Use abbr_offset for wrapped systems to account for abbreviation space
+            abbr_offset = getattr(self, 'abbr_offset', getattr(self, 'barline_0_offset', 0))
+            barline_0_x = self.margins["left"] + abbr_offset
         
         # Highlight selected staff if in setup mode and selected
         if selected:
@@ -2107,78 +2188,6 @@ class ScoreRenderer:
             )
 
         # Staff lines are drawn inside _render_measures_impl for correct per-system truncation
-
-        # Draw instrument name for first staff (only on first system)
-        # Skip drawing instrument name if this staff is part of a multi-staff system (like grand staff)
-        if draw_headers and hasattr(staff, "instrument_name") and staff.instrument_name and not is_multi_staff:
-            # Set font for instrument name using configurable settings
-            try:
-                name_font = QFont(self.MUSIC_FONTS["text"], self.staff_name_font_size)
-                painter.setFont(name_font)
-            except Exception as e:
-                # Fallback to a generic font
-                painter.setFont(QFont("Arial", self.staff_name_font_size))
-                print(f"Error setting instrument name font: {e}")
-
-            # NEW: Set text color from document settings - FIXED to match clef/time sig approach
-            from PyQt6.QtGui import QColor
-            staff_name_color = getattr(self, 'staff_name_font_color', '#000000')
-            print(f"RENDERER: Using staff name color: {staff_name_color}")
-            
-            # CRITICAL FIX: Save the current pen state before changing color
-            original_pen = painter.pen()
-            
-            # Set the pen color for text drawing
-            painter.setPen(QColor(staff_name_color))
-
-            # Position name using configurable offsets
-            # Right-align names against barline 0 (like continuous view)
-            # Measure the width of the name
-            display_name = staff.instrument_name
-            if hasattr(staff, "custom_name") and staff.custom_name:
-                display_name = staff.custom_name
-                
-            # Truncate very long names if necessary with ellipsis
-            max_name_length = 35  # Increased character limit for names
-            if len(display_name) > max_name_length:
-                display_name = display_name[:max_name_length-3] + "..."
-                
-            name_width = painter.fontMetrics().horizontalAdvance(display_name)
-
-            # Center vertically at the middle staff line with configurable vertical offset
-            staff_center = float(
-                staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING
-            )
-            name_y = staff_center + self.staff_name_vertical_offset
-
-            # Draw using a right-aligned rect from left margin up to barline 0 minus padding
-            try:
-                # Increase padding so names don't touch barline 0 and apply user horizontal offset
-                base_right = float(self.margins["left"] + self.barline_0_offset - 18)
-                h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
-                right_edge = base_right + h_off
-            except Exception:
-                right_edge = float(self.margins.get("left", 0) + 80)
-            left_edge = float(self.margins.get("left", 0))
-            rect = QRectF(
-                left_edge,
-                name_y - painter.fontMetrics().ascent(),
-                max(0.0, right_edge - left_edge),
-                painter.fontMetrics().height(),
-            )
-            painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
-            # Approximate baseline x used for selection: right edge minus text width
-            name_x = right_edge - name_width
-            print(f"Drawing instrument name '{display_name}' at x={name_x}, y={name_y}, width={name_width}px, barline0={barline_0_x}, color={staff_name_color}")
-            
-            # CRITICAL FIX: Restore the original pen state after drawing staff name
-            painter.setPen(original_pen)
-            
-            # NEW: Register this staff name as a selectable element
-            if hasattr(self.document, 'staff_view') and hasattr(self.document.staff_view, 'element_selection'):
-                self.document.staff_view.element_selection.create_staff_name_element(
-                    staff, name_x, name_y, display_name, name_width
-                )
 
         # Calculate initial elements width - needed for both modes
         initial_elements_width = self._calculate_initial_elements_width(staff)
@@ -2210,64 +2219,217 @@ class ScoreRenderer:
             systems_per_page = max(1, available_height // max(1, spacing_pref))
             local_idx = int(system_idx) % int(systems_per_page)
             header_shift = local_idx * spacing_pref
-            painter.save()
-            # Translate only by per-system shift; staff.y_position is already absolute
-            painter.translate(0, header_shift)
-
-            # Position clef exactly like the first system: at barline-0 offset from left margin
-            clef_x_base = self.margins["left"] + self.barline_0_offset
-        staff.clef_x = clef_x_base + self.CLEF_POSITIONS[staff.clef]["x_offset"]
-        self._render_clef(painter, staff, is_first_system=(system_idx == 0))
-
-        # Draw key signature with consistent positioning
-        staff.key_sig_x = clef_x_base + 50  # Position for key signature
-        self._render_key_signature(painter, staff, is_first_system=(system_idx == 0))
-
-        # Draw part name at each wrapped line start (similar to first line)
-        try:
-            original_pen = painter.pen()
-            painter.setPen(QColor(getattr(self, 'staff_name_font_color', '#000000')))
-            name_font = QFont(self.MUSIC_FONTS["text"], int(getattr(self, 'staff_name_font_size', 10)))
-            painter.setFont(name_font)
-            display_name = getattr(staff, 'instrument_name', '') or getattr(staff, 'abbr', '') or 'Part'
-            staff_center = float(staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING)
-            name_y = staff_center + self.staff_name_vertical_offset
-            # Right-align against barline 0 for wrapped systems too
-            try:
-                base_right = float(self.margins["left"] + self.barline_0_offset - 18)
-                h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
-                right_edge = base_right + h_off
-            except Exception:
-                right_edge = float(self.margins.get("left", 0) + 80)
-            left_edge = float(self.margins.get("left", 0))
-            rect = QRectF(
-                left_edge,
-                name_y - painter.fontMetrics().ascent(),
-                max(0.0, right_edge - left_edge),
-                painter.fontMetrics().height(),
-            )
-            painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
-            painter.setPen(original_pen)
-        except Exception:
-            pass
-        painter.restore()
-
-        # Calculate time signature position based on key signature
-        # Check if key has accidentals
-        key = getattr(staff, "key", "C major / A minor (no sharps/flats)")
-        if key != "C major / A minor (no sharps/flats)" and key:
-            # Regular spacing for keys with accidentals
-            time_sig_spacing = 50
-        else:
-            # Reduced spacing for C major / A minor
-            time_sig_spacing = 0
             
-        # Set time signature position - after key signature with appropriate spacing
-        # CRITICAL FIX: Render time signature on ALL wrapped systems, not just the first
-        if draw_headers:
-            staff.time_sig_x = staff.key_sig_x + time_sig_spacing  
-            print(f"Setting time_sig_x={staff.time_sig_x} with spacing={time_sig_spacing} for key={key} on system {system_idx}")
-            self._render_time_signature(painter, staff, is_first_system=True)
+            # ONOTE SPECIFICATION: For grand staff systems in universal wrapping, staff.y_position 
+            # is already shifted by universal wrapping code, so we don't need additional translation
+            # The is_multi_staff flag indicates we're rendering a grand staff where positions are pre-adjusted
+            if not is_multi_staff:
+                painter.save()
+                painter.translate(0, header_shift)
+
+            # ONOTE SPECIFICATION: All clefs should align horizontally across all systems
+            # Calculate clef position relative to aligned staff line start (staff_left_x)
+            # This ensures unified control via clef_horizontal_offset settings
+            name_offset = float(self.barline_0_offset)  # Full title width
+            abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+            max_offset = max(name_offset, abbr_offset)  # Use max for consistent alignment
+            staff_left_x = float(self.margins["left"]) + max_offset
+            
+            # Clef spacing after staff line start (typically 10-15px)
+            clef_spacing_after_staff_start = 15.0
+            clef_x_base = staff_left_x + clef_spacing_after_staff_start
+            staff.clef_x = clef_x_base + self.CLEF_POSITIONS[staff.clef]["x_offset"]
+            self._render_clef(painter, staff, is_first_system=(system_idx == 0))
+
+            # Draw key signature with consistent positioning (after clef)
+            staff.key_sig_x = clef_x_base + 50  # Position for key signature
+            self._render_key_signature(painter, staff, is_first_system=(system_idx == 0))
+            
+            # Calculate time signature position based on key signature
+            # Check if key has accidentals
+            key = getattr(staff, "key", "C major / A minor (no sharps/flats)")
+            if key != "C major / A minor (no sharps/flats)" and key:
+                # Regular spacing for keys with accidentals
+                time_sig_spacing = 50
+            else:
+                # Reduced spacing for C major / A minor
+                time_sig_spacing = 0
+                
+            # ONOTE SPECIFICATION: Time signature should only render on first system
+            # Following systems should NOT show time signature (unless there's a meter change)
+            # Set time signature position - after key signature with appropriate spacing
+            if system_idx == 0:
+                staff.time_sig_x = staff.key_sig_x + time_sig_spacing  
+                print(f"Setting time_sig_x={staff.time_sig_x} with spacing={time_sig_spacing} for key={key} on system {system_idx}")
+                self._render_time_signature(painter, staff, is_first_system=True)
+
+            # ONOTE SPECIFICATION: Draw instrument name/abbreviation for staff
+            # First system: Full Title (always, unless display_mode is "None")
+            # Following systems: Abbreviation (if display_mode allows) or None
+            # Skip drawing instrument name if this staff is part of a multi-staff system (like grand staff)
+            # CRITICAL: This must be inside draw_headers block INSIDE translation so wrapped systems render at correct Y
+            if hasattr(staff, "instrument_name") and staff.instrument_name and not is_multi_staff and not getattr(staff, 'belongs_to_grand_staff', False):
+                # Determine display mode according to Preferences/FSO
+                try:
+                    doc_settings = self._get_document_settings_with_view_mode()
+                    use_cv = bool(doc_settings and (doc_settings.get('view/mode') == 'continuous' or doc_settings.get('view_mode') == 'continuous'))
+                except Exception:
+                    doc_settings = {}
+                    use_cv = False
+
+                display_mode = None
+                if use_cv:
+                    # Continuous view preference
+                    if doc_settings and 'notation/continuous_staff_name_display' in doc_settings:
+                        display_mode = doc_settings['notation/continuous_staff_name_display']
+                    else:
+                        from PyQt6.QtCore import QSettings
+                        display_mode = QSettings("ONOTE", "Preferences").value("notation/continuous_staff_name_display", "Abbreviation")
+                else:
+                    if system_idx == 0:
+                        # Prefer new notation keys, fallback to layout/*
+                        if doc_settings and 'notation/staff_names_first_system' in doc_settings:
+                            display_mode = doc_settings['notation/staff_names_first_system']
+                        elif doc_settings and 'layout/staff_names_first_system' in doc_settings:
+                            display_mode = doc_settings['layout/staff_names_first_system']
+                        else:
+                            from PyQt6.QtCore import QSettings
+                            qs = QSettings("ONOTE", "Preferences")
+                            display_mode = qs.value("notation/staff_names_first_system", qs.value("layout/staff_names_first_system", "Full Title"))
+                    else:
+                        if doc_settings and 'notation/staff_names_following_systems' in doc_settings:
+                            display_mode = doc_settings['notation/staff_names_following_systems']
+                        elif doc_settings and 'layout/staff_names_following_systems' in doc_settings:
+                            display_mode = doc_settings['layout/staff_names_following_systems']
+                        else:
+                            from PyQt6.QtCore import QSettings
+                            qs = QSettings("ONOTE", "Preferences")
+                            display_mode = qs.value("notation/staff_names_following_systems", qs.value("layout/staff_names_following_systems", "Abbreviation"))
+
+                if display_mode == "None":
+                    pass  # Do not render any name
+                else:
+                    # Set font for instrument name using configurable settings
+                    try:
+                        name_font = QFont(self.MUSIC_FONTS["text"], self.staff_name_font_size)
+                        painter.setFont(name_font)
+                    except Exception as e:
+                        # Fallback to a generic font
+                        painter.setFont(QFont("Arial", self.staff_name_font_size))
+                        print(f"Error setting instrument name font: {e}")
+
+                    # Set text color from settings
+                    from PyQt6.QtGui import QColor
+                    staff_name_color = getattr(self, 'staff_name_font_color', '#000000')
+                    original_pen = painter.pen()
+                    painter.setPen(QColor(staff_name_color))
+
+                    # ONOTE SPECIFICATION: Choose display name based on system
+                    # First system: ALWAYS use full title (unless display_mode is "None")
+                    # Wrapped systems: Use abbreviation if display_mode allows, otherwise None
+                    full_name = getattr(staff, "custom_name", None) or staff.instrument_name
+                    display_name = None
+                    
+                    print(f"STAFF_NAME_LOGIC: system_idx={system_idx}, display_mode={display_mode}, full_name='{full_name}'")
+                    
+                    if system_idx == 0:
+                        # First system: Always use full title (unless display_mode is "None")
+                        if display_mode != "None":
+                            display_name = full_name
+                            print(f"STAFF_NAME_LOGIC: First system -> rendering FULL TITLE: '{display_name}'")
+                        else:
+                            print(f"STAFF_NAME_LOGIC: First system -> display_mode is 'None', skipping")
+                    else:
+                        # Wrapped systems: Use abbreviation if display_mode is "Abbreviation"
+                        if display_mode == "Abbreviation":
+                            abbr = (
+                                getattr(staff, 'custom_abbr', None)
+                                or getattr(staff, 'abbreviation', None)
+                                or getattr(staff, 'abbr', None)
+                                or getattr(staff, 'instrument_abbr', None)
+                            )
+                            if abbr:
+                                display_name = abbr
+                                print(f"STAFF_NAME_LOGIC: Wrapped system -> rendering ABBREVIATION: '{display_name}'")
+                            else:
+                                # Fallback abbreviation
+                                if full_name.startswith("Part "):
+                                    display_name = "Pt" + full_name[4:]
+                                elif len(full_name) > 4:
+                                    display_name = full_name[:4]
+                                else:
+                                    display_name = full_name
+                                print(f"STAFF_NAME_LOGIC: Wrapped system -> rendering FALLBACK ABBREVIATION: '{display_name}'")
+                        else:
+                            print(f"STAFF_NAME_LOGIC: Wrapped system -> display_mode='{display_mode}' (not 'Abbreviation'), skipping")
+                        # If display_mode is "Full Title" or "None" for wrapped systems, don't render
+                    
+                    # Only render if display_name was determined
+                    if display_name:
+                        # Truncate very long names if necessary with ellipsis
+                        max_name_length = 35
+                        if len(display_name) > max_name_length:
+                            display_name = display_name[:max_name_length-3] + "..."
+
+                        # ONOTE SPECIFICATION: Positioning for right-aligned staff names
+                        # Both full title and abbreviation should right-align to the same visual position
+                        # This means using the MAXIMUM of name_offset and abbr_offset as the right edge
+                        staff_center = float(
+                            staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING
+                        )
+                        name_y = staff_center + self.staff_name_vertical_offset
+                        try:
+                            # ONOTE SPECIFICATION: Calculate right edge position for proper alignment
+                            # First system: use name_offset (full title width) for barline_0_x
+                            # Wrapped systems: use abbr_offset (abbreviation width) for barline_0_x
+                            # But for RIGHT ALIGNMENT, we use max_offset so both align to the same visual position
+                            name_offset = float(self.barline_0_offset)  # Full title width
+                            abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+                            max_offset = max(name_offset, abbr_offset)  # Use max for consistent right alignment
+                            
+                            # Calculate barline_0_x for this system (used for positioning reference)
+                            if system_idx == 0:
+                                barline_0_x_for_system = float(self.margins["left"]) + name_offset
+                            else:
+                                barline_0_x_for_system = float(self.margins["left"]) + abbr_offset
+                            
+                            # Right edge: start from left margin + max offset, then subtract padding
+                            # This ensures both full title and abbreviation right-align to the same position
+                            right_edge_x = float(self.margins["left"]) + max_offset - 18.0  # 18px padding before barline 0
+                            h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
+                            right_edge = right_edge_x + h_off
+                            
+                            # Left edge starts at page margin
+                            left_edge = float(self.margins.get("left", 0))
+                            
+                            # Create rectangle for right-aligned text
+                            rect = QRectF(
+                                left_edge,
+                                name_y - painter.fontMetrics().ascent(),
+                                max(0.0, right_edge - left_edge),
+                                painter.fontMetrics().height(),
+                            )
+                            
+                            print(f"STAFF_NAME_RENDER: system_idx={system_idx}, display_mode={display_mode}, display_name='{display_name}', right_edge={right_edge}, barline_0_x_for_system={barline_0_x_for_system}, name_offset={name_offset}, abbr_offset={abbr_offset}, max_offset={max_offset}")
+                        except Exception as e:
+                            print(f"STAFF_NAME_RENDER ERROR: {e}")
+                            right_edge = float(self.margins.get("left", 0) + 80)
+                            left_edge = float(self.margins.get("left", 0))
+                            rect = QRectF(
+                                left_edge,
+                                name_y - painter.fontMetrics().ascent(),
+                                max(0.0, right_edge - left_edge),
+                                painter.fontMetrics().height(),
+                            )
+                        
+                        # Draw text right-aligned
+                        painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, display_name)
+                    
+                    painter.setPen(original_pen)
+            
+            # Restore translation after all headers (clef, key, time sig, staff name) are drawn
+            if not is_multi_staff:
+                painter.restore()
 
         # Get measure count from document
         if is_setup_mode:
@@ -2373,17 +2535,44 @@ class ScoreRenderer:
                 )
                 using_custom_settings = True
 
-        # Use the clef_x position if it exists on the staff, otherwise calculate from barline 0
-        if hasattr(staff, "clef_x"):
-            clef_x = staff.clef_x + self.clef_horizontal_offset
-            print(f"[CLEF RENDER] Using pre-calculated clef position: {clef_x} (with horizontal offset: {self.clef_horizontal_offset})")
+        # ONOTE SPECIFICATION: Position consistency between page and continuous view
+        # Use continuous view offset when in continuous view, otherwise use page view offset
+        is_continuous = getattr(self, 'view_mode', '') == 'continuous'
+        if is_continuous:
+            # In continuous view, use continuous-specific offset if available
+            try:
+                if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings:
+                    cv_offset = self.document.settings.get('notation/continuous_clef_horizontal', None)
+                    if cv_offset is not None:
+                        effective_offset = int(cv_offset)
+                    else:
+                        from PyQt6.QtCore import QSettings
+                        effective_offset = int(QSettings("ONOTE", "Preferences").value("notation/continuous_clef_horizontal", 18))
+                else:
+                    from PyQt6.QtCore import QSettings
+                    effective_offset = int(QSettings("ONOTE", "Preferences").value("notation/continuous_clef_horizontal", 18))
+            except Exception:
+                effective_offset = self.clef_horizontal_offset
         else:
-            # Traditional approach - calculate from left margin
-            barline_0_x = float(self.margins["left"])
-            if hasattr(self, "first_system_offset") and is_first_system:
-                barline_0_x += self.first_system_offset
-            clef_x = barline_0_x + self.CLEF_CONSTANTS[staff.clef]["offset"] + self.clef_horizontal_offset
-            print(f"[CLEF RENDER] Calculated clef position: {clef_x} (from barline 0 at {barline_0_x}, with horizontal offset: {self.clef_horizontal_offset})")
+            effective_offset = self.clef_horizontal_offset
+        
+        # Use the clef_x position if it exists on the staff, otherwise calculate from aligned staff line start
+        if hasattr(staff, "clef_x"):
+            clef_x = staff.clef_x + effective_offset
+            print(f"[CLEF RENDER] Using pre-calculated clef position: {clef_x} (with horizontal offset: {effective_offset}, continuous={is_continuous})")
+        else:
+            # ONOTE SPECIFICATION: All clefs should align horizontally across all systems
+            # Calculate clef position relative to aligned staff line start (staff_left_x)
+            # This ensures unified control via clef_horizontal_offset settings
+            name_offset = float(getattr(self, 'barline_0_offset', 0))
+            abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+            max_offset = max(name_offset, abbr_offset)  # Use max for consistent alignment
+            staff_left_x = float(self.margins["left"]) + max_offset
+            
+            # Clef spacing after staff line start (consistent with _render_single_staff)
+            clef_spacing_after_staff_start = 15.0
+            clef_x = staff_left_x + clef_spacing_after_staff_start + self.CLEF_CONSTANTS[staff.clef]["offset"] + effective_offset
+            print(f"[CLEF RENDER] Calculated clef position: {clef_x} (from staff_left_x at {staff_left_x}, spacing={clef_spacing_after_staff_start}, offset={effective_offset}, continuous={is_continuous})")
 
         # Check if we have this clef type in the constants, otherwise use treble as fallback
         if staff.clef not in self.CLEF_CONSTANTS:
@@ -2563,20 +2752,46 @@ class ScoreRenderer:
         # Get key information
         key = staff.key
 
-        # Use the key_sig_x position if it exists on the staff, otherwise calculate from barline 0
-        if hasattr(staff, "key_sig_x"):
-            x_start = staff.key_sig_x + self.key_sig_horizontal_offset
-            print(f"[KEY SIG RENDER] Using pre-calculated key signature position: {x_start} (with horizontal offset: {self.key_sig_horizontal_offset})")
+        # ONOTE SPECIFICATION: Position consistency between page and continuous view
+        # Use continuous view offset when in continuous view, otherwise use page view offset
+        is_continuous = getattr(self, 'view_mode', '') == 'continuous'
+        if is_continuous:
+            # In continuous view, use continuous-specific offset if available
+            try:
+                if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings:
+                    cv_offset = self.document.settings.get('notation/continuous_key_sig_horizontal', None)
+                    if cv_offset is not None:
+                        effective_offset = int(cv_offset)
+                    else:
+                        from PyQt6.QtCore import QSettings
+                        effective_offset = int(QSettings("ONOTE", "Preferences").value("notation/continuous_key_sig_horizontal", 85))
+                else:
+                    from PyQt6.QtCore import QSettings
+                    effective_offset = int(QSettings("ONOTE", "Preferences").value("notation/continuous_key_sig_horizontal", 85))
+            except Exception:
+                effective_offset = self.key_sig_horizontal_offset
         else:
-            # Traditional approach - calculate from left margin
-            barline_0_x = float(self.margins["left"])
-            if hasattr(self, "first_system_offset") and is_first_system:
-                barline_0_x += self.first_system_offset
+            effective_offset = self.key_sig_horizontal_offset
+        
+        # Use the key_sig_x position if it exists on the staff, otherwise calculate from aligned staff line start
+        if hasattr(staff, "key_sig_x"):
+            x_start = staff.key_sig_x + effective_offset
+            print(f"[KEY SIG RENDER] Using pre-calculated key signature position: {x_start} (with horizontal offset: {effective_offset}, continuous={is_continuous})")
+        else:
+            # ONOTE SPECIFICATION: All key signatures should align horizontally across all systems
+            # Calculate key signature position relative to aligned staff line start (staff_left_x)
+            # This ensures unified control via key_sig_horizontal_offset settings
+            name_offset = float(getattr(self, 'barline_0_offset', 0))
+            abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+            max_offset = max(name_offset, abbr_offset)  # Use max for consistent alignment
+            staff_left_x = float(self.margins["left"]) + max_offset
             
+            # Clef spacing after staff line start (consistent with _render_single_staff)
+            clef_spacing_after_staff_start = 15.0
             # Position key signature after the clef with consistent spacing
             clef_width = self.CLEF_POSITIONS[staff.clef]["x_offset"] + 30  # Estimate clef width + spacing
-            x_start = barline_0_x + clef_width + self.key_sig_horizontal_offset
-            print(f"[KEY SIG RENDER] Calculated key position: {x_start} (from barline 0 at {barline_0_x}, with horizontal offset: {self.key_sig_horizontal_offset})")
+            x_start = staff_left_x + clef_spacing_after_staff_start + clef_width + effective_offset
+            print(f"[KEY SIG RENDER] Calculated key position: {x_start} (from staff_left_x at {staff_left_x}, spacing={clef_spacing_after_staff_start}, offset={effective_offset}, continuous={is_continuous})")
 
         staff_center = float(
             staff.y_position + ((self.STAFF_LINE_COUNT - 1) / 2) * self.STAFF_LINE_SPACING
@@ -2704,16 +2919,43 @@ class ScoreRenderer:
         print(f"[TIME SIG RENDER] Using color {time_sig_color} for time signature")
         painter.setPen(QColor(time_sig_color))
 
-        # Use the time_sig_x position if it exists on the staff, otherwise calculate from barline 0
-        if hasattr(staff, "time_sig_x"):
-            x = staff.time_sig_x + self.time_sig_horizontal_offset
-            print(f"[TIME SIG RENDER] Using pre-calculated time signature position: {x} (with horizontal offset: {self.time_sig_horizontal_offset})")
+        # ONOTE SPECIFICATION: Position consistency between page and continuous view
+        # Use continuous view offset when in continuous view, otherwise use page view offset
+        is_continuous = getattr(self, 'view_mode', '') == 'continuous'
+        if is_continuous:
+            # In continuous view, use continuous-specific offset if available
+            try:
+                if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings:
+                    cv_offset = self.document.settings.get('notation/continuous_time_sig_horizontal', None)
+                    if cv_offset is not None:
+                        effective_offset = int(cv_offset)
+                    else:
+                        from PyQt6.QtCore import QSettings
+                        effective_offset = int(QSettings("ONOTE", "Preferences").value("notation/continuous_time_sig_horizontal", 135))
+                else:
+                    from PyQt6.QtCore import QSettings
+                    effective_offset = int(QSettings("ONOTE", "Preferences").value("notation/continuous_time_sig_horizontal", 135))
+            except Exception:
+                effective_offset = self.time_sig_horizontal_offset
         else:
-            # Traditional approach - calculate from left margin
-            barline_0_x = float(self.margins["left"])
-            if hasattr(self, "first_system_offset") and is_first_system:
-                barline_0_x += self.first_system_offset
-
+            effective_offset = self.time_sig_horizontal_offset
+        
+        # Use the time_sig_x position if it exists on the staff, otherwise calculate from aligned staff line start
+        if hasattr(staff, "time_sig_x"):
+            x = staff.time_sig_x + effective_offset
+            print(f"[TIME SIG RENDER] Using pre-calculated time signature position: {x} (with horizontal offset: {effective_offset}, continuous={is_continuous})")
+        else:
+            # ONOTE SPECIFICATION: All time signatures should align horizontally across all systems
+            # Calculate time signature position relative to aligned staff line start (staff_left_x)
+            # This ensures unified control via time_sig_horizontal_offset settings
+            name_offset = float(getattr(self, 'barline_0_offset', 0))
+            abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+            max_offset = max(name_offset, abbr_offset)  # Use max for consistent alignment
+            staff_left_x = float(self.margins["left"]) + max_offset
+            
+            # Clef spacing after staff line start (consistent with _render_single_staff)
+            clef_spacing_after_staff_start = 15.0
+            
             # Adjust position based on key signature width if present
             key = getattr(staff, "key", "C major / A minor (no sharps/flats)")
             print(f"[TIME SIG RENDER] Staff key: {key}")
@@ -2763,8 +3005,9 @@ class ScoreRenderer:
 
             # Apply key signature width to position with appropriate spacing
             # Add configurable horizontal offset
-            x = barline_0_x + clef_width + key_width + additional_spacing + self.time_sig_horizontal_offset
-            print(f"[TIME SIG RENDER] Calculated time signature position: {x} (from barline 0 at {barline_0_x}, with additional spacing: {additional_spacing}, horizontal offset: {self.time_sig_horizontal_offset})")
+            # Time signature is positioned: staff_left_x + clef_spacing + clef_width + key_width + spacing + offset
+            x = staff_left_x + clef_spacing_after_staff_start + clef_width + key_width + additional_spacing + effective_offset
+            print(f"[TIME SIG RENDER] Calculated time signature position: {x} (from staff_left_x at {staff_left_x}, clef_spacing={clef_spacing_after_staff_start}, additional spacing: {additional_spacing}, horizontal offset: {effective_offset}, continuous={is_continuous})")
 
         # Calculate the vertical center of the staff for positioning the time signature
         # Apply configurable vertical offset
@@ -2843,9 +3086,23 @@ class ScoreRenderer:
         # Determine if we're in setup mode
         is_setup_mode = hasattr(self.document, "layout") and self.document.layout.is_setup_mode
 
-        # Calculate staff positions - CONSISTENT: continuation systems start at same left offset
-        # as the first system (same visual indentation)
-        staff_left_x = float(self.margins["left"]) + float(self.barline_0_offset)
+        # ONOTE SPECIFICATION: Staff lines should all start at the same left position
+        # Since both full title and abbreviation are right-aligned to the same position,
+        # all staff lines should start at the maximum offset (longest name width)
+        name_offset = float(self.barline_0_offset)  # Full title width
+        abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+        max_offset = max(name_offset, abbr_offset)  # Use max for consistent alignment
+        
+        # All staff lines start at the same position (max offset)
+        staff_left_x = float(self.margins["left"]) + max_offset
+        
+        # barline_0_x is still calculated per-system for clef/key/time positioning
+        # First system: use name_offset (full title width)
+        # Wrapped systems: use abbr_offset (abbreviation width)
+        if system_idx == 0:
+            barline_0_x = float(self.margins["left"]) + name_offset
+        else:
+            barline_0_x = float(self.margins["left"]) + abbr_offset
 
         # Compute vertical offset per wrapped system using Preferences
         try:
@@ -2874,27 +3131,49 @@ class ScoreRenderer:
             # Single staff: keep configured spacing
             system_advance = int(spacing_pref)
 
-        systems_per_page = max(1, available_height // max(1, system_advance))
-        local_idx = int(system_idx) % int(systems_per_page)
-        vertical_shift = int(local_idx) * int(system_advance)
-        staff_y = float(staff.y_position) + vertical_shift
-        try:
-            print(f"STAFF_LINES: system_idx={system_idx}, local_idx={local_idx}, spacing_pref={spacing_pref}, staff_base={staff.y_position}, staff_y_used={staff_y}")
-        except Exception:
-            pass
+        # ONOTE SPECIFICATION: For grand staff systems in universal wrapping,
+        # staff.y_position is already shifted by universal wrapping code (line 1881)
+        # So we should use staff.y_position directly, not add vertical_shift again
+        is_universal_wrapping = hasattr(self, '_rendering_universal_wrapping')
+        
+        if is_universal_wrapping:
+            # Positions already adjusted by universal wrapping - use directly
+            staff_y = float(staff.y_position)
+            try:
+                print(f"STAFF_LINES (universal): system_idx={system_idx}, staff_base={staff.y_position}, staff_y_used={staff_y}")
+            except Exception:
+                pass
+        else:
+            # Single staff or non-universal wrapping - calculate vertical shift
+            systems_per_page = max(1, available_height // max(1, system_advance))
+            local_idx = int(system_idx) % int(systems_per_page)
+            vertical_shift = int(local_idx) * int(system_advance)
+            staff_y = float(staff.y_position) + vertical_shift
+            try:
+                print(f"STAFF_LINES: system_idx={system_idx}, local_idx={local_idx}, spacing_pref={spacing_pref}, staff_base={staff.y_position}, staff_y_used={staff_y}")
+            except Exception:
+                pass
 
         # Calculate initial elements width - needed for both modes
         initial_elements_width = self._calculate_initial_elements_width(staff)
 
         # Calculate the positions of the first measure barline (start of notation space)
-        # Use TemporalBridge leftmost note position for consistency with measure justification
+        # ONOTE SPECIFICATION: For wrapped systems, first_measure_barline_x should be calculated from barline_0_x
+        # For first system, use temporal bridge position (accounts for staff names). For wrapped systems,
+        # calculate from barline_0_x + clef/key spacing to ensure consistency
         try:
-            if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
-                first_measure_barline_x = float(self.document.temporal_bridge.calculate_leftmost_note_position())
+            if system_idx == 0:
+                # First system: use temporal bridge position for consistency with measure justification
+                if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                    first_measure_barline_x = float(self.document.temporal_bridge.calculate_leftmost_note_position())
+                else:
+                    first_measure_barline_x = barline_0_x + initial_elements_width
             else:
-                first_measure_barline_x = staff_left_x + initial_elements_width
+                # Wrapped systems: calculate from barline_0_x + initial elements width
+                # barline_0_x already accounts for abbr_offset for wrapped systems
+                first_measure_barline_x = barline_0_x + initial_elements_width
         except Exception:
-            first_measure_barline_x = staff_left_x + initial_elements_width
+            first_measure_barline_x = barline_0_x + initial_elements_width
 
         # SETUP MODE RENDERING - NO MEASURES
         if is_setup_mode:
@@ -2941,18 +3220,37 @@ class ScoreRenderer:
             # CRITICAL FIX: Use dynamic positioning instead of hardcoded offset
             end_barline_x = right_edge_x  # Use actual calculated right edge
             
-            # Draw staff lines extending from barline 0 position to potential barline area
-            barline_0_x = self.margins["left"] + self.barline_0_offset
+            # ONOTE SPECIFICATION: All staff lines should start at the same left position
+            # Since both full title and abbreviation are right-aligned to the same position,
+            # all staff lines should start at the maximum offset (longest name width)
+            name_offset = float(self.barline_0_offset)  # Full title width
+            abbr_offset = float(getattr(self, 'abbr_offset', name_offset))
+            max_offset = max(name_offset, abbr_offset)  # Use max for consistent alignment
+            
+            # All staff lines start at the same position (max offset)
+            staff_left_x = float(self.margins["left"]) + max_offset
+            
+            # barline_0_x is still calculated per-system for clef/key/time positioning
+            if system_idx == 0:
+                barline_0_x = float(self.margins["left"]) + name_offset
+            else:
+                barline_0_x = float(self.margins["left"]) + abbr_offset
             
             for i in range(5):  # 5 lines in a staff
                 line_y = staff.y_position + i * self.STAFF_LINE_SPACING
                 # Draw full-width staff lines - ready for first measure creation
-                painter.drawLine(QLineF(barline_0_x, line_y, end_barline_x, line_y))
+                # All systems start at the same left position (staff_left_x)
+                painter.drawLine(QLineF(staff_left_x, line_y, end_barline_x, line_y))
 
-            # Render clef/key/time (render on ALL systems for wrapped lines)
-            self._render_clef(painter, staff, is_first_system=True)  # Always render clef on wrapped systems
-            self._render_key_signature(painter, staff, is_first_system=True)  # Always render key signature on wrapped systems
-            self._render_time_signature(painter, staff, is_first_system=True)  # Always render time signature on wrapped systems
+            # ONOTE SPECIFICATION: Render clef/key on ALL systems, but time signature only on first system
+            # But use correct is_first_system flag to ensure proper positioning
+            # First system (system_idx == 0): uses barline_0_offset
+            # Wrapped systems (system_idx > 0): use 0 offset (no barline_0_offset)
+            self._render_clef(painter, staff, is_first_system=(system_idx == 0))
+            self._render_key_signature(painter, staff, is_first_system=(system_idx == 0))
+            # Time signature should only render on first system (system_idx == 0)
+            if system_idx == 0:
+                self._render_time_signature(painter, staff, is_first_system=True)
             
             print(f"RENDERER: Empty staff rendered - first barline will be created at x={end_barline_x}")
             # No barlines yet - only barline 0 will be drawn by _render_connecting_barlines
@@ -3172,17 +3470,25 @@ class ScoreRenderer:
                     except Exception:
                         is_selected = False
 
-                    # Determine this barline's type from the measure object slice
+                    # ONOTE SPECIFICATION: Determine this barline's type from the measure object slice
+                    # Final barline should only be on the LAST measure of the system, not the first
                     render_as_final = False
                     try:
                         idx0 = int(m_idx) - 1  # 0-based within this system
+                        is_last_measure_in_system = (m_idx == num_measures_to_render)
+                        
                         if 0 <= idx0 < len(measures_for_system):
                             mo = measures_for_system[idx0]
-                            render_as_final = (getattr(mo, 'barline_type', 'single') == 'final')
+                            has_final_type = (getattr(mo, 'barline_type', 'single') == 'final')
+                            # Render as final if:
+                            # 1. It's the last measure of the final system (always gets final barline), OR
+                            # 2. It's the last measure in this system AND it has final barline type
+                            render_as_final = (is_final_system and is_last_measure_in_system) or (is_last_measure_in_system and has_final_type)
                         else:
-                            # Fallback to old behavior only if we can't resolve measures
-                            render_as_final = (is_final_system and m_idx == num_measures_to_render)
+                            # Fallback: only final barline on last measure of final system
+                            render_as_final = (is_final_system and is_last_measure_in_system)
                     except Exception:
+                        # Fallback: only final barline on last measure of final system
                         render_as_final = (is_final_system and m_idx == num_measures_to_render)
 
                     if render_as_final:
@@ -3200,6 +3506,42 @@ class ScoreRenderer:
                         painter.setPen(QPen(color, 1))
                         painter.drawLine(QLineF(x, barline_top_y, x, barline_bottom_y))
                         print(f"BARLINES: Drew system-aware normal barline for {self._get_staff_system_type(staff)} at x={x}")
+                    
+                    # ONOTE SPECIFICATION: Render barline numbers for each barline
+                    # Only render numbers for the first staff in the system to avoid duplicates
+                    if self._is_first_staff_in_system(staff):
+                        try:
+                            # Get the measure object for this barline
+                            measure_obj = None
+                            if 0 <= idx0 < len(measures_for_system):
+                                measure_obj = measures_for_system[idx0]
+                            
+                            if measure_obj:
+                                # Render barline number with system info
+                                # Calculate vertical shift for this system
+                                try:
+                                    from PyQt6.QtCore import QSettings
+                                    spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                                except Exception:
+                                    spacing_pref = 80
+                                
+                                # Get rendering order for top-level groups
+                                rendering_order = []
+                                if hasattr(self.document.layout, 'ungrouped_staves'):
+                                    rendering_order.extend(self.document.layout.ungrouped_staves)
+                                if hasattr(self.document.layout, 'sections'):
+                                    rendering_order.extend(self.document.layout.sections)
+                                rendering_order.sort(key=lambda e: getattr(e, 'y_position', 0))
+                                
+                                # Calculate vertical shift (0 for first system, spacing * system_idx for wrapped)
+                                vertical_shift = 0 if system_idx == 0 else (system_idx * spacing_pref)
+                                
+                                # Render barline number
+                                self._render_barline_numbers_with_system_info(
+                                    painter, measure_obj, x, rendering_order, system_idx, vertical_shift
+                                )
+                        except Exception as e:
+                            print(f"BARLINES: Error rendering barline number: {e}")
                         
         except Exception as e:
             print(f"BARLINES: Error in system-aware barline rendering: {e}")
@@ -3780,8 +4122,10 @@ class ScoreRenderer:
         systems_to_positions: dict[int, list[float]] = {}
         systems_rep_for_x: dict[int, dict[float, object]] = {}
 
-        # NEW: Draw individual measure barlines created by clicking
-        if not is_setup_mode and hasattr(self.document, 'measures') and self.document.measures:
+        # DISABLED: Per-measure barlines are now drawn by _render_system_aware_barlines in _render_measures_impl
+        # This prevents duplicate rendering. Only barline 0 is drawn here (done above).
+        # Per-measure barlines and their numbers are handled per-system in _render_measures_impl
+        if False and not is_setup_mode and hasattr(self.document, 'measures') and self.document.measures:
             # CRITICAL FIX: Access measures through temporal bridge to ensure coordinate correctness
             measures = None
             if hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
@@ -4592,13 +4936,44 @@ class ScoreRenderer:
             painter.drawLine(int(x), int(y_top), int(x), int(y_bottom))  # Thick line at specified x
             print(f"BARLINES: Drew manual end bar at x={x} (thick line), thin at x={x-6}")
 
-        if barline_type == 'single':
+        # ONOTE SPECIFICATION: Overlay system - base barline is always 'single'
+        # Overlay types (double, final, repeat) are drawn on top of the base single barline
+        overlay_type = None
+        if measure and hasattr(measure, 'overlay_type'):
+            overlay_type = measure.overlay_type
+        
+        # Always draw base single barline first
+        if barline_type == 'single' or overlay_type:
             draw_normal_barline(barline_x, top_y, bottom_y)
-        elif barline_type == 'double':
-            # Draw two thin lines close together
+        
+        # Draw overlay on top of base if present
+        if overlay_type == 'double':
+            # Draw second thin line for double barline overlay
+            draw_normal_barline(barline_x + 3, top_y, bottom_y)
+        elif overlay_type == 'final':
+            # Draw final barline overlay (thick line)
+            painter.save()
+            is_selected = False
+            try:
+                is_selected = (measure and hasattr(measure, 'selected') and measure.selected) or self._is_selected_barline_x(float(barline_x))
+            except Exception:
+                is_selected = (measure and hasattr(measure, 'selected') and measure.selected)
+            
+            if is_selected:
+                pen = QPen(QColor(255, 165, 0), 4)
+            else:
+                pen = QPen(Qt.GlobalColor.black, 4)
+            painter.setPen(pen)
+            painter.drawLine(QLineF(barline_x + 4, top_y, barline_x + 4, bottom_y))
+            painter.restore()
+        
+        # Handle direct barline_type (for backward compatibility and repeat types)
+        if barline_type == 'double' and not overlay_type:
+            # Draw two thin lines close together (legacy support)
             draw_normal_barline(barline_x - 2, top_y, bottom_y)
             draw_normal_barline(barline_x + 2, top_y, bottom_y)
-        elif barline_type == 'final':
+        elif barline_type == 'final' and not overlay_type:
+            # Draw final barline (legacy support)
             draw_final_barline(barline_x, top_y, bottom_y)
         elif barline_type == 'dashed':
             # Draw dashed barline
@@ -5440,11 +5815,8 @@ class ScoreRenderer:
                         section_name_for_row = getattr(_section, 'name', None)
                     draw_fixed_column(top_y, name, True, bottom_y, section_name_for_row, _staff)
                     # Draw grand-staff name once, centered between treble and bass staves
+                    # Use PartNameRenderer to respect continuous view display settings (Full Title/Abbreviation/None)
                     try:
-                        from PyQt6.QtCore import QRectF
-                        painter.save()
-                        painter.setPen(QPen(QColor('#0e4ba0')))
-                        fm = painter.fontMetrics()
                         # Compute vertical center between top staff top-line and bottom staff bottom-line
                         bottom_line_y = float(bottom_y + ((self.STAFF_LINE_COUNT - 1) * self.STAFF_LINE_SPACING))
                         y_center = float((top_y + bottom_line_y) / 2.0)
@@ -5461,11 +5833,33 @@ class ScoreRenderer:
                         except Exception:
                             v_off = float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
                         h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
-                        right_edge = float(left_strip_width - 18) + h_off
-                        rect_height = fm.height()
-                        rect = QRectF(0.0, y_center - rect_height / 2.0 + v_off, max(0.0, right_edge), rect_height)
+                        name_x = float(left_strip_width - 18) + h_off
+                        name_y = y_center + v_off
+                        # Get abbreviation if available - check all possible abbreviation attributes
+                        # This matches the logic in _render_single_staff to ensure consistency
+                        staff_abbrev = (
+                            getattr(_staff, 'custom_abbr', None)
+                            or getattr(_staff, 'abbreviation', None)
+                            or getattr(_staff, 'abbr', None)
+                            or getattr(_staff, 'instrument_abbr', None)
+                        )
+                        # Use PartNameRenderer with continuous view mode settings
+                        painter.save()
                         painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
-                        painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, name)
+                        # Create document settings with continuous view mode
+                        doc_settings = self._get_document_settings_with_view_mode()
+                        doc_settings['view_mode'] = 'continuous'
+                        doc_settings['view/mode'] = 'continuous'
+                        PartNameRenderer.render_part_name(
+                            painter,
+                            name,
+                            name_x,
+                            name_y,
+                            is_grand_staff=True,
+                            document_settings=doc_settings,
+                            system_idx=0,  # Continuous view doesn't have system wrapping, so always 0
+                            abbreviation=staff_abbrev
+                        )
                         painter.restore()
                     except Exception:
                         pass
@@ -5547,20 +5941,39 @@ class ScoreRenderer:
                     draw_fixed_column(row_y, name, False, None, section_name_for_row, _staff)
                     draw_staff_row(row_y)
                     # Draw single-staff name centered on its 3rd line
+                    # Use PartNameRenderer to respect continuous view display settings (Full Title/Abbreviation/None)
                     try:
-                        from PyQt6.QtCore import QRectF
-                        if show_names:
-                            painter.save()
-                            painter.setPen(QPen(QColor('#0e4ba0')))
-                            fm = painter.fontMetrics()
+                        if show_names and name:
                             y_center = float(row_y + ((self.STAFF_LINE_COUNT - 1) / 2.0) * self.STAFF_LINE_SPACING)
                             v_off = float(getattr(self, 'staff_name_vertical_offset', 0) or 0)
                             h_off = float(getattr(self, 'staff_name_horizontal_offset', 0) or 0)
-                            right_edge = float(left_strip_width - 18) + h_off
-                            rect_height = fm.height()
-                            rect = QRectF(0.0, y_center - rect_height / 2.0 + v_off, max(0.0, right_edge), rect_height)
+                            name_x = float(left_strip_width - 18) + h_off
+                            name_y = y_center + v_off
+                            # Get abbreviation if available - check all possible abbreviation attributes
+                            # This matches the logic in _render_single_staff to ensure consistency
+                            staff_abbrev = (
+                                getattr(_staff, 'custom_abbr', None)
+                                or getattr(_staff, 'abbreviation', None)
+                                or getattr(_staff, 'abbr', None)
+                                or getattr(_staff, 'instrument_abbr', None)
+                            )
+                            # Use PartNameRenderer with continuous view mode settings
+                            painter.save()
                             painter.setClipRect(QRectF(0, 0, left_strip_width, lane_rect.height()))
-                            painter.drawText(rect, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, name)
+                            # Create document settings with continuous view mode
+                            doc_settings = self._get_document_settings_with_view_mode()
+                            doc_settings['view_mode'] = 'continuous'
+                            doc_settings['view/mode'] = 'continuous'
+                            PartNameRenderer.render_part_name(
+                                painter,
+                                name,
+                                name_x,
+                                name_y,
+                                is_grand_staff=False,
+                                document_settings=doc_settings,
+                                system_idx=0,  # Continuous view doesn't have system wrapping, so always 0
+                                abbreviation=staff_abbrev
+                            )
                             painter.restore()
                     except Exception:
                         pass

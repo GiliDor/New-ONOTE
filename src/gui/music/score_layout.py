@@ -626,6 +626,10 @@ class PartNameRenderer:
                 use_cv = bool(document_settings and document_settings.get('view_mode') == 'continuous')
             except Exception:
                 pass
+        # ONOTE SPECIFICATION: First system ALWAYS shows full title (unless None)
+        # Wrapped systems show abbreviation (if display_mode allows)
+        original_name = name  # Store original for first system
+        
         if use_cv:
             # Continuous view: use CV-specific dropdown
             if document_settings and 'notation/continuous_staff_name_display' in document_settings:
@@ -636,35 +640,75 @@ class PartNameRenderer:
                 display_mode = qsettings.value("notation/continuous_staff_name_display", "Abbreviation")
         else:
             if system_idx == 0:
-                if document_settings and 'layout/staff_names_first_system' in document_settings:
+                # First system: Always use full title (unless display_mode is "None")
+                # Prefer new notation keys, fallback to layout/*
+                if document_settings and 'notation/staff_names_first_system' in document_settings:
+                    display_mode = document_settings['notation/staff_names_first_system']
+                elif document_settings and 'layout/staff_names_first_system' in document_settings:
                     display_mode = document_settings['layout/staff_names_first_system']
                 else:
                     from PyQt6.QtCore import QSettings
                     qsettings = QSettings("ONOTE", "Preferences")
-                    display_mode = qsettings.value("layout/staff_names_first_system", "Full Title")
+                    display_mode = qsettings.value("notation/staff_names_first_system",
+                                                   qsettings.value("layout/staff_names_first_system", "Full Title"))
             else:
-                if document_settings and 'layout/staff_names_following_systems' in document_settings:
+                # Wrapped systems: Use abbreviation if display_mode allows
+                if document_settings and 'notation/staff_names_following_systems' in document_settings:
+                    display_mode = document_settings['notation/staff_names_following_systems']
+                elif document_settings and 'layout/staff_names_following_systems' in document_settings:
                     display_mode = document_settings['layout/staff_names_following_systems']
                 else:
                     from PyQt6.QtCore import QSettings
                     qsettings = QSettings("ONOTE", "Preferences")
-                    display_mode = qsettings.value("layout/staff_names_following_systems", "Abbreviation")
+                    display_mode = qsettings.value("notation/staff_names_following_systems",
+                                                   qsettings.value("layout/staff_names_following_systems", "Abbreviation"))
         
-        # Apply display mode
+        # Apply display mode according to ONOTE specification
         if display_mode == "None":
             return  # Don't render anything
-        elif display_mode == "Abbreviation":
-            # Use abbreviation if available, otherwise use default abbreviation or full name
-            if abbreviation:
-                name = abbreviation
+        
+        # ONOTE SPECIFICATION: For continuous view, respect the display_mode setting directly
+        # For page view with wrapping: First system ALWAYS shows full title, wrapped systems use abbreviation
+        if use_cv:
+            # Continuous view: Respect display_mode setting (Full Title, Abbreviation, or None)
+            if display_mode == "Abbreviation":
+                if abbreviation:
+                    name = abbreviation
+                else:
+                    # Generate default abbreviation: "Pt 1" from "Part 1"
+                    if original_name.startswith("Part "):
+                        name = "Pt" + original_name[4:]
+                    # If no clear pattern, just use first 4 characters
+                    elif len(original_name) > 4:
+                        name = original_name[:4]
+                    else:
+                        name = original_name
+            # If display_mode == "Full Title", use original_name (already set)
+            # If display_mode == "None", already returned above
+        else:
+            # Page view with wrapping: First system ALWAYS shows full title (regardless of display_mode setting)
+            # Only wrapped systems respect the display_mode for abbreviation
+            if system_idx == 0:
+                # First system: Always use full title (unless display_mode is "None" - already handled above)
+                name = original_name  # Always use full title on first system
             else:
-                # Generate default abbreviation: "Pt 1" from "Part 1"
-                if name.startswith("Part "):
-                    name = "Pt" + name[4:]
-                # If no clear pattern, just use first 4 characters
-                elif len(name) > 4:
-                    name = name[:4]
-        # If display_mode == "Full Title", use the name as-is
+                # Wrapped systems: Use abbreviation if display_mode is "Abbreviation"
+                if display_mode == "Abbreviation":
+                    if abbreviation:
+                        name = abbreviation
+                    else:
+                        # Generate default abbreviation: "Pt 1" from "Part 1"
+                        if original_name.startswith("Part "):
+                            name = "Pt" + original_name[4:]
+                        # If no clear pattern, just use first 4 characters
+                        elif len(original_name) > 4:
+                            name = original_name[:4]
+                        else:
+                            name = original_name
+                elif display_mode == "Full Title":
+                    # Wrapped systems should NOT show full title - skip rendering
+                    return
+                # If display_mode is "None", already returned above
         
         if not name:
             return

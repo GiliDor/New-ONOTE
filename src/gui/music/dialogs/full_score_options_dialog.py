@@ -16,6 +16,8 @@ class FullScoreOptionsDialog(QDialog):
         print("[DEBUG] FullScoreOptionsDialog init args:", args)
         print("[DEBUG] FullScoreOptionsDialog init kwargs:", kwargs)
         super().__init__(*args, **kwargs)
+        # Suppress dirty flags and rerenders during initial construction
+        self._loading = True
         self._suppress_undo = False
         self.setWindowTitle("Full Score Options")
         self.setModal(False)  # Make modeless
@@ -26,6 +28,8 @@ class FullScoreOptionsDialog(QDialog):
         self._undo_stack = []
         self._redo_stack = []
         self._dirty = False
+        # Guard to suppress dirty/rerender during initial loads
+        self._loading = False
         # Track per-tab dirty state for user feedback
         self._tab_dirty = {"fonts": False, "layout": False, "notation": False, "continuous": False}
         self._confirm_buttons = {}
@@ -104,6 +108,8 @@ class FullScoreOptionsDialog(QDialog):
         self._connect_value_changed_signals()
         
         print("[DEBUG] FullScoreOptionsDialog __init__ completed")
+        # End of initial load
+        self._loading = False
         
     def setup_ui(self):
         """Setup the main UI layout"""
@@ -229,7 +235,10 @@ class FullScoreOptionsDialog(QDialog):
         
         # IMPORTANT: Load current settings ONLY after all widgets are created
         # This was moved from __init__ to ensure all widgets exist before loading
+        # Suppress dirty flags/signals during initial load
+        self._loading = True
         self.load_current_settings()
+        self._loading = False
 
         # Disable tabs based on current view mode for clarity
         try:
@@ -372,14 +381,13 @@ class FullScoreOptionsDialog(QDialog):
                     except Exception:
                         pass
                 # Avoid affecting Score Setup (pink) mode: skip if layout.is_setup_mode
+                # CRITICAL FIX: Don't trigger repaint during dialog initialization (_loading flag)
                 is_setup_mode = bool(getattr(getattr(staff_view, 'document', None), 'layout', None) and getattr(staff_view.document.layout, 'is_setup_mode', False))
-                if not is_setup_mode:
+                if not is_setup_mode and not getattr(self, '_loading', False):
                     if hasattr(staff_view, 'update'):
                         staff_view.update()
                         print("RESET_TO_SAVED: Triggered staff_view.update()")
-                    if hasattr(staff_view, 'repaint'):
-                        staff_view.repaint()
-                        print("RESET_TO_SAVED: Triggered staff_view.repaint()")
+                    # Removed repaint() call to prevent double-rendering
                 
                 # Method 2: Try temporal bridge signals
                 if hasattr(staff_view, 'document') and hasattr(staff_view.document, 'temporal_bridge'):
@@ -756,18 +764,21 @@ class FullScoreOptionsDialog(QDialog):
         self.staff_names_first_system = QComboBox()
         self.staff_names_first_system.addItems(["Full Title", "Abbreviation", "None"])
         self.staff_names_first_system.setCurrentText("Full Title")
+        self.staff_names_first_system.currentTextChanged.connect(lambda v: self._apply_doc_setting('notation/staff_names_first_system', v))
         text_layout.addRow("First system:", self.staff_names_first_system)
         
         # Following systems staff names
         self.staff_names_following_systems = QComboBox()
         self.staff_names_following_systems.addItems(["Full Title", "Abbreviation", "None"])
         self.staff_names_following_systems.setCurrentText("Abbreviation")
+        self.staff_names_following_systems.currentTextChanged.connect(lambda v: self._apply_doc_setting('notation/staff_names_following_systems', v))
         text_layout.addRow("Following Systems:", self.staff_names_following_systems)
 
         # Continuous view staff names (new)
         self.continuous_staff_name_display = QComboBox()
         self.continuous_staff_name_display.addItems(["Full Title", "Abbreviation", "None"])
         self.continuous_staff_name_display.setCurrentText("Abbreviation")
+        self.continuous_staff_name_display.currentTextChanged.connect(lambda v: self._apply_doc_setting('notation/continuous_staff_name_display', v))
         text_layout.addRow("Continuous view title:", self.continuous_staff_name_display)
         
         scroll_layout.addWidget(text_group)
@@ -1687,12 +1698,14 @@ class FullScoreOptionsDialog(QDialog):
                 self.document.settings = {}
             self.document.settings[key] = value
             # Mark dialog dirty to prompt save on close
-            try:
-                self._dirty = True
-            except Exception:
-                pass
+            if not getattr(self, '_loading', False):
+                try:
+                    self._dirty = True
+                except Exception:
+                    pass
             # Immediate re-render
-            self._trigger_score_rerender()
+            if not getattr(self, '_loading', False):
+                self._trigger_score_rerender()
         except Exception:
             pass
 
@@ -1762,7 +1775,7 @@ class FullScoreOptionsDialog(QDialog):
             current_color = QColor(getattr(self, 'barline_numbers_color_value', '#666666'))
         else:
             return
-        
+            
         # Use shared ColorButton behavior: open non-native dialog and update swatch
         # macOS native Colors panel (no DontUseNativeDialog)
         color = QColorDialog.getColor(
@@ -2572,14 +2585,27 @@ class FullScoreOptionsDialog(QDialog):
                 print("FULL_SCORE_OPTIONS: Reloading renderer settings with document precedence")
                 staff_view.renderer.load_notation_settings()
                 
+                # CRITICAL FIX: Clear renderer state to prevent overlay issues
+                # Clear rendering state tracking sets to ensure fresh render
+                if hasattr(staff_view.renderer, '_rendered_system_headers'):
+                    staff_view.renderer._rendered_system_headers.clear()
+                if hasattr(staff_view.renderer, '_rendered_barline_numbers'):
+                    staff_view.renderer._rendered_barline_numbers.clear()
+                if hasattr(staff_view.renderer, '_unit_width_by_system'):
+                    staff_view.renderer._unit_width_by_system.clear()
+                if hasattr(staff_view.renderer, '_bar_positions_by_system'):
+                    staff_view.renderer._bar_positions_by_system.clear()
+                if hasattr(staff_view.renderer, '_first_x_by_system'):
+                    staff_view.renderer._first_x_by_system.clear()
+                print("FULL_SCORE_OPTIONS: Cleared renderer state tracking sets")
+                
                 # Refresh measure number manager if available
                 if hasattr(staff_view.renderer, 'measure_number_manager') and staff_view.renderer.measure_number_manager:
                     staff_view.renderer.measure_number_manager.refresh_settings()
                     print("FULL_SCORE_OPTIONS: Refreshed measure number manager")
             
-            # Force visual update
+            # Force visual update (single repaint call to prevent double-rendering)
             staff_view.update()
-            staff_view.repaint()
             print("FULL_SCORE_OPTIONS: Applied all updates with complete isolation")
             
         except Exception as e:
@@ -2649,10 +2675,17 @@ class FullScoreOptionsDialog(QDialog):
         print(f"SET_AS_DEFAULTS: Saving staff_name_font_color = {staff_color}")
         write_staged_notation("notation/staff_name_font_color", staff_color)
         
-        # Staff names display option
-        if hasattr(self, 'staff_names_combo'):
-            settings.setValue("notation/staff_names_display", self.staff_names_combo.currentText())
-            print(f"SET_AS_DEFAULTS: Saving staff_names_display = {self.staff_names_combo.currentText()}")
+        # Staff name display settings (Layout tab)
+        try:
+            first_sys = self.staff_names_first_system.currentText()
+            following_sys = self.staff_names_following_systems.currentText()
+            cont_display = self.continuous_staff_name_display.currentText()
+            settings.setValue("notation/staff_names_first_system", first_sys)
+            settings.setValue("notation/staff_names_following_systems", following_sys)
+            settings.setValue("notation/continuous_staff_name_display", cont_display)
+            print(f"SET_AS_DEFAULTS: Saved staff name display defaults: first={first_sys}, following={following_sys}, continuous={cont_display}")
+        except Exception:
+            pass
         
         # Section name settings
         if hasattr(self, 'section_name_font_size'):
@@ -2662,8 +2695,19 @@ class FullScoreOptionsDialog(QDialog):
             write_staged_notation("notation/section_name_vertical", self.section_name_vertical.value())
             print(f"SET_AS_DEFAULTS: Saving section_name_vertical = {self.section_name_vertical.value()}")
         if hasattr(self, 'section_name_horizontal'):
-            write_staged_notation("notation/section_name_horizontal", self.section_name_horizontal.value())
-            print(f"SET_AS_DEFAULTS: Saving section_name_horizontal = {self.section_name_horizontal.value()}")
+            # Write both staged and direct defaults; clear staged to avoid dirty prompt
+            value = int(self.section_name_horizontal.value())
+            write_staged_notation("notation/section_name_horizontal", value)
+            try:
+                settings.setValue("notation/section_name_horizontal", value)
+                # Remove any staged key to prevent Preferences from thinking it's dirty
+                try:
+                    settings.remove("staged/notation/section_name_horizontal")
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            print(f"SET_AS_DEFAULTS: Saved section_name_horizontal = {value} (staged + direct)")
         section_color = getattr(self, 'section_name_color_value', '#000000')
         print(f"SET_AS_DEFAULTS: Saving section_name_font_color = {section_color}")
         write_staged_notation("notation/section_name_font_color", section_color)
@@ -2803,63 +2847,127 @@ class FullScoreOptionsDialog(QDialog):
             # Staff names
             if hasattr(self, 'cv_staff_name_font_size'):
                 write_staged_notation("notation/continuous_staff_name_font_size", self.cv_staff_name_font_size.value())
-            if hasattr(self, 'cv_staff_name_vertical'):
+        try:
+                    settings.setValue("notation/continuous_staff_name_font_size", int(self.cv_staff_name_font_size.value()))
+        except Exception:
+            pass
+        if hasattr(self, 'cv_staff_name_vertical'):
                 write_staged_notation("notation/continuous_staff_name_vertical", self.cv_staff_name_vertical.value())
-            if hasattr(self, 'cv_staff_name_horizontal'):
+                try:
+                    settings.setValue("notation/continuous_staff_name_vertical", int(self.cv_staff_name_vertical.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_staff_name_horizontal'):
                 write_staged_notation("notation/continuous_staff_name_horizontal", self.cv_staff_name_horizontal.value())
-            if hasattr(self, 'cv_grand_staff_name_vertical'):
+                try:
+                    settings.setValue("notation/continuous_staff_name_horizontal", int(self.cv_staff_name_horizontal.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_grand_staff_name_vertical'):
                 write_staged_notation("notation/continuous_grand_staff_name_vertical", self.cv_grand_staff_name_vertical.value())
+                try:
+                    settings.setValue("notation/continuous_grand_staff_name_vertical", int(self.cv_grand_staff_name_vertical.value()))
+                except Exception:
+                    pass
             # Section names
-            if hasattr(self, 'cv_section_name_font_size'):
+        if hasattr(self, 'cv_section_name_font_size'):
                 write_staged_notation("notation/continuous_section_name_font_size", self.cv_section_name_font_size.value())
-            if hasattr(self, 'cv_section_name_vertical'):
+                try:
+                    settings.setValue("notation/continuous_section_name_font_size", int(self.cv_section_name_font_size.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_section_name_vertical'):
                 write_staged_notation("notation/continuous_section_name_vertical", self.cv_section_name_vertical.value())
-            if hasattr(self, 'cv_section_name_horizontal'):
+                try:
+                    settings.setValue("notation/continuous_section_name_vertical", int(self.cv_section_name_vertical.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_section_name_horizontal'):
                 write_staged_notation("notation/continuous_section_name_horizontal", self.cv_section_name_horizontal.value())
+                try:
+                    settings.setValue("notation/continuous_section_name_horizontal", int(self.cv_section_name_horizontal.value()))
+                except Exception:
+                    pass
             # Measure numbers
-            if hasattr(self, 'cv_show_measure_numbers'):
+        if hasattr(self, 'cv_show_measure_numbers'):
                 write_staged_notation("notation/continuous_show_measure_numbers", self.cv_show_measure_numbers.isChecked())
-            if hasattr(self, 'cv_measure_numbers_font_size'):
+                try:
+                    settings.setValue("notation/continuous_show_measure_numbers", bool(self.cv_show_measure_numbers.isChecked()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_measure_numbers_font_size'):
                 write_staged_notation("notation/continuous_measure_numbers_font_size", self.cv_measure_numbers_font_size.value())
-            if hasattr(self, 'cv_measure_numbers_vertical_offset'):
+                try:
+                    settings.setValue("notation/continuous_measure_numbers_font_size", int(self.cv_measure_numbers_font_size.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_measure_numbers_vertical_offset'):
                 write_staged_notation("notation/continuous_measure_numbers_vertical_offset", self.cv_measure_numbers_vertical_offset.value())
-            if hasattr(self, 'cv_measure_numbers_horizontal_offset'):
+                try:
+                    settings.setValue("notation/continuous_measure_numbers_vertical_offset", int(self.cv_measure_numbers_vertical_offset.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_measure_numbers_horizontal_offset'):
                 write_staged_notation("notation/continuous_measure_numbers_horizontal_offset", self.cv_measure_numbers_horizontal_offset.value())
-            if hasattr(self, 'cv_measure_numbers_position'):
+                try:
+                    settings.setValue("notation/continuous_measure_numbers_horizontal_offset", int(self.cv_measure_numbers_horizontal_offset.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_measure_numbers_position'):
                 write_staged_notation("notation/continuous_measure_numbers_position", self.cv_measure_numbers_position.currentText())
+                try:
+                    settings.setValue("notation/continuous_measure_numbers_position", self.cv_measure_numbers_position.currentText())
+                except Exception:
+                    pass
                 print(f"SET_AS_DEFAULTS: Saving continuous_measure_numbers_position = {self.cv_measure_numbers_position.currentText()}")
             # Barline numbers
-            if hasattr(self, 'cv_show_barline_numbers'):
+        if hasattr(self, 'cv_show_barline_numbers'):
                 write_staged_notation("notation/continuous_show_barline_numbers", self.cv_show_barline_numbers.isChecked())
-            if hasattr(self, 'cv_barline_numbers_font_size'):
+                try:
+                    settings.setValue("notation/continuous_show_barline_numbers", bool(self.cv_show_barline_numbers.isChecked()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_barline_numbers_font_size'):
                 write_staged_notation("notation/continuous_barline_number_font_size", self.cv_barline_numbers_font_size.value())
-            if hasattr(self, 'cv_barline_number_vertical_offset'):
+                try:
+                    settings.setValue("notation/continuous_barline_number_font_size", int(self.cv_barline_numbers_font_size.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_barline_number_vertical_offset'):
                 write_staged_notation("notation/continuous_barline_number_vertical_offset", self.cv_barline_number_vertical_offset.value())
-            if hasattr(self, 'cv_barline_number_horizontal_offset'):
+                try:
+                    settings.setValue("notation/continuous_barline_number_vertical_offset", int(self.cv_barline_number_vertical_offset.value()))
+                except Exception:
+                    pass
+        if hasattr(self, 'cv_barline_number_horizontal_offset'):
                 write_staged_notation("notation/continuous_barline_number_horizontal_offset", self.cv_barline_number_horizontal_offset.value())
+                try:
+                    settings.setValue("notation/continuous_barline_number_horizontal_offset", int(self.cv_barline_number_horizontal_offset.value()))
+                except Exception:
+                    pass
             # Symbols
-            if hasattr(self, 'cv_clef_font_size'):
+        if hasattr(self, 'cv_clef_font_size'):
                 write_staged_notation("notation/continuous_clef_font_size", self.cv_clef_font_size.value())
-            if hasattr(self, 'cv_clef_vertical'):
+        if hasattr(self, 'cv_clef_vertical'):
                 write_staged_notation("notation/continuous_clef_vertical", self.cv_clef_vertical.value())
-            if hasattr(self, 'cv_clef_horizontal'):
+        if hasattr(self, 'cv_clef_horizontal'):
                 write_staged_notation("notation/continuous_clef_horizontal", self.cv_clef_horizontal.value())
-            if hasattr(self, 'cv_key_font_size'):
+        if hasattr(self, 'cv_key_font_size'):
                 write_staged_notation("notation/continuous_key_font_size", self.cv_key_font_size.value())
-            if hasattr(self, 'cv_key_vertical'):
+        if hasattr(self, 'cv_key_vertical'):
                 write_staged_notation("notation/continuous_key_vertical", self.cv_key_vertical.value())
-            if hasattr(self, 'cv_key_horizontal'):
+        if hasattr(self, 'cv_key_horizontal'):
                 write_staged_notation("notation/continuous_key_horizontal", self.cv_key_horizontal.value())
-            if hasattr(self, 'cv_time_font_size'):
+        if hasattr(self, 'cv_time_font_size'):
                 write_staged_notation("notation/continuous_time_font_size", self.cv_time_font_size.value())
-            if hasattr(self, 'cv_time_vertical'):
+        if hasattr(self, 'cv_time_vertical'):
                 write_staged_notation("notation/continuous_time_vertical", self.cv_time_vertical.value())
-            if hasattr(self, 'cv_time_horizontal'):
+        if hasattr(self, 'cv_time_horizontal'):
                 write_staged_notation("notation/continuous_time_horizontal", self.cv_time_horizontal.value())
             # Fixed strip
-            if hasattr(self, 'cv_strip_width'):
+        if hasattr(self, 'cv_strip_width'):
                 write_staged_layout("continuous_left_margin", self.cv_strip_width.value())
-            print("SET_AS_DEFAULTS: Continuous View Setup settings saved")
+        print("SET_AS_DEFAULTS: Continuous View Setup settings saved")
 
         # NOTE: Do not write Layout tab defaults here. Page Setup dialog owns staging/committing layout defaults.
         
@@ -2932,6 +3040,13 @@ class FullScoreOptionsDialog(QDialog):
                         # Update button color with correct attribute
                         if hasattr(widget, 'staff_name_font_color'):
                             widget.staff_name_font_color.setStyleSheet(f"background-color: {staff_color}; color: white;")
+                        # Staff name display settings (first/following/continuous)
+                        if hasattr(widget, 'pref_staff_names_first_system'):
+                            widget.pref_staff_names_first_system.setCurrentText(self.staff_names_first_system.currentText())
+                        if hasattr(widget, 'pref_staff_names_following'):
+                            widget.pref_staff_names_following.setCurrentText(self.staff_names_following_systems.currentText())
+                        if hasattr(widget, 'pref_continuous_staff_name_display'):
+                            widget.pref_continuous_staff_name_display.setCurrentText(self.continuous_staff_name_display.currentText())
                         
                         # Section name settings
                         if hasattr(widget, 'section_name_font_size'):
@@ -3287,11 +3402,17 @@ class FullScoreOptionsDialog(QDialog):
         print(f"[DEBUG] Document set on dialog: {document}")
         self.document = document
         
+        # CRITICAL FIX: Suppress updates during document load to prevent overlay
+        self._loading = True
+        
         # Update the dialog title to include the filename
         self._update_title()
         
-        # Load settings from the document
+        # Load settings from the document (without triggering updates)
         self.load_current_settings()
+        
+        # Re-enable updates after loading
+        self._loading = False
     
     def _update_title(self):
         """Update the dialog title to include the filename if available"""
@@ -3558,10 +3679,16 @@ class FullScoreOptionsDialog(QDialog):
                 self.document.settings = {}
             
             # Save ONLY this specific parameter
-            # Route layout-related parameters under the 'layout/' namespace
+            # Route layout-related parameters under the 'layout/' namespace; fonts under 'fonts/'
             layout_params = {'system_spacing', 'staff_spacing', 'grand_staff_spacing', 'measures_per_system', 
                            'staff_names_first_system', 'staff_names_following_systems'}
-            key_namespace = 'layout' if parameter_key in layout_params else 'notation'
+            fonts_params = {'font_name', 'font_style', 'font_size', 'use_default_font'}
+            if parameter_key in layout_params:
+                key_namespace = 'layout'
+            elif parameter_key in fonts_params:
+                key_namespace = 'fonts'
+            else:
+                key_namespace = 'notation'
             full_key = f"{key_namespace}/{parameter_key}"
             
             # Special handling for max_measures_per_system - map to measures_per_system
