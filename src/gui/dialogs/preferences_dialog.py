@@ -35,6 +35,7 @@ class PreferencesDialog(QDialog):
         self.settings = QSettings("ONOTE", "Preferences")
         self.dialog_zoom = 1.0
         self._dirty = False  # Track unsaved changes
+        self._loading = False  # Flag to suppress dirty marking during loading
 
         # --- Zoom controls bar ---
         zoom_toolbar = QToolBar()
@@ -213,6 +214,9 @@ class PreferencesDialog(QDialog):
             self.settings.sync()
             # Reload settings to pick up any staged values from Page Setup or FSO
             self.load_settings()
+            # CRITICAL FIX: Ensure Confirm button is disabled if no staged values
+            if hasattr(self, 'apply_button') and not getattr(self, '_dirty', False):
+                self.apply_button.setEnabled(False)
         except Exception:
             pass
         super().showEvent(event)
@@ -381,6 +385,9 @@ class PreferencesDialog(QDialog):
         main_layout.addWidget(scroll)
 
     def _mark_dirty(self):
+        # CRITICAL FIX: Don't mark dirty during loading
+        if getattr(self, '_loading', False):
+            return
         self._dirty = True
         if hasattr(self, 'apply_button'):
             self.apply_button.setEnabled(True)
@@ -393,6 +400,9 @@ class PreferencesDialog(QDialog):
             act.setChecked(abs(self.dialog_zoom - value) < 0.01)
 
     def _mark_dirty(self):
+        # CRITICAL FIX: Don't mark dirty during loading
+        if getattr(self, '_loading', False):
+            return
         self._dirty = True
         if hasattr(self, 'apply_button'):
             self.apply_button.setEnabled(True)
@@ -407,6 +417,9 @@ class PreferencesDialog(QDialog):
 
     def load_settings(self):
         """Load settings from QSettings"""
+        # CRITICAL FIX: Suppress dirty marking during loading
+        self._loading = True
+        
         # Ensure we read the latest values that may have just been written by Page Setup
         try:
             self.settings.sync()
@@ -523,6 +536,8 @@ class PreferencesDialog(QDialog):
         self.staff_name_font_size.setValue(int(self.settings.value("notation/staff_name_font_size", 10)))
         self.staff_name_vertical.setValue(int(self.settings.value("notation/staff_name_vertical", -8)))
         self.staff_name_horizontal.setValue(int(self.settings.value("notation/staff_name_horizontal", 0)))
+        if hasattr(self, 'grand_staff_name_vertical'):
+            self.grand_staff_name_vertical.setValue(int(self.settings.value("notation/grand_staff_name_vertical", 0)))
         staff_name_color = self.settings.value("notation/staff_name_font_color", "#000000")
         self.staff_name_font_color.setStyleSheet(f"background-color: {staff_name_color}; color: {'white' if self.is_dark_color_hex(staff_name_color) else 'black'};")
         self.staff_names_color_value = staff_name_color
@@ -636,6 +651,7 @@ class PreferencesDialog(QDialog):
                 _set_if("notation/staff_name_font_size", lambda v: self.staff_name_font_size.setValue(int(v)))
                 _set_if("notation/staff_name_vertical", lambda v: self.staff_name_vertical.setValue(int(v)))
                 _set_if("notation/staff_name_horizontal", lambda v: self.staff_name_horizontal.setValue(int(v)))
+                _set_if("notation/grand_staff_name_vertical", lambda v: self.grand_staff_name_vertical.setValue(int(v)) if hasattr(self, 'grand_staff_name_vertical') else None)
                 _set_if("notation/staff_name_font_color", lambda v: self._set_color_button(self.staff_name_font_color, v, attr_name="staff_names_color_value"))
 
                 _set_if("notation/section_name_font_size", lambda v: self.section_name_font_size.setValue(int(v)))
@@ -742,11 +758,16 @@ class PreferencesDialog(QDialog):
         except Exception:
             pass
 
+        # CRITICAL FIX: Reset loading flag and only mark dirty if there are staged overrides
+        self._loading = False
         self._dirty = False if not staged_overrides else True
         
-        # Enable Apply button when staged values exist
+        # Enable Apply button when staged values exist (but not during loading)
         if staged_overrides and hasattr(self, 'apply_button'):
             self.apply_button.setEnabled(True)
+        elif not staged_overrides and hasattr(self, 'apply_button'):
+            # Ensure button is disabled when clean
+            self.apply_button.setEnabled(False)
     
     def save_settings(self):
         """Save settings to QSettings"""
@@ -852,6 +873,8 @@ class PreferencesDialog(QDialog):
         self.settings.setValue("notation/staff_name_font_size", self.staff_name_font_size.value())
         self.settings.setValue("notation/staff_name_vertical", self.staff_name_vertical.value())
         self.settings.setValue("notation/staff_name_horizontal", self.staff_name_horizontal.value())
+        if hasattr(self, 'grand_staff_name_vertical'):
+            self.settings.setValue("notation/grand_staff_name_vertical", self.grand_staff_name_vertical.value())
         self.settings.setValue("notation/staff_name_font_color", getattr(self, 'staff_names_color_value', '#000000'))
         
         # Section name settings
@@ -1392,21 +1415,26 @@ class PreferencesDialog(QDialog):
         names_form = QFormLayout()
         self.pref_staff_names_first_system = QComboBox()
         self.pref_staff_names_first_system.addItems(["Full Title", "Abbreviation", "None"])
+        self.pref_staff_names_first_system.currentTextChanged.connect(self._mark_dirty)
         names_form.addRow("First system:", self.pref_staff_names_first_system)
         self.pref_staff_names_following = QComboBox()
         self.pref_staff_names_following.addItems(["Full Title", "Abbreviation", "None"])
+        self.pref_staff_names_following.currentTextChanged.connect(self._mark_dirty)
         names_form.addRow("Following Systems:", self.pref_staff_names_following)
         self.pref_continuous_staff_name_display = QComboBox()
         self.pref_continuous_staff_name_display.addItems(["Full Title", "Abbreviation", "None"])
+        self.pref_continuous_staff_name_display.currentTextChanged.connect(self._mark_dirty)
         names_form.addRow("Continuous view title:", self.pref_continuous_staff_name_display)
         display_layout.addLayout(names_form)
         
         self.show_page_numbers = QCheckBox("Show page numbers by default")
         self.show_page_numbers.setChecked(True)
+        self.show_page_numbers.toggled.connect(self._mark_dirty)
         display_layout.addWidget(self.show_page_numbers)
         
         self.hide_empty_staves = QCheckBox("Hide empty staves by default")
         self.hide_empty_staves.setChecked(False)
+        self.hide_empty_staves.toggled.connect(self._mark_dirty)
         display_layout.addWidget(self.hide_empty_staves)
         
         right_column.addWidget(display_group)
@@ -1844,6 +1872,16 @@ class PreferencesDialog(QDialog):
         self.staff_name_horizontal.setMinimumWidth(80)
         self.staff_name_horizontal.setToolTip("Horizontal offset (negative = left of staff)")
         staff_name_layout.addRow("Horizontal:", self.staff_name_horizontal)
+        
+        # Grand Staff vertical position
+        self.grand_staff_name_vertical = QSpinBox()
+        self.grand_staff_name_vertical.setRange(-80, 80)
+        self.grand_staff_name_vertical.setValue(0)
+        self.grand_staff_name_vertical.setSuffix(" px")
+        self.grand_staff_name_vertical.setMinimumWidth(80)
+        self.grand_staff_name_vertical.setToolTip("Vertical offset for grand staff name (positioned between the two staves)")
+        self.grand_staff_name_vertical.valueChanged.connect(self._mark_dirty)
+        staff_name_layout.addRow("Grand Staff Vertical:", self.grand_staff_name_vertical)
         
         # Font Color
         self.staff_name_font_color = QPushButton("Choose Color")

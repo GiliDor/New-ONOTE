@@ -614,21 +614,32 @@ class TemporalGridSystem(QObject):
         return measure
     
     def _split_measure(self, target_measure: TemporalGridMeasure, x_position: float, barline_type: str) -> TemporalGridMeasure:
-        """Split a measure at the given position"""
+        """
+        Split a measure at the given position.
+        
+        ONOTE SPECIFICATION - Rule 2:
+        - New barline index = barline_to_left.index + 1
+        - Measure to the left retains its index
+        - All measures/barlines to the right are incremented
+        - Click position determines WHICH measure to split, but actual positions
+          are recalculated by Rule 1 (equal division) after splitting
+        """
         target_number = target_measure.measure_number
         
         print(f"TEMPORAL_GRID: Splitting measure #{target_number} at x={x_position}")
         
-        # Calculate split point in temporal terms
+        # Calculate split point in temporal terms (for content division)
+        # Note: Actual barline positions will be recalculated by Rule 1 after splitting
         split_temporal_pos = target_measure.get_temporal_position_at_x(x_position)
         split_beat = split_temporal_pos.beat
         
         print(f"TEMPORAL_GRID: Split at beat {split_beat}")
         
-        # Create new measure for the right part
+        # Rule 2: New barline index = barline_to_left.index + 1
+        # The barline to the left is at target_number, so new barline is target_number + 1
         new_measure_number = target_number + 1
         
-        # Shift all measures after target to make room
+        # Rule 2: Shift all measures after target to make room (increment all to the right)
         self._shift_measures_after(target_number)
         
         # Create new measure
@@ -754,12 +765,19 @@ class TemporalGridSystem(QObject):
         print(f"TEMPORAL_GRID: Renumbering complete - {len(self.measures)} measures")
     
     def _recalculate_systems(self):
-        """Recalculate system layout with justification"""
+        """
+        Recalculate system layout with justification.
+        
+        ONOTE SPECIFICATION: System wrapping treats the full score (all nested systems)
+        as one "thick" line unit. When measures_per_system is exceeded, all staves
+        in all systems wrap together to the next line.
+        """
         if not self.measures:
             self.systems = []
             return
         
-        # Group measures into systems
+        # Group measures into systems based on measures_per_system constraint
+        # ONOTE SPEC: Full score wraps as one unit - all staves wrap together
         self.systems = []
         current_system = []
         
@@ -767,7 +785,8 @@ class TemporalGridSystem(QObject):
             measure = self.measures[measure_num]
             current_system.append(measure_num)
             
-            # Check if we should start a new system
+            # ONOTE SPEC: Wrap when MPS exceeded or when encountering final/double barline
+            # This forces all staves in the score to wrap together (treating score as "thick" line)
             if (len(current_system) >= self.grid_settings.measures_per_system or 
                 measure.barline_type in ["final", "double"]):
                 

@@ -1559,9 +1559,11 @@ class ScoreSetupWidget(QWidget):
                 # CRITICAL: Preserve custom_name and custom_abbr if they exist
                 if "custom_name" in staff_data:
                     staff_data_copy["custom_name"] = staff_data["custom_name"]
+                    staff_entry["custom_name"] = staff_data["custom_name"]  # Also at top level
                     print(f"GET_OPTIONS: Preserving custom_name '{staff_data['custom_name']}' for {instrument_name}")
                 if "custom_abbr" in staff_data:
                     staff_data_copy["custom_abbr"] = staff_data["custom_abbr"]
+                    staff_entry["custom_abbr"] = staff_data["custom_abbr"]  # Also at top level
                     print(f"GET_OPTIONS: Preserving custom_abbr '{staff_data['custom_abbr']}' for {instrument_name}")
 
                 # Add staff data to the entry
@@ -1714,12 +1716,22 @@ class ScoreSetupWidget(QWidget):
         # Custom Staff Abbreviation
         staff_name_layout.addWidget(QLabel("Custom Staff Abbreviation:"))
         custom_abbr_edit = QLineEdit()
-        default_abbr = staff_data.get("instrument_abbr", instrument_name[:3].upper())
-        # Set current custom abbreviation if it exists
+        # FINAL FIX: Only show custom_abbr if explicitly set. Don't auto-generate from name.
+        # This ensures the field is independent and only contains what the user explicitly types.
+        print(f"\n=== STAFF ATTRIBUTES DIALOG: Loading abbreviation ===")
+        print(f"  staff_data keys: {list(staff_data.keys())}")
+        print(f"  instrument_name: '{staff_data.get('instrument_name', 'N/A')}'")
+        print(f"  custom_name: '{staff_data.get('custom_name', 'N/A')}'")
+        print(f"  'custom_abbr' in staff_data: {'custom_abbr' in staff_data}")
         if "custom_abbr" in staff_data:
+            print(f"  custom_abbr value: '{staff_data['custom_abbr']}'")
             custom_abbr_edit.setText(staff_data["custom_abbr"])
         else:
+            # Show empty field with placeholder indicating the default
+            default_abbr = staff_data.get("instrument_name", "Part")[:3].upper()
+            print(f"  NO custom_abbr, showing placeholder 'Default: {default_abbr}'")
             custom_abbr_edit.setPlaceholderText(f"Default: {default_abbr}")
+        print(f"=== END STAFF ATTRIBUTES DIALOG ===\n")
         staff_name_layout.addWidget(custom_abbr_edit)
 
         # Add a note about overriding
@@ -1740,6 +1752,7 @@ class ScoreSetupWidget(QWidget):
         staff_type_layout.addWidget(QLabel("Select staff type:"))
         staff_type_combo = QComboBox()
         staff_type_combo.addItems(["Single Staff", "Grand Staff"])
+        staff_type_layout.addWidget(staff_type_combo)
 
         # Get the current display type from the UI
         current_display_type = first_item.text(1)
@@ -2074,13 +2087,17 @@ class ScoreSetupWidget(QWidget):
         QTimer.singleShot(50, set_focus)  # Small delay to ensure dialog is fully shown
 
         # Show dialog and process result
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        result = dialog.exec()
+        print(f"\n=== STAFF ATTRIBUTES DIALOG RESULT: {result} (Accepted={QDialog.DialogCode.Accepted}) ===")
+        if result == QDialog.DialogCode.Accepted:
+            print("=== STAFF ATTRIBUTES: OK WAS CLICKED ===")
             # Get the selected values
             new_staff_type_display = staff_type_combo.currentText()
             new_clef_display = clef_combo.currentText()
             new_section = section_combo.currentText()
             new_custom_name = custom_name_edit.text().strip()
             new_custom_abbr = custom_abbr_edit.text().strip()
+            print(f"=== STAFF ATTRIBUTES: READ from fields: name='{new_custom_name}', abbr='{new_custom_abbr}' ===")
             new_instrument = instrument_combo.currentText()  # Get the selected instrument
 
             # Convert display staff type to internal representation
@@ -2154,49 +2171,48 @@ class ScoreSetupWidget(QWidget):
                     # Preserve original plugin when not explicitly changed in multi-selection
                     print(f"STAFF ATTRIBUTES: Preserving original plugin '{original_plugin}' for {item.text(0)} in multi-selection")
 
-                # CRITICAL FIX: Only update custom name if it was explicitly changed or this is a single selection
-                original_name = item.text(0)  # Current display name
-                # Only update name if the user actually changed it or if it's a single selection  
-                if len(selected_items) == 1 or (new_custom_name and new_custom_name != first_item.text(0)):
-                    if new_custom_name:
-                        staff_data["custom_name"] = new_custom_name
-                        # Also update the display name in the staff list
-                        item.setText(0, new_custom_name)
-                        print(f"STAFF ATTRIBUTES: Updated name for {original_name} to {new_custom_name}")
-                    elif "custom_name" in staff_data:
-                        # If the field was cleared, remove the custom name
-                        del staff_data["custom_name"]
-                        # Reset display name to instrument name
-                        item.setText(0, staff_data.get("instrument_name", "Part"))
-                        print(f"STAFF ATTRIBUTES: Reset name for {original_name} to default")
-                else:
-                    # Preserve original name when not explicitly changed in multi-selection
-                    print(f"STAFF ATTRIBUTES: Preserving original name '{original_name}' in multi-selection")
+                # --- START: REWRITTEN & DECOUPLED NAME/ABBREVIATION LOGIC ---
 
-                # CRITICAL FIX: Only update custom abbreviation if it was explicitly changed or this is a single selection
-                original_abbr = staff_data.get("custom_abbr", "")
-                # Only update abbreviation if the user actually changed it or if it's a single selection
-                if len(selected_items) == 1 or (new_custom_abbr and new_custom_abbr != staff_data.get("custom_abbr", "")):
-                    if new_custom_abbr:
-                        staff_data["custom_abbr"] = new_custom_abbr
-                        # Also set instrument_abbr so downstream rendering uses the custom abbreviation
-                        staff_data["instrument_abbr"] = new_custom_abbr
-                        print(f"STAFF ATTRIBUTES: Updated abbreviation for {original_name} from '{original_abbr}' to '{new_custom_abbr}'")
-                    elif "custom_abbr" in staff_data:
-                        # If the field was cleared, remove the custom abbreviation and keep instrument_abbr as-is or default
+                # 1. Handle Custom Name
+                original_instrument_name = staff_data.get("instrument_name", "Part")
+                if new_custom_name and new_custom_name != original_instrument_name:
+                    staff_data["custom_name"] = new_custom_name
+                    item.setText(0, new_custom_name)
+                elif not new_custom_name:  # Field was cleared
+                    if "custom_name" in staff_data:
+                        del staff_data["custom_name"]
+                    item.setText(0, original_instrument_name)
+
+                # 2. Handle Custom Abbreviation (INDEPENDENTLY)
+                default_abbr = original_instrument_name[:3].upper()
+                print(f"=== ABBR SAVE: new_custom_abbr='{new_custom_abbr}', default_abbr='{default_abbr}' ===")
+                if new_custom_abbr:
+                    staff_data["custom_abbr"] = new_custom_abbr
+                    staff_data["instrument_abbr"] = new_custom_abbr
+                    print(f"=== ABBR SAVE: SET custom_abbr='{new_custom_abbr}' in staff_data ===")
+                elif not new_custom_abbr:  # Field was cleared
+                    if "custom_abbr" in staff_data:
                         del staff_data["custom_abbr"]
-                        print(f"STAFF ATTRIBUTES: Cleared abbreviation for {original_name}")
-                else:
-                    # Preserve original abbreviation when not explicitly changed in multi-selection
-                    print(f"STAFF ATTRIBUTES: Preserving original abbreviation '{original_abbr}' for {original_name} in multi-selection")
+                        print(f"=== ABBR SAVE: DELETED custom_abbr from staff_data ===")
+                    # Revert to its OWN default, not the name.
+                    staff_data["instrument_abbr"] = default_abbr
+                    print(f"=== ABBR SAVE: SET instrument_abbr to default='{default_abbr}' ===")
+
+                # --- END: REWRITTEN LOGIC ---
+                
+                print(f"=== ABBR SAVE: staff_data after save, keys={list(staff_data.keys())} ===")
+                if 'custom_abbr' in staff_data:
+                    print(f"=== ABBR SAVE: custom_abbr IS in staff_data, value='{staff_data['custom_abbr']}' ===")
 
                 # Update the item data
                 item.setData(0, Qt.ItemDataRole.UserRole, staff_data)
 
                 # Mark that there are unapplied changes
                 self.has_unapplied_changes = True
+
+                # Emit a clean payload for immediate update
                 self.staff_options_changed.emit(
-                    self.staff_list.indexOfTopLevelItem(item), staff_data
+                    self.staff_list.indexOfTopLevelItem(item), staff_data.copy()
                 )
 
                 num_updated += 1
@@ -2724,6 +2740,13 @@ class ScoreSetupWidget(QWidget):
             plugin = staff_data.get("plugin", "Default")
             staff_item.setText(4, plugin)
 
+            # DEBUG: Show what we're saving to UserRole
+            print(f"POPULATE: Saving to UserRole for {display_name}: keys={list(staff_data.keys())}")
+            if 'custom_abbr' in staff_data:
+                print(f"POPULATE: custom_abbr='{staff_data['custom_abbr']}' IS in staff_data")
+            else:
+                print(f"POPULATE: custom_abbr NOT in staff_data!")
+            
             staff_item.setData(0, Qt.ItemDataRole.UserRole, staff_data)
 
             print(

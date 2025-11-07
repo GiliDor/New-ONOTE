@@ -675,10 +675,10 @@ class PartNameRenderer:
                 if abbreviation:
                     name = abbreviation
                 else:
-                    # Generate default abbreviation: "Pt 1" from "Part 1"
+                # Generate default abbreviation: "Pt 1" from "Part 1"
                     if original_name.startswith("Part "):
                         name = "Pt" + original_name[4:]
-                    # If no clear pattern, just use first 4 characters
+                # If no clear pattern, just use first 4 characters
                     elif len(original_name) > 4:
                         name = original_name[:4]
                     else:
@@ -745,13 +745,21 @@ class PartNameRenderer:
         # Apply horizontal and vertical offsets from settings
         if document_settings:
             h_offset = document_settings.get('notation/staff_name_horizontal', 0)
-            v_offset = document_settings.get('notation/staff_name_vertical', 0)
+            # CRITICAL FIX: Use grand_staff_name_vertical for grand staff, staff_name_vertical for regular staff
+            if is_grand_staff:
+                v_offset = document_settings.get('notation/grand_staff_name_vertical', 0)
+            else:
+                v_offset = document_settings.get('notation/staff_name_vertical', 0)
         else:
             # Fallback to QSettings
             from PyQt6.QtCore import QSettings
             qsettings = QSettings("ONOTE", "Preferences")
             h_offset = int(qsettings.value("notation/staff_name_horizontal", 0))
-            v_offset = int(qsettings.value("notation/staff_name_vertical", 0))
+            # CRITICAL FIX: Use grand_staff_name_vertical for grand staff, staff_name_vertical for regular staff
+            if is_grand_staff:
+                v_offset = int(qsettings.value("notation/grand_staff_name_vertical", 0))
+            else:
+                v_offset = int(qsettings.value("notation/staff_name_vertical", 0))
         
         # Apply offsets
         x += h_offset

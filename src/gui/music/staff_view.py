@@ -657,6 +657,18 @@ class StaffView(QWidget):
                     }
                 }
                 
+                # CRITICAL: Preserve custom_name and custom_abbr from live staff objects
+                if hasattr(staff, 'custom_name') and staff.custom_name:
+                    staff_data['custom_name'] = staff.custom_name
+                    print(f"STAFFVIEW: Preserved custom_name '{staff.custom_name}' for {staff.instrument_name}")
+                else:
+                    print(f"STAFFVIEW: No custom_name for {staff.instrument_name}")
+                if hasattr(staff, 'custom_abbr') and staff.custom_abbr:
+                    staff_data['custom_abbr'] = staff.custom_abbr
+                    print(f"STAFFVIEW: Preserved custom_abbr '{staff.custom_abbr}' for {staff.instrument_name}")
+                else:
+                    print(f"STAFFVIEW: No custom_abbr for {staff.instrument_name} (hasattr={hasattr(staff, 'custom_abbr')}, value={getattr(staff, 'custom_abbr', 'N/A')})")
+                
                 # Get display order index for ungrouped staff
                 display_order = getattr(staff, 'display_order_index', 999)
                 all_staff_elements.append((display_order, 'staff', staff_data))
@@ -694,6 +706,14 @@ class StaffView(QWidget):
                         }
                     }
                     
+                    # CRITICAL: Preserve custom_name and custom_abbr from live staff objects
+                    if hasattr(staff, 'custom_name') and staff.custom_name:
+                        staff_data['custom_name'] = staff.custom_name
+                        print(f"STAFFVIEW: Preserved custom_name '{staff.custom_name}' for {staff.instrument_name}")
+                    if hasattr(staff, 'custom_abbr') and staff.custom_abbr:
+                        staff_data['custom_abbr'] = staff.custom_abbr
+                        print(f"STAFFVIEW: Preserved custom_abbr '{staff.custom_abbr}' for {staff.instrument_name}")
+                    
                     # Use section's display order for all staves in the section
                     all_staff_elements.append((section_order, 'staff', staff_data))
                     print(f"STAFFVIEW: Collected staff {staff.instrument_name} from section '{section.name}' with section_order={section_order}")
@@ -703,6 +723,14 @@ class StaffView(QWidget):
         added_staves = [element[2] for element in all_staff_elements]
         
         print(f"STAFFVIEW: Built added_staves in proper display order with {len(added_staves)} staves")
+        
+        # DEBUG: Check what's in added_staves
+        for staff_data in added_staves:
+            name = staff_data.get('instrument_name', 'Unknown')
+            if 'custom_abbr' in staff_data:
+                print(f"STAFFVIEW: added_staves contains custom_abbr='{staff_data['custom_abbr']}' for {name}")
+            else:
+                print(f"STAFFVIEW: added_staves MISSING custom_abbr for {name}")
         
         # Only update added_staves if we found staves to preserve or if it's not already present
         if added_staves or 'added_staves' not in self.dialog_settings:
@@ -2060,6 +2088,10 @@ class StaffView(QWidget):
                         hbar.setValue(hbar.value() + step)
                         event.accept()
                         return
+                else:
+                    # No scroll area found - ensure widget can receive focus for arrow keys
+                    if not self.hasFocus():
+                        self.setFocus()
         except Exception:
             pass
 
@@ -2245,14 +2277,21 @@ class StaffView(QWidget):
             return False
     
     def select_barline(self, barline):
-        """Select a barline and highlight it in orange"""
+        """
+        Select a barline and highlight it in orange.
+        
+        ONOTE SPECIFICATION: Barline selection is per staff system (single/grand/section).
+        A measure object represents a barline that spans across all staves in its system.
+        Selecting a barline selects it for the entire system - the barline at the same
+        x position across all staves in that system will be highlighted.
+        """
         if not barline:
             return
                 
         # Deselect all other barlines first
         self.deselect_all_barlines()
         
-        # Select the clicked barline
+        # Select the clicked barline (this is system-wide - spans all staves in the system)
         barline.selected = True
         
         # CRITICAL: Grab keyboard focus to ensure delete key works
@@ -3555,7 +3594,7 @@ class StaffView(QWidget):
             super().resizeEvent(event)
 
     def wheelEvent(self, event):
-        """Handle mouse wheel for zooming and page navigation"""
+        """Handle mouse wheel for zooming and scrolling"""
         # Check if Ctrl is held for zooming
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             # Zoom in/out
@@ -3570,7 +3609,7 @@ class StaffView(QWidget):
             
             event.accept()
         else:
-            # Page navigation (when not zooming)
+            # Scrolling (when not zooming)
             delta = event.angleDelta().y()
             view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') else 'page'
             if view_mode == 'continuous':
@@ -3587,18 +3626,44 @@ class StaffView(QWidget):
                 except Exception:
                     pass
             else:
-                if delta > 0:
-                    if hasattr(self, 'previous_page'):
-                        try:
-                            self.previous_page()
-                        except Exception:
-                            pass
-                else:
-                    if hasattr(self, 'next_page'):
-                        try:
-                            self.next_page()
-                        except Exception:
-                            pass
+                # Page mode: Enable smooth vertical scrolling via scroll area
+                try:
+                    # Find scroll area ancestor
+                    parent = self.parent()
+                    scroll_area = None
+                    while parent is not None and scroll_area is None:
+                        if hasattr(parent, 'verticalScrollBar') and hasattr(parent, 'horizontalScrollBar'):
+                            scroll_area = parent
+                            break
+                        parent = parent.parent()
+                    
+                    if scroll_area is not None:
+                        # Smooth scrolling using scroll area
+                        vbar = scroll_area.verticalScrollBar()
+                        if vbar is not None:
+                            step = int(40 * self.zoom_factor)
+                            if delta > 0:
+                                vbar.setValue(vbar.value() - step)
+                            else:
+                                vbar.setValue(vbar.value() + step)
+                            event.accept()
+                            return
+                    
+                    # Fallback: Page navigation if no scroll area found
+                    if delta > 0:
+                        if hasattr(self, 'previous_page'):
+                            try:
+                                self.previous_page()
+                            except Exception:
+                                pass
+                    else:
+                        if hasattr(self, 'next_page'):
+                            try:
+                                self.next_page()
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
             event.accept()
     
     def _zoom_at_point(self, zoom_factor, zoom_center):

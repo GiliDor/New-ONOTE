@@ -495,8 +495,9 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(redo_action)
         
         # Add toggle_edit_mode action with F2 shortcut
-        toggle_edit_mode_action = QAction("&Toggle Edit Mode", self)
+        toggle_edit_mode_action = QAction("&Toggle edit/Setup", self)
         toggle_edit_mode_action.setShortcut("F2")
+        toggle_edit_mode_action.setStatusTip("Toggle between edit mode and setup mode")
         toggle_edit_mode_action.triggered.connect(self.toggle_edit_mode)
         edit_menu.addAction(toggle_edit_mode_action)
         

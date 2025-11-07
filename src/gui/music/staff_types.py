@@ -67,6 +67,14 @@ class StaffBase:
             'plugin': self.plugin  # Include plugin information
         }
         
+        # CRITICAL: Include custom_name and custom_abbr for file save persistence
+        if hasattr(self, 'custom_name') and self.custom_name:
+            data['custom_name'] = self.custom_name
+            print(f"SERIALIZATION: Saving custom_name='{self.custom_name}' for {self.instrument_name}")
+        if hasattr(self, 'custom_abbr') and self.custom_abbr:
+            data['custom_abbr'] = self.custom_abbr
+            print(f"SERIALIZATION: Saving custom_abbr='{self.custom_abbr}' for {self.instrument_name}")
+        
         # Add notation settings if present
         if hasattr(self, 'notation_settings') and self.notation_settings:
             import copy
@@ -126,6 +134,14 @@ class SingleStaff(StaffBase):
         # Set plugin if provided
         if 'plugin' in data:
             staff.plugin = data['plugin']
+        
+        # CRITICAL: Restore custom_name and custom_abbr from file
+        if 'custom_name' in data:
+            staff.custom_name = data['custom_name']
+            print(f"DESERIALIZATION: Loaded custom_name='{data['custom_name']}' for {staff.instrument_name}")
+        if 'custom_abbr' in data:
+            staff.custom_abbr = data['custom_abbr']
+            print(f"DESERIALIZATION: Loaded custom_abbr='{data['custom_abbr']}' for {staff.instrument_name}")
             
         # Copy notation settings if present
         if 'notation_settings' in data:
@@ -175,6 +191,11 @@ class GrandStaff(StaffBase):
             )
         else:
             self.top_staff = top_staff
+        # Mark as belonging to a grand staff so single-staff renderer can skip duplicate names
+        try:
+            setattr(self.top_staff, 'belongs_to_grand_staff', True)
+        except Exception:
+            pass
             
         if bottom_staff is None:
             self.bottom_staff = SingleStaff(
@@ -188,6 +209,10 @@ class GrandStaff(StaffBase):
             )
         else:
             self.bottom_staff = bottom_staff
+        try:
+            setattr(self.bottom_staff, 'belongs_to_grand_staff', True)
+        except Exception:
+            pass
         
         # The grand staff has a reference to shared clef, but it's not used for rendering
         self.clef = clef or "grand_staff"
@@ -239,6 +264,24 @@ class GrandStaff(StaffBase):
         # Preserve ID if provided
         if 'id' in data:
             grand_staff.id = data['id']
+        
+        # CRITICAL: Restore custom_name and custom_abbr from file
+        if 'custom_name' in data:
+            grand_staff.custom_name = data['custom_name']
+            print(f"DESERIALIZATION: Loaded custom_name='{data['custom_name']}' for grand staff {grand_staff.instrument_name}")
+            # Also set on component staves
+            if hasattr(grand_staff, 'top_staff'):
+                grand_staff.top_staff.custom_name = data['custom_name']
+            if hasattr(grand_staff, 'bottom_staff'):
+                grand_staff.bottom_staff.custom_name = data['custom_name']
+        if 'custom_abbr' in data:
+            grand_staff.custom_abbr = data['custom_abbr']
+            print(f"DESERIALIZATION: Loaded custom_abbr='{data['custom_abbr']}' for grand staff {grand_staff.instrument_name}")
+            # Also set on component staves
+            if hasattr(grand_staff, 'top_staff'):
+                grand_staff.top_staff.custom_abbr = data['custom_abbr']
+            if hasattr(grand_staff, 'bottom_staff'):
+                grand_staff.bottom_staff.custom_abbr = data['custom_abbr']
             
         # Copy notation settings if present
         if 'notation_settings' in data:
@@ -515,13 +558,46 @@ class ScoreLayout:
         # Now position all elements in the correct order
         y = self.top_margin
         
+        # ONOTE SPECIFICATION: Get system spacing preference
+        # System spacing applies between all systems (single, grand, section) unless excluded
+        from PyQt6.QtCore import QSettings
+        settings = QSettings("ONOTE", "Preferences")
+        exclude_single_staff = settings.value("layout/exclude_single_staff_from_system_spacing", False, type=bool)
+        
+        # Get system spacing (document settings take precedence)
+        system_spacing = 80  # Default
+        if hasattr(self, 'document') and hasattr(self.document, 'settings') and self.document.settings:
+            system_spacing = int(self.document.settings.get('layout/system_spacing', 0) or 0)
+        if system_spacing <= 0:
+            system_spacing = int(settings.value("layout/default_system_spacing", 80))
+        system_spacing = max(40, min(200, int(system_spacing)))
+        
         # ENHANCEMENT: Track section positions for debugging
         section_positions = {}
         
+        prev_elem = None
         for elem in combined_elements:
             if elem['type'] == 'staff':
                 # Position this ungrouped staff
                 staff = elem['element']
+                
+                # Determine spacing to use before this element
+                if prev_elem is not None:
+                    # Check if previous element was a single staff system that should be excluded
+                    prev_is_single_staff = (
+                        prev_elem['type'] == 'staff' and 
+                        not isinstance(prev_elem['element'], GrandStaff)
+                    )
+                    
+                    if exclude_single_staff and prev_is_single_staff:
+                        # Use staff spacing for single staff systems when excluded
+                        spacing_to_use = self.staff_spacing
+                    else:
+                        # Use system spacing between systems
+                        spacing_to_use = system_spacing
+                    
+                    y += spacing_to_use
+                
                 staff.y_position = y
                 
                 # If this is a grand staff, set the positions of its components
@@ -537,12 +613,19 @@ class ScoreLayout:
                     # Update instrument name y position
                     staff.instrument_name_y = y + (staff.height / 2)
                 
-                # Increment y for next element
-                y += staff.height + self.staff_spacing
+                # Move y past this staff's height (spacing will be added before next element)
+                y += staff.height
+                prev_elem = elem
                 
             else:
                 # Position this section and all its staves
                 section = elem['element']
+                
+                # Determine spacing to use before this section
+                if prev_elem is not None:
+                    # Sections always use system spacing (they are multi-staff systems)
+                    y += system_spacing
+                
                 section_start_y = y
                 
                 # Track section's vertical position for debugging
@@ -556,7 +639,7 @@ class ScoreLayout:
                 else:
                     section.section_name_y = y - 15
                     
-                # Position staves in this section
+                # Position staves in this section (use staff spacing within section)
                 for i, staff in enumerate(section.staves):
                     # Position this staff
                     staff.y_position = y
@@ -577,8 +660,11 @@ class ScoreLayout:
                         # Update instrument name y position
                         staff.instrument_name_y = y + (staff.height / 2)
                     
-                    # Increment y for next staff
-                    y += staff.height + self.staff_spacing
+                    # Move y past this staff's height
+                    y += staff.height
+                    # Add staff spacing before next staff (if not last)
+                    if i < len(section.staves) - 1:
+                        y += self.staff_spacing
                     
                 # If there are staves in this section, set the bracket positions
                 if section.staves:
@@ -595,8 +681,8 @@ class ScoreLayout:
                     # Print debug info for bracket positioning
                     print(f"Section {section.name} bracket: y_start={section.bracket_y_start}, y_end={section.bracket_y_end}")
                 
-                # Add some extra space after the section
-                y += 10  # Extra 10px after each section
+                # Section spacing is handled before next element (no extra space needed here)
+                prev_elem = elem
             
         # DEBUG: Print final section positions
         print(f"LAYOUT: Final section positions after layout:")
@@ -720,6 +806,12 @@ class ScoreLayout:
                         top_staff.custom_name = staff_data['custom_name']
                         bottom_staff.custom_name = staff_data['custom_name']
                     
+                    # Set custom abbreviation if provided
+                    if 'custom_abbr' in staff_data:
+                        staff.custom_abbr = staff_data['custom_abbr']
+                        top_staff.custom_abbr = staff_data['custom_abbr']
+                        bottom_staff.custom_abbr = staff_data['custom_abbr']
+                    
                     # Set instrument abbreviation if provided
                     if 'instrument_abbr' in staff_data:
                         staff.instrument_abbr = staff_data['instrument_abbr']
@@ -758,6 +850,10 @@ class ScoreLayout:
                     # Set custom name if provided
                     if 'custom_name' in staff_data:
                         staff.custom_name = staff_data['custom_name']
+                    
+                    # Set custom abbreviation if provided
+                    if 'custom_abbr' in staff_data:
+                        staff.custom_abbr = staff_data['custom_abbr']
                     
                     # Set instrument abbreviation if provided
                     if 'instrument_abbr' in staff_data:

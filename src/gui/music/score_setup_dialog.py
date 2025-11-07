@@ -295,6 +295,10 @@ class ScoreSetupDialog(QDialog):
                 if hasattr(staff, 'custom_abbr') and staff.custom_abbr:
                     staff_data["custom_abbr"] = staff.custom_abbr
                     print(f"POPULATE: Loaded custom_abbr '{staff.custom_abbr}' for {staff.instrument_name}")
+                elif staff.instrument_abbr and staff.instrument_abbr != staff.instrument_name[:3].upper():
+                    # Instrument abbreviation differs from default; treat as custom_abbr for UI persistence
+                    staff_data["custom_abbr"] = staff.instrument_abbr
+                    print(f"POPULATE: Treating instrument_abbr '{staff.instrument_abbr}' as custom_abbr for {staff.instrument_name}")
 
                 # Create staff item
                 staff_item = QTreeWidgetItem(self.setup_widget.staff_list)
@@ -497,6 +501,17 @@ class ScoreSetupDialog(QDialog):
 
                 # --- ROBUST REPOPULATION LOGIC ---
                 # The complete data is usually in a nested 'staff_data' dictionary.
+                print(f"\n=== POPULATE DEBUG: {instrument_name} ===")
+                print(f"  Top-level staff_data keys: {list(staff_data.keys())}")
+                print(f"  'custom_abbr' at top level: {'custom_abbr' in staff_data}")
+                if 'custom_abbr' in staff_data:
+                    print(f"  Top-level custom_abbr value: '{staff_data['custom_abbr']}'")
+                if "staff_data" in staff_data:
+                    print(f"  Nested staff_data keys: {list(staff_data['staff_data'].keys())}")
+                    print(f"  'custom_abbr' in nested: {'custom_abbr' in staff_data['staff_data']}")
+                    if 'custom_abbr' in staff_data['staff_data']:
+                        print(f"  Nested custom_abbr value: '{staff_data['staff_data']['custom_abbr']}'")
+                
                 item_data_source = staff_data.get("staff_data", staff_data)
 
                 # Use custom_name for display if it exists, otherwise fall back to instrument_name.
@@ -527,12 +542,26 @@ class ScoreSetupDialog(QDialog):
                 item_data.setdefault("instrument_id", instrument_id)
                 item_data.setdefault("instrument_name", instrument_name)
                 # If a custom_abbr exists, prefer it for instrument_abbr
-                preferred_abbr = item_data.get("custom_abbr", item_data.get("instrument_abbr", instrument_name[:3].upper()))
+                preferred_abbr = item_data_source.get("custom_abbr", item_data_source.get("instrument_abbr", instrument_name[:3].upper()))
                 item_data["instrument_abbr"] = preferred_abbr
+                # Preserve custom_abbr separately so the Staff Attributes dialog can detect it
+                if "custom_abbr" in item_data_source:
+                    item_data["custom_abbr"] = item_data_source["custom_abbr"]
+                    print(f"  POPULATE: Copied custom_abbr='{item_data_source['custom_abbr']}' from item_data_source to item_data")
+                # ALSO check top-level staff_data in case it's there but not in nested
+                elif "custom_abbr" in staff_data:
+                    item_data["custom_abbr"] = staff_data["custom_abbr"]
+                    print(f"  POPULATE: Copied custom_abbr='{staff_data['custom_abbr']}' from TOP-LEVEL staff_data to item_data")
                 item_data.setdefault("clef", clef if staff_type != "grand_staff" else "treble")
                 item_data.setdefault("plugin", plugin)
                 item_data["section"] = section
                 item_data["staff_type"] = staff_type
+
+                print(f"  POPULATE: Final item_data keys: {list(item_data.keys())}")
+                print(f"  POPULATE: 'custom_abbr' in final item_data: {'custom_abbr' in item_data}")
+                if 'custom_abbr' in item_data:
+                    print(f"  POPULATE: Final custom_abbr value: '{item_data['custom_abbr']}'")
+                print(f"=== END POPULATE DEBUG ===\n")
 
                 staff_item.setData(0, Qt.ItemDataRole.UserRole, item_data)
                 staves_added += 1
@@ -754,6 +783,28 @@ class ScoreSetupDialog(QDialog):
         # Apply changes immediately to the score
         self.apply_changes_immediate(options)
 
+        # --- NEW: ensure custom_abbr persists ---
+        try:
+            if "custom_abbr" in settings:
+                # Update the tree item UserRole data
+                item = self.setup_widget.staff_list.topLevelItem(index)
+                if item:
+                    item_data = item.data(0, Qt.ItemDataRole.UserRole)
+                    if item_data:
+                        item_data["custom_abbr"] = settings["custom_abbr"]
+                        item_data["instrument_abbr"] = settings["custom_abbr"]
+                        item.setData(0, Qt.ItemDataRole.UserRole, item_data)
+
+                # Also update dialog_settings if present
+                if hasattr(self, "dialog_settings") and self.dialog_settings:
+                    for st in self.dialog_settings.get("added_staves", []):
+                        if st.get("instrument_id") == settings.get("instrument_id"):
+                            st.setdefault("staff_data", {})["custom_abbr"] = settings["custom_abbr"]
+                            st["custom_abbr"] = settings["custom_abbr"]
+                            st["instrument_abbr"] = settings["custom_abbr"]
+        except Exception as e:
+            print(f"PERSIST_ABBR: failed to merge custom_abbr - {e}")
+
     def on_staff_reordered(self, from_index, to_index):
         print("[DEBUG] on_staff_reordered called")
         print(f"[DEBUG] Received signal: from_index={from_index}, to_index={to_index}")
@@ -859,6 +910,59 @@ class ScoreSetupDialog(QDialog):
         doc.staves = options.get("added_staves", [])
         print(f"IMMEDIATE: Updated document with {len(doc.staves)} staves")
 
+        # --- NEW: Propagate custom_abbr to live staff objects so it persists ---
+        try:
+            # Build map from instrument_id to custom_abbr (and custom_name) from options
+            abbr_map = {}
+            name_map = {}
+            print(f"\n=== PROPAGATE ABBR: Checking {len(options.get('added_staves', []))} staves ===")
+            for s in options.get("added_staves", []):
+                instr_id = s.get("instrument_id")
+                if not instr_id:
+                    continue
+                print(f"PROPAGATE: Staff {instr_id}, keys in s: {list(s.keys())}")
+                staff_data = s.get("staff_data", s)
+                print(f"PROPAGATE: staff_data keys: {list(staff_data.keys())}")
+                if "custom_abbr" in staff_data:
+                    abbr_map[instr_id] = staff_data["custom_abbr"]
+                    print(f"PROPAGATE: Found custom_abbr='{staff_data['custom_abbr']}' for {instr_id}")
+                else:
+                    print(f"PROPAGATE: NO custom_abbr in staff_data for {instr_id}")
+                if "custom_name" in staff_data:
+                    name_map[instr_id] = staff_data["custom_name"]
+                    print(f"PROPAGATE: Found custom_name='{staff_data['custom_name']}' for {instr_id}")
+
+            # Helper to update a staff object
+            def _update_staff_obj(staff_obj):
+                iid = getattr(staff_obj, "instrument_id", None)
+                if not iid:
+                    print(f"PROPAGATE: Staff object has no instrument_id")
+                    return
+                if iid in abbr_map:
+                    staff_obj.custom_abbr = abbr_map[iid]
+                    staff_obj.instrument_abbr = abbr_map[iid]
+                    print(f"PROPAGATE: SET custom_abbr='{abbr_map[iid]}' on live staff object {iid}")
+                if iid in name_map:
+                    staff_obj.custom_name = name_map[iid]
+                    print(f"PROPAGATE: SET custom_name='{name_map[iid]}' on live staff object {iid}")
+
+            # Update ungrouped staves
+            print(f"PROPAGATE: Checking ungrouped_staves...")
+            if hasattr(doc.layout, "ungrouped_staves"):
+                print(f"PROPAGATE: Found {len(doc.layout.ungrouped_staves)} ungrouped staves")
+                for st in doc.layout.ungrouped_staves:
+                    print(f"PROPAGATE: Updating ungrouped staff {getattr(st, 'instrument_name', 'Unknown')}")
+                    _update_staff_obj(st)
+            else:
+                print(f"PROPAGATE: No ungrouped_staves attribute")
+            # Update section staves
+            if hasattr(doc.layout, "sections"):
+                for sec in doc.layout.sections:
+                    for st in sec.staves:
+                        _update_staff_obj(st)
+        except Exception as e:
+            print(f"APPLY: Failed to propagate custom abbreviations to staff objects: {e}")
+
     def apply_changes(self):
         """Apply changes to the setup widget and document"""
         # Get options from the setup widget
@@ -896,8 +1000,10 @@ class ScoreSetupDialog(QDialog):
 
             for i in range(self.setup_widget.staff_list.topLevelItemCount()):
                 item = self.setup_widget.staff_list.topLevelItem(i)
-                instrument_name = item.text(0)
-                instrument_id = item.data(0, Qt.ItemDataRole.UserRole).get('instrument_id', instrument_name.lower().replace(" ", "_"))
+                # Never use the UI display text to propagate names; keep per-row data
+                row_data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+                instrument_name = row_data.get('instrument_name', item.text(0))
+                instrument_id = row_data.get('instrument_id', instrument_name.lower().replace(" ", "_"))
                 plugin_text = item.text(4)  # Plugin is in column 4
                 section_text = item.text(3)  # Section is in column 3
                 staff_type_text = item.text(1)
@@ -916,7 +1022,7 @@ class ScoreSetupDialog(QDialog):
                     print(f"APPLY: Section '{section_text}' first appears at position {i}")
 
                 # Get staff data from the item
-                staff_data = item.data(0, Qt.ItemDataRole.UserRole)
+                staff_data = row_data
                 if staff_data:
                     # Always synchronize staff_data with UI
                     if section_text:
@@ -1203,6 +1309,21 @@ class ScoreSetupDialog(QDialog):
                     ):
                         self.parent().document.layout.set_setup_mode(False)
                     print("===== DIALOG DONE: Manually set mode to edit mode =====")
+                
+                # CRITICAL FIX: Force refresh staff_view to show current edit mode state
+                # This ensures measures are preserved and score displays correctly
+                if hasattr(self.parent(), 'staff_view'):
+                    print("===== DIALOG DONE: Refreshing staff_view =====")
+                    # Ensure measures are preserved
+                    if hasattr(self.parent().staff_view, 'measure_manager'):
+                        try:
+                            self.parent().staff_view.measure_manager.refresh_layout()
+                            print("===== DIALOG DONE: Refreshed measure_manager layout =====")
+                        except Exception as e:
+                            print(f"===== DIALOG DONE: Error refreshing measure_manager: {e} =====")
+                    # Force visual update
+                    self.parent().staff_view.update()
+                    print("===== DIALOG DONE: Called staff_view.update() =====")
 
                 # Update the UI
                 self.parent().update()
@@ -1276,6 +1397,21 @@ class ScoreSetupDialog(QDialog):
                 print("===== APPLY_AND_CLOSE: Switching to edit mode via enter_edit_mode =====")
                 self.parent().enter_edit_mode()
                 print("===== APPLY_AND_CLOSE: Edit mode activated =====")
+
+            # CRITICAL FIX: Force refresh staff_view to show current edit mode state
+            # This ensures measures are preserved and score displays correctly
+            if hasattr(self.parent(), 'staff_view'):
+                print("===== APPLY_AND_CLOSE: Refreshing staff_view =====")
+                # Ensure measures are preserved
+                if hasattr(self.parent().staff_view, 'measure_manager'):
+                    try:
+                        self.parent().staff_view.measure_manager.refresh_layout()
+                        print("===== APPLY_AND_CLOSE: Refreshed measure_manager layout =====")
+                    except Exception as e:
+                        print(f"===== APPLY_AND_CLOSE: Error refreshing measure_manager: {e} =====")
+                # Force visual update
+                self.parent().staff_view.update()
+                print("===== APPLY_AND_CLOSE: Called staff_view.update() =====")
 
             # Update the UI
             self.parent().update()

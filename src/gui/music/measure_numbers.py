@@ -370,8 +370,8 @@ class MeasureNumberManager:
         self._load_settings(self.document)
         print(f"MEASURE_NUMBERS: Refreshed settings - enabled: {self.settings.enabled}, freq: {self.settings.frequency.value}, pos: {self.settings.position.value}, v_pos: {self.settings.vertical_position.value}, font_size: {self.settings.font_size}, color: {self.settings.font_color}, h_offset: {self.settings.horizontal_offset}, v_offset: {self.settings.vertical_offset}")
         
-    def render_for_staff(self, painter: QPainter, staff_name: str, measures: List, staff_y: float, system_index: int = 0):
-        """Render measure numbers for a specific staff using LIVE document coordinates"""
+    def render_for_staff(self, painter: QPainter, staff_name: str, measures: List, staff_y: float, system_index: int = 0, first_measure_barline_x: float = None, staff_left_x: float = None, barline_positions: List[float] = None):
+        """Render measure numbers for a specific staff using staff line positions as definitive reference"""
         # Skip rendering if no measures or no staves exist (e.g., entering Edit with no parts)
         if not measures:
             print(f"MEASURE_NUMBERS: No measures in document - skipping (empty document)")
@@ -405,66 +405,138 @@ class MeasureNumberManager:
         
         # Convert measures to format expected by renderer using LIVE DOCUMENT COORDINATES
         measure_data = []
-        system_start_measure = 1
         
-        # CRITICAL FIX: Use LIVE document coordinates from temporal bridge instead of cached calculations
+        # CRITICAL FIX: Calculate system_start_measure from the first measure in this system
+        # This ensures measure numbers are displayed correctly on wrapped systems
+        system_start_measure = 1  # Default fallback
+        if measures:
+            # Sort measures by measure number to ensure proper order
+            sorted_measures = sorted(measures, key=lambda m: getattr(m, 'measure_number', 999))
+            if sorted_measures:
+                # Get the first measure number in this system
+                first_measure = sorted_measures[0]
+                system_start_measure = getattr(first_measure, 'measure_number', 1)
+                print(f"MEASURE_NUMBERS: System {system_index} starts with measure {system_start_measure}")
+        
+        # CRITICAL FIX: Use staff line positions as definitive reference
+        # Use actual barline positions from _render_measures_impl instead of recalculating
         if measures:
             print(f"MEASURE_NUMBERS: System {system_index} has {len(measures)} measures (indices {0}-{len(measures)-1})")
             
-            # Sort measures by measure number to ensure proper order
-            sorted_measures = sorted(measures, key=lambda m: getattr(m, 'measure_number', 999))
+            # sorted_measures already calculated above
             
-            for i, measure in enumerate(sorted_measures):
-                measure_number = getattr(measure, 'measure_number', i + 1)
-                
-                # FIXED: Use the LIVE coordinates from the document's temporal bridge
-                measure_end_x = getattr(measure, 'end_x', 0)
-                
-                # CRITICAL FIX: Calculate measure start position from LIVE document state
-                # This ensures measure numbers respond immediately to layout changes
-                if measure_number == 1:
-                    # First measure should start at the leftmost notation x (after clef/key/time)
-                    # Prefer the temporal bridge's dynamic value; fall back safely if unavailable
-                    leftmost_x = None
-                    try:
-                        if self.document and hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
-                            tb = self.document.temporal_bridge
-                            if hasattr(tb, 'calculate_leftmost_note_position'):
-                                leftmost_x = float(tb.calculate_leftmost_note_position())
-                            elif hasattr(tb, 'LEFTMOST_NOTE_X'):
-                                leftmost_x = float(getattr(tb, 'LEFTMOST_NOTE_X', 100.0))
-                    except Exception:
-                        leftmost_x = None
-                    measure_start_x = leftmost_x if isinstance(leftmost_x, (int, float)) else 100.0
-                else:
-                    # Find the previous measure's end position from LIVE document
-                    prev_measure = None
-                    for m in sorted_measures:
-                        if getattr(m, 'measure_number', 0) == measure_number - 1:
-                            prev_measure = m
-                            break
+            # Use barline_positions if available (definitive reference from staff rendering)
+            if barline_positions and len(barline_positions) > 0:
+                print(f"MEASURE_NUMBERS: Using barline_positions as definitive reference: {barline_positions}")
+                # CRITICAL FIX: Calculate measure positions using position WITHIN system, not global measure number
+                # barline_positions contains the barline positions for THIS system only
+                # Measure 0 in system starts at first_measure_barline_x, ends at barline_positions[0]
+                # Measure 1 in system starts at barline_positions[0], ends at barline_positions[1]
+                # etc.
+                for i, measure in enumerate(sorted_measures):
+                    measure_number = getattr(measure, 'measure_number', i + 1)
+                    position_in_system = i  # 0-based index within this system
                     
-                    if prev_measure:
-                        # CRITICAL FIX: Use previous measure's LIVE end_x as this measure's start_x
-                        measure_start_x = getattr(prev_measure, 'end_x', 100.0)
+                    # Measure start: previous barline position (or first_measure_barline_x for first measure in system)
+                    if position_in_system == 0:
+                        # First measure in this system: starts at first_measure_barline_x
+                        if first_measure_barline_x is not None:
+                            measure_start_x = first_measure_barline_x
+                        elif staff_left_x is not None:
+                            # Fallback: use staff_left_x + initial elements width
+                            measure_start_x = staff_left_x + 105.0  # Approximate initial elements width
+                        else:
+                            measure_start_x = 100.0
                     else:
-                        # Fallback for malformed document state
-                        measure_start_x = 100.0
-                
-                # CRITICAL FIX: Calculate LIVE notation width based on current document positions
-                measure_width = measure_end_x - measure_start_x
-                if measure_width <= 0:
-                    # If measure width is invalid, use a reasonable default based on measure number
-                    measure_width = max(180.0, 200.0 + (measure_number * 10))  # Progressive width
-                    print(f"MEASURE_NUMBERS: Invalid width for measure {measure_number}, using default: {measure_width}")
+                        # Use previous barline position within this system
+                        prev_barline_idx = position_in_system - 1  # Previous barline index (0-indexed within system)
+                        if prev_barline_idx >= 0 and prev_barline_idx < len(barline_positions):
+                            measure_start_x = barline_positions[prev_barline_idx]
+                        else:
+                            # Fallback: calculate from first_measure_barline_x
+                            if first_measure_barline_x is not None and len(barline_positions) > 0:
+                                unit_width = barline_positions[0] - first_measure_barline_x if len(barline_positions) > 0 else 0
+                                measure_start_x = first_measure_barline_x + position_in_system * unit_width
+                            else:
+                                measure_start_x = 100.0
+                    
+                    # Measure end: current barline position within this system
+                    barline_idx = position_in_system  # Current barline index (0-indexed within system)
+                    if barline_idx >= 0 and barline_idx < len(barline_positions):
+                        measure_end_x = barline_positions[barline_idx]
+                    else:
+                        # Fallback: calculate from first_measure_barline_x
+                        if first_measure_barline_x is not None and len(barline_positions) > 0:
+                            unit_width = barline_positions[0] - first_measure_barline_x if len(barline_positions) > 0 else 0
+                            measure_end_x = first_measure_barline_x + (position_in_system + 1) * unit_width
+                        else:
+                            measure_end_x = measure_start_x + 100.0
+                    
+                    measure_width = measure_end_x - measure_start_x
+                    print(f"MEASURE_NUMBERS: Measure {measure_number} (position {position_in_system} in system) from barline positions: start={measure_start_x}, end={measure_end_x}, width={measure_width}")
+                    measure_data.append((measure_number, measure_start_x, measure_width))
+            else:
+                # Fallback: use first_measure_barline_x and calculate positions
+                print(f"MEASURE_NUMBERS: No barline_positions available, using first_measure_barline_x={first_measure_barline_x}")
+                if first_measure_barline_x is None:
+                    # Last resort: use temporal bridge positions
+                    for i, measure in enumerate(sorted_measures):
+                        measure_number = getattr(measure, 'measure_number', i + 1)
+                        measure_end_x_global = getattr(measure, 'end_x', 0)
+                        
+                        if measure_number == 1:
+                            leftmost_x = None
+                            try:
+                                if self.document and hasattr(self.document, 'temporal_bridge') and self.document.temporal_bridge:
+                                    tb = self.document.temporal_bridge
+                                    if hasattr(tb, 'calculate_leftmost_note_position'):
+                                        leftmost_x = float(tb.calculate_leftmost_note_position())
+                            except Exception:
+                                pass
+                            measure_start_x = leftmost_x if isinstance(leftmost_x, (int, float)) else 100.0
+                        else:
+                            prev_measure = None
+                            for m in sorted_measures:
+                                if getattr(m, 'measure_number', 0) == measure_number - 1:
+                                    prev_measure = m
+                                    break
+                            if prev_measure:
+                                measure_start_x = getattr(prev_measure, 'end_x', 100.0)
+                            else:
+                                measure_start_x = 100.0
+                        
+                        measure_end_x = measure_end_x_global
+                        measure_width = measure_end_x - measure_start_x
+                        measure_data.append((measure_number, measure_start_x, measure_width))
                 else:
-                    print(f"MEASURE_NUMBERS: Valid width for measure {measure_number}: {measure_width}")
-                
-                print(f"MEASURE_NUMBERS: Measure {measure_number} at x={measure_start_x} (start={measure_start_x}, end={measure_end_x}, width={measure_width})")
-                
-                # CRITICAL FIX: Use LIVE start position for measure data (renderer will calculate final position)
-                # This ensures measure numbers appear in the correct measure boundaries and respond immediately
-                measure_data.append((measure_number, measure_start_x, measure_width))
+                    # Calculate from first_measure_barline_x using unit width
+                    # CRITICAL FIX: Use measure's position WITHIN the system, not global measure number
+                    # Estimate unit width from measures if available
+                    unit_width = 150.0  # Default
+                    if len(sorted_measures) > 1:
+                        try:
+                            first_meas = sorted_measures[0]
+                            last_meas = sorted_measures[-1]
+                            first_end = getattr(first_meas, 'end_x', 0)
+                            last_end = getattr(last_meas, 'end_x', 0)
+                            if last_end > first_end:
+                                unit_width = (last_end - first_end) / (len(sorted_measures) - 1)
+                        except Exception:
+                            pass
+                    
+                    # CRITICAL FIX: Calculate system-relative positions
+                    # Get the first measure number in this system to calculate offset
+                    first_measure_in_system = system_start_measure
+                    
+                    for i, measure in enumerate(sorted_measures):
+                        measure_number = getattr(measure, 'measure_number', i + 1)
+                        # Calculate position within system (0-based index)
+                        position_in_system = measure_number - first_measure_in_system
+                        measure_start_x = first_measure_barline_x + position_in_system * unit_width
+                        measure_end_x = first_measure_barline_x + (position_in_system + 1) * unit_width
+                        measure_width = measure_end_x - measure_start_x
+                        print(f"MEASURE_NUMBERS: Fallback calculation - measure {measure_number} (position {position_in_system} in system): start={measure_start_x}, end={measure_end_x}, width={measure_width}")
+                        measure_data.append((measure_number, measure_start_x, measure_width))
         
         if measure_data:
             print(f"MEASURE_NUMBERS: Calling renderer with {len(measure_data)} measures - LIVE coordinates")

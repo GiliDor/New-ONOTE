@@ -492,17 +492,8 @@ class ScoreDocument:
             staff_type = staff_data.get('staff_type', 'single_staff')
             
             if staff_type == 'single_staff':
-                staff = SingleStaff(
-                    instrument_id=staff_data.get('instrument_id', ''),
-                    instrument_name=staff_data.get('instrument_name', ''),
-                    instrument_abbr=staff_data.get('instrument_abbr', ''),
-                    clef=staff_data.get('clef', 'treble'),
-                    key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                    time_signature=staff_data.get('time_signature', '4/4')
-                )
-                # Set plugin if available
-                if 'plugin' in staff_data:
-                    staff.plugin = staff_data['plugin']
+                # CRITICAL: Use SingleStaff.from_dict() to restore custom_name and custom_abbr
+                staff = SingleStaff.from_dict(staff_data)
                 
                 # CRITICAL FIX: Assign display_order_index based on file position
                 # This ensures ungrouped staves maintain their original order relative to sections
@@ -516,41 +507,8 @@ class ScoreDocument:
                 
                 document.layout.add_staff(staff)
             elif staff_type == 'grand_staff':
-                # Handle grand staff
-                top_staff = SingleStaff(
-                    instrument_id=staff_data.get('instrument_id', ''),
-                    instrument_name=staff_data.get('instrument_name', ''),
-                    instrument_abbr=staff_data.get('instrument_abbr', ''),
-                    clef='treble',
-                    key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                    time_signature=staff_data.get('time_signature', '4/4')
-                )
-                
-                bottom_staff = SingleStaff(
-                    instrument_id=staff_data.get('instrument_id', ''),
-                    instrument_name=staff_data.get('instrument_name', ''),
-                    instrument_abbr=staff_data.get('instrument_abbr', ''),
-                    clef='bass',
-                    key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                    time_signature=staff_data.get('time_signature', '4/4')
-                )
-                
-                grand_staff = GrandStaff(
-                    instrument_id=staff_data.get('instrument_id', ''),
-                    instrument_name=staff_data.get('instrument_name', ''),
-                    instrument_abbr=staff_data.get('instrument_abbr', ''),
-                    clef=staff_data.get('clef', 'treble'),  # Grand staff default clef
-                    key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                    time_signature=staff_data.get('time_signature', '4/4'),
-                    top_staff=top_staff,
-                    bottom_staff=bottom_staff
-                )
-                
-                # Set plugin if available
-                if 'plugin' in staff_data:
-                    grand_staff.plugin = staff_data['plugin']
-                    top_staff.plugin = staff_data['plugin']
-                    bottom_staff.plugin = staff_data['plugin']
+                # CRITICAL: Use GrandStaff.from_dict() to restore custom_name and custom_abbr
+                grand_staff = GrandStaff.from_dict(staff_data)
                 
                 # CRITICAL FIX: Assign display_order_index based on file position
                 # This ensures ungrouped grand staves maintain their original order relative to sections
@@ -586,55 +544,12 @@ class ScoreDocument:
                 staff_type = staff_data.get('staff_type', 'single_staff')
                 
                 if staff_type == 'single_staff':
-                    staff = SingleStaff(
-                        instrument_id=staff_data.get('instrument_id', ''),
-                        instrument_name=staff_data.get('instrument_name', ''),
-                        instrument_abbr=staff_data.get('instrument_abbr', ''),
-                        clef=staff_data.get('clef', 'treble'),
-                        key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                        time_signature=staff_data.get('time_signature', '4/4')
-                    )
-                    # Set plugin if available
-                    if 'plugin' in staff_data:
-                        staff.plugin = staff_data['plugin']
+                    # CRITICAL: Use SingleStaff.from_dict() to restore custom_name and custom_abbr
+                    staff = SingleStaff.from_dict(staff_data)
                     document.layout.add_staff_to_section(staff, section_name)
                 elif staff_type == 'grand_staff':
-                    # Handle grand staff
-                    top_staff = SingleStaff(
-                        instrument_id=staff_data.get('instrument_id', ''),
-                        instrument_name=staff_data.get('instrument_name', ''),
-                        instrument_abbr=staff_data.get('instrument_abbr', ''),
-                        clef='treble',
-                        key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                        time_signature=staff_data.get('time_signature', '4/4')
-                    )
-                    
-                    bottom_staff = SingleStaff(
-                        instrument_id=staff_data.get('instrument_id', ''),
-                        instrument_name=staff_data.get('instrument_name', ''),
-                        instrument_abbr=staff_data.get('instrument_abbr', ''),
-                        clef='bass',
-                        key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                        time_signature=staff_data.get('time_signature', '4/4')
-                    )
-                    
-                    grand_staff = GrandStaff(
-                        instrument_id=staff_data.get('instrument_id', ''),
-                        instrument_name=staff_data.get('instrument_name', ''),
-                        instrument_abbr=staff_data.get('instrument_abbr', ''),
-                        clef=staff_data.get('clef', 'treble'),  # Grand staff default clef
-                        key=staff_data.get('key', 'C major / A minor (no sharps/flats)'),
-                        time_signature=staff_data.get('time_signature', '4/4'),
-                        top_staff=top_staff,
-                        bottom_staff=bottom_staff
-                    )
-                    
-                    # Set plugin if available
-                    if 'plugin' in staff_data:
-                        grand_staff.plugin = staff_data['plugin']
-                        top_staff.plugin = staff_data['plugin']
-                        bottom_staff.plugin = staff_data['plugin']
-                    
+                    # CRITICAL: Use GrandStaff.from_dict() to restore custom_name and custom_abbr
+                    grand_staff = GrandStaff.from_dict(staff_data)
                     document.layout.add_staff_to_section(grand_staff, section_name)
         
         # Restore notation data if present

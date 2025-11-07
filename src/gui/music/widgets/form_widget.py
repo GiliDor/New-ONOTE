@@ -702,18 +702,125 @@ class FormWidget(QWidget):
         # Install event filter on scroll content to catch clicks
         scroll_content.installEventFilter(self)
         
-        # ===== BARLINE TYPE SELECTION =====
-        type_group = QGroupBox("🎵 Barline Type")
-        type_layout = QVBoxLayout()
-        type_layout.setSpacing(6)  # Reduced spacing
-        
         # Create button group for barline types with improved layout
         self.barline_button_group = QButtonGroup(self)
         self.barline_button_group.setExclusive(True)
         
-        # Create radio buttons for each barline type with SMuFL symbols
-        barline_types = [
-            ("Single Barline", "single", "\uE030"),
+        # ===== SINGLE BARLINE (MEASURE-CREATING) =====
+        single_group = QGroupBox("📏 Create Measures")
+        single_group.setToolTip("Single barline creates new measures. This is the only barline type that creates measures.\n\nClick 'Single Barline' then click anywhere on the staff to create a new measure.")
+        single_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 11pt;
+                font-weight: bold;
+                color: #1976d2;
+                border: 2px solid #2196f3;
+                border-radius: 6px;
+                margin-top: 12px;
+                padding-top: 12px;
+                background-color: #f5f9ff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 4px;
+            }
+        """)
+        single_layout = QHBoxLayout()
+        single_layout.setSpacing(12)
+        single_layout.setContentsMargins(12, 12, 12, 12)
+        
+        # Single barline radio button with enhanced styling
+        single_radio = QRadioButton("Single Barline")
+        single_radio.setProperty("barline_type", "single")
+        single_radio.setToolTip("Click on staff to create new measures. Only single barlines create measures.")
+        single_radio.setStyleSheet("""
+            QRadioButton {
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 10pt;
+                font-weight: bold;
+                padding: 8px 12px;
+                border-radius: 4px;
+                color: #1976d2;
+            }
+            QRadioButton:hover {
+                background-color: #e3f2fd;
+            }
+            QRadioButton:checked {
+                background-color: #bbdefb;
+                color: #0d47a1;
+            }
+        """)
+        
+        # Single barline symbol
+        single_symbol = QLabel("\uE030")
+        single_symbol.setStyleSheet("""
+            QLabel {
+                font-family: 'Bravura', 'Arial Unicode MS', sans-serif;
+                font-size: 20px;
+                color: #1976d2;
+                padding: 6px;
+                border: 2px solid #2196f3;
+                border-radius: 4px;
+                background-color: #e3f2fd;
+                min-width: 35px;
+                min-height: 35px;
+                text-align: center;
+            }
+        """)
+        single_symbol.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        single_layout.addWidget(single_radio)
+        single_layout.addWidget(single_symbol)
+        single_layout.addStretch()
+        
+        self.barline_button_group.addButton(single_radio)
+        single_group.setLayout(single_layout)
+        scroll_layout.addWidget(single_group)
+        
+        # Install event filter on single group box
+        single_group.installEventFilter(self)
+        
+        # Visual separator with improved styling
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet("""
+            QFrame {
+                color: #e0e0e0;
+                background-color: #e0e0e0;
+                max-height: 3px;
+                margin: 8px 0px;
+            }
+        """)
+        separator.setMaximumHeight(3)
+        scroll_layout.addWidget(separator)
+        
+        # ===== OTHER BARLINE TYPES (OVERLAYS/MODIFIERS) =====
+        type_group = QGroupBox("🎵 Modify Existing Barlines")
+        type_group.setToolTip("These barline types modify existing single barlines.\n\n1. First click on a barline in the score to select it\n2. Then choose a barline type from below to modify it")
+        type_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 10pt;
+                font-weight: bold;
+                color: #424242;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                background-color: #fafafa;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }
+        """)
+        type_layout = QVBoxLayout()
+        type_layout.setSpacing(10)
+        
+        # Other barline types (excluding single)
+        other_barline_types = [
             ("Double Barline", "double", "\uE031"),
             ("Final Barline", "final", "\uE032"),
             ("Dashed Barline", "dashed", "\uE036"),
@@ -722,22 +829,23 @@ class FormWidget(QWidget):
             ("Repeat Both", "repeat_both", "\uE042")
         ]
         
-        # Create a more compact 3-column grid layout
+        # Create a 3-column grid layout for other types
         type_grid = QGridLayout()
-        type_grid.setSpacing(4)  # Reduced spacing
+        type_grid.setSpacing(6)
         
-        for i, (label, value, symbol) in enumerate(barline_types):
+        for i, (label, value, symbol) in enumerate(other_barline_types):
             radio = QRadioButton(f"{label}")
             radio.setProperty("barline_type", value)
+            radio.setToolTip(f"Select an existing barline first, then choose '{label}' to modify it")
             radio.setStyleSheet("""
                 QRadioButton {
                     font-family: 'Segoe UI', 'Arial', sans-serif;
-                    font-size: 8pt;  /* Smaller font */
-                    padding: 4px 6px;  /* Reduced padding */
+                    font-size: 9pt;
+                    padding: 5px 8px;
                     border-radius: 3px;
                 }
                 QRadioButton:hover {
-                    background-color: #e3f2fd;
+                    background-color: #f5f5f5;
                 }
             """)
             
@@ -746,18 +854,18 @@ class FormWidget(QWidget):
             symbol_label.setStyleSheet("""
                 QLabel {
                     font-family: 'Bravura', 'Arial Unicode MS', sans-serif;
-                    font-size: 14px;  /* Slightly smaller */
-                    color: #2c3e50;
-                    padding: 3px;  /* Reduced padding */
-                    border: 1px solid #e9ecef;
+                    font-size: 16px;
+                    color: #424242;
+                    padding: 4px;
+                    border: 1px solid #e0e0e0;
                     border-radius: 3px;
                     background-color: white;
-                    min-width: 25px;  /* Smaller width */
+                    min-width: 28px;
                     text-align: center;
                 }
             """)
             
-            # Add to grid (3 columns for more compact layout)
+            # Add to grid (3 columns)
             row = i // 3
             col = i % 3 * 2
             type_grid.addWidget(radio, row, col)
@@ -794,8 +902,11 @@ class FormWidget(QWidget):
         # Connect signals
         self.barline_button_group.buttonClicked.connect(self.on_barline_type_changed)
         
-        # Set default selection to Single
-        self.barline_button_group.buttons()[0].setChecked(True)
+        # Set default selection to Single (find the single barline button)
+        for button in self.barline_button_group.buttons():
+            if button.property("barline_type") == "single":
+                button.setChecked(True)
+                break
         
         type_group.setLayout(type_layout)
         scroll_layout.addWidget(type_group)
@@ -980,8 +1091,26 @@ class FormWidget(QWidget):
 
         # ===== BATCH OPERATIONS =====
         batch_group = QGroupBox("⚡ Batch Operations")
+        batch_group.setToolTip("Insert multiple measures at once. Useful for quickly setting up a score structure.")
+        batch_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 10pt;
+                font-weight: bold;
+                color: #2c3e50;
+                border: 1px solid #bdc3c7;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding-top: 10px;
+                background-color: #ffffff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }
+        """)
         batch_layout = QVBoxLayout()
-        batch_layout.setSpacing(8)  # Reduced spacing for more compact layout
+        batch_layout.setSpacing(10)
         
         # Batch measure insertion
         batch_measures_layout = QHBoxLayout()
@@ -1047,14 +1176,40 @@ class FormWidget(QWidget):
         self.tab_widget.addTab(tab, "🎵 Barlines")
 
     def on_barline_type_changed(self, button):
-        """Handle barline type selection changes"""
+        """Handle barline type selection changes
+        
+        ONOTE SPECIFICATION: When selecting a barline type radio button:
+        1. First deselect all radio buttons (cancel any previous selection)
+        2. Then select the new type (make the new selection)
+        This ensures that selecting a button counts as both 'clicking anywhere' (deselecting)
+        and making a new selection.
+        """
         barline_type = button.property("barline_type")
         print(f"FORM_WIDGET: on_barline_type_changed called with type: {barline_type}")
         
-        # CRITICAL FIX: Don't process during deselection
+        # CRITICAL FIX: Don't process during manual deselection (from clicking empty space)
         if hasattr(self, '_deselecting_radio_buttons') and self._deselecting_radio_buttons:
-            print(f"FORM_WIDGET: Deselecting radio buttons - NOT processing type change")
+            print(f"FORM_WIDGET: Manual deselection in progress - NOT processing type change")
             return
+        
+        # ONOTE SPEC: When selecting a new button, first deselect all (if any were selected)
+        # Then proceed with the new selection
+        if hasattr(self, '_selecting_new_button'):
+            # We're already in the selection flow, proceed
+            pass
+        else:
+            # Check if any button was previously selected
+            any_selected = any(btn.isChecked() for btn in self.barline_button_group.buttons() if btn != button)
+            if any_selected:
+                print(f"FORM_WIDGET: Previous selection detected - deselecting all before selecting new type")
+                # Mark that we're selecting a new button (not manually deselecting)
+                self._selecting_new_button = True
+                # Temporarily deselect all except the new one
+                for btn in self.barline_button_group.buttons():
+                    if btn != button and btn.isChecked():
+                        btn.setChecked(False)
+                # Clear the flag so normal processing continues
+                self._selecting_new_button = False
         
         # Update preview
         self.update_barline_preview()
@@ -2764,11 +2919,19 @@ class FormWidget(QWidget):
 
     
     def _is_interactive_widget(self, widget):
-        """Check if a widget is interactive (should not trigger deselection)"""
+        """Check if a widget is interactive (should not trigger deselection)
+        
+        ONOTE SPECIFICATION: Radio buttons are interactive controls, so clicking them
+        should NOT trigger deselection. Instead, clicking a radio button selects it
+        (QButtonGroup handles deselecting the previous one automatically due to exclusive mode).
+        Only clicking empty space should trigger deselection of all radio buttons.
+        """
         if not widget:
             return False
             
         # Check if it's an interactive control
+        # Radio buttons: clicking them selects them (doesn't deselect all)
+        # Other controls: clicking them performs their action (doesn't deselect all)
         if isinstance(widget, (QRadioButton, QSpinBox, QCheckBox, QPushButton, QComboBox)):
             return True
             

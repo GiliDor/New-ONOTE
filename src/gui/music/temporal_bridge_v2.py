@@ -210,16 +210,17 @@ class TemporalBridgeV2(QObject):
         return None
     
     def _check_creation_constraints(self) -> bool:
-        """Check if new barlines can be created"""
-        current_count = len(self.temporal_grid.measures)
-        max_measures = self.temporal_grid.grid_settings.measures_per_system
+        """
+        Check if new barlines can be created.
         
-        if current_count >= max_measures:
-            print(f"TEMPORAL_BRIDGE_V2: Cannot create more barlines - at maximum {max_measures} measures per system")
-            print(f"  Current: {current_count} measures, Max: {max_measures}")
-            # TODO: Implement system wrapping/pagination
-            return False
-        
+        ONOTE SPECIFICATION: Measures per system constraint should force wrapping,
+        not prevent creation. When MPS is exceeded, the system should wrap to the
+        next line automatically. This method now always allows creation - wrapping
+        is handled by _recalculate_systems().
+        """
+        # Always allow creation - wrapping will be handled automatically by system recalculation
+        # The temporal grid's _recalculate_systems() will group measures into systems
+        # based on measures_per_system, forcing wrapping when exceeded
         return True
     
     def _convert_to_document_measure(self, temporal_measure: TemporalGridMeasure) -> MeasureObject:
@@ -302,6 +303,11 @@ class TemporalBridgeV2(QObject):
         Calculate justified positions implementing ONOTE Rule 1:
         "Inserting a bar line anywhere in the staff equally divides the full page wide 
         staff length from margin to margin by the score's last barline index"
+        
+        ONOTE SPECIFICATION - Rule 1:
+        - ENS (Effective Notation Space) = Staff length - (clef + key signature + time signature offsets)
+        - Measure width = ENS / highest_barline_index
+        - Equal division regardless of click position within measure
         """
         if total_measures <= 0:
             return []
@@ -309,14 +315,24 @@ class TemporalBridgeV2(QObject):
         if total_measures == 1:
             return [self.END_BARLINE_X]
         
-        # Calculate equal spacing
-        total_notation_space = self.END_BARLINE_X - self.LEFTMOST_NOTE_X
-        notation_space_per_measure = total_notation_space / total_measures
+        # Calculate ENS (Effective Notation Space)
+        # ENS starts after clef/key/time signature offsets (LEFTMOST_NOTE_X)
+        # and ends at staff end (END_BARLINE_X)
+        ens_start = self.LEFTMOST_NOTE_X
+        ens_end = self.END_BARLINE_X
+        total_ens = ens_end - ens_start
+        
+        # Rule 1: Equal division - divide ENS equally by total number of measures
+        # The highest barline index equals total_measures (since we number from 1)
+        ens_per_measure = total_ens / total_measures
         
         positions = []
         for i in range(total_measures):
-            position = self.LEFTMOST_NOTE_X + (i + 1) * notation_space_per_measure
+            # Position barline i+1 at: ENS_start + (i+1) * ENS_per_measure
+            position = ens_start + (i + 1) * ens_per_measure
             positions.append(position)
+        
+        print(f"TEMPORAL_BRIDGE_V2: Rule 1 - ENS={total_ens:.1f}, measures={total_measures}, ENS_per_measure={ens_per_measure:.1f}")
         
         return positions
     
