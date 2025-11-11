@@ -1506,7 +1506,7 @@ class StaffView(QWidget):
         if getattr(self, 'show_selection_overlay', False):
             self._draw_selected_barline_overlay(painter)
         
-        # Don't schedule size updates during paint events - causes flickering
+        # Don't schedule size updates during paint - causes flickering
         # Size updates should only happen when content actually changes, not on every paint
     
     def _render_continuous_mode(self, painter, viewport_rect, is_in_setup):
@@ -1539,7 +1539,7 @@ class StaffView(QWidget):
 
         painter.restore()
         
-        # Don't schedule size updates during paint events - causes flickering
+        # Don't schedule size updates during paint - causes flickering
         # Size updates should only happen when content actually changes, not on every paint
     
     def _render_page_across_mode(self, painter, viewport_rect, is_in_setup):
@@ -1574,7 +1574,8 @@ class StaffView(QWidget):
         new_total = max(1, self._calculate_total_pages())
         if old_total != new_total:
             self.total_pages = new_total
-            # Schedule size update after paint completes (use longer delay to prevent flickering)
+            # Schedule size update after paint completes (don't do it during paint)
+            # Use a longer delay to prevent flickering
             QTimer.singleShot(100, self.schedule_size_update)
         else:
             self.total_pages = new_total
@@ -1631,7 +1632,8 @@ class StaffView(QWidget):
         new_total = max(1, self._calculate_total_pages())
         if old_total != new_total:
             self.total_pages = new_total
-            # Schedule size update after paint completes (use longer delay to prevent flickering)
+            # Schedule size update after paint completes (don't do it during paint)
+            # Use a longer delay to prevent flickering
             QTimer.singleShot(100, self.schedule_size_update)
         else:
             self.total_pages = new_total
