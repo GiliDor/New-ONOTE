@@ -727,6 +727,9 @@ class FullScoreOptionsDialog(QDialog):
         
     def setup_layout_tab(self):
         """Set up the Layout tab with document-specific layout options"""
+        from PyQt6.QtCore import QSettings
+        preferences_settings = QSettings("ONOTE", "Preferences")
+        
         layout = QVBoxLayout(self.layout_tab)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
@@ -769,11 +772,10 @@ class FullScoreOptionsDialog(QDialog):
         # Measures per System (document-specific)  
         self.measures_system_spin = QSpinBox()
         self.measures_system_spin.setRange(1, 12)
-        # CRITICAL FIX: Always load initial value from Preferences for consistency
-        from PyQt6.QtCore import QSettings
-        preferences_settings = QSettings("ONOTE", "Preferences")
-        default_measures_per_system = int(preferences_settings.value("layout/default_measures_per_system", 4))
-        self.measures_system_spin.setValue(default_measures_per_system)
+        # CRITICAL FIX: Block signals during initialization to prevent corrupting document settings
+        self.measures_system_spin.blockSignals(True)
+        self.measures_system_spin.setValue(4)  # Safe default, will be overwritten by load_settings()
+        self.measures_system_spin.blockSignals(False)
         self.measures_system_spin.setSpecialValueText("Auto")
         self.measures_system_spin.setToolTip("Number of measures per system (0 = automatic)")
         doc_layout_layout.addRow("Measures per System:", self.measures_system_spin)
@@ -781,9 +783,10 @@ class FullScoreOptionsDialog(QDialog):
         # System Spacing (document-specific)
         self.doc_system_spacing = QSpinBox()
         self.doc_system_spacing.setRange(40, 200)
-        # CRITICAL FIX: Always load initial value from Preferences for consistency
-        default_system_spacing = int(preferences_settings.value("layout/default_system_spacing", 80))
-        self.doc_system_spacing.setValue(default_system_spacing)
+        # CRITICAL FIX: Block signals during initialization, use neutral default
+        self.doc_system_spacing.blockSignals(True)
+        self.doc_system_spacing.setValue(80)  # Neutral default, will be overwritten by load_settings()
+        self.doc_system_spacing.blockSignals(False)
         self.doc_system_spacing.setSuffix(" px")
         self.doc_system_spacing.setToolTip("Vertical spacing between systems in this document")
         doc_layout_layout.addRow("System Spacing:", self.doc_system_spacing)
@@ -813,9 +816,10 @@ class FullScoreOptionsDialog(QDialog):
         # Staff Spacing (document-specific)
         self.doc_staff_spacing = QSpinBox()
         self.doc_staff_spacing.setRange(20, 120)
-        # CRITICAL FIX: Always load initial value from Preferences for consistency
-        default_staff_spacing = int(preferences_settings.value("layout/default_staff_spacing", 40))
-        self.doc_staff_spacing.setValue(default_staff_spacing)
+        # CRITICAL FIX: Block signals during initialization, use neutral default
+        self.doc_staff_spacing.blockSignals(True)
+        self.doc_staff_spacing.setValue(40)  # Neutral default, will be overwritten by load_settings()
+        self.doc_staff_spacing.blockSignals(False)
         self.doc_staff_spacing.setSuffix(" px")
         self.doc_staff_spacing.setToolTip("Vertical spacing between individual staves within the score-system")
         doc_layout_layout.addRow("Staff Spacing:", self.doc_staff_spacing)
@@ -823,11 +827,10 @@ class FullScoreOptionsDialog(QDialog):
         # Grand Staff Spacing (document-specific)
         self.doc_grand_staff_spacing = QSpinBox()
         self.doc_grand_staff_spacing.setRange(8, 160)
-        try:
-            default_grand_spacing = int(preferences_settings.value("layout/default_grand_staff_spacing", 32))
-        except Exception:
-            default_grand_spacing = 32
-        self.doc_grand_staff_spacing.setValue(default_grand_spacing)
+        # CRITICAL FIX: Block signals during initialization, use neutral default
+        self.doc_grand_staff_spacing.blockSignals(True)
+        self.doc_grand_staff_spacing.setValue(32)  # Neutral default, will be overwritten by load_settings()
+        self.doc_grand_staff_spacing.blockSignals(False)
         self.doc_grand_staff_spacing.setSuffix(" px")
         self.doc_grand_staff_spacing.setToolTip("Minimum spacing between treble and bass within a grand staff (auto-expands if needed)")
         doc_layout_layout.addRow("Grand Staff Spacing:", self.doc_grand_staff_spacing)
@@ -3692,6 +3695,8 @@ class FullScoreOptionsDialog(QDialog):
             
         except Exception as e:
             print(f"FULL_SCORE_OPTIONS: Error loading settings: {e}")
+            import traceback
+            traceback.print_exc()
     
     def on_measure_numbers_frequency_changed(self, text):
         """Show/hide custom interval controls based on frequency selection"""

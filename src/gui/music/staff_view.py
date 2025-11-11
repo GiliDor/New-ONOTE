@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
                            QTabWidget, QSizePolicy, QFrame, QLineEdit, QTreeWidgetItem,
                            QApplication, QCheckBox, QGroupBox, QScrollArea, QGridLayout,
                            QButtonGroup, QRadioButton)
-from PyQt6.QtCore import Qt, QRectF, QPointF, QRect, QPoint, QTimer, QObject, QEvent
+from PyQt6.QtCore import Qt, QRectF, QPointF, QRect, QPoint, QTimer, QObject, QEvent, QSize
 from PyQt6.QtGui import QPainter, QPen, QColor, QFont, QPainterPath, QBrush, QFontMetrics, QKeyEvent
 from PyQt6.QtWidgets import QPinchGesture
 from PyQt6.QtCore import pyqtSignal
@@ -380,6 +380,11 @@ class StaffView(QWidget):
         self.current_page = 0
         self.total_pages = 1
         
+        # WIDGET SIZE UPDATE: Timer for debounced size updates (prevents flicker)
+        self._size_update_timer = QTimer(self)
+        self._size_update_timer.setSingleShot(True)
+        self._size_update_timer.timeout.connect(self._update_widget_size)
+        
         # PAGE POSITIONING: Make pages moveable within window
         self.page_offset_x = 0.0  # Horizontal offset for page positioning
         self.page_offset_y = 0.0  # Vertical offset for page positioning
@@ -492,6 +497,9 @@ class StaffView(QWidget):
             document.temporal_bridge = self.temporal_bridge
             # CRITICAL FIX: Don't create initial measure automatically - wait for user interaction
             print("STAFFVIEW: Updated temporal bridge with new document reference")
+        # Set widget size immediately and schedule update for future changes
+        self._update_widget_size()
+        self.schedule_size_update()  # Also schedule for future updates
         self.update()
         
     def setup_ui(self):
@@ -954,7 +962,7 @@ class StaffView(QWidget):
                     # New: Immediately refresh measure number settings and repaint so positions are correct without user click
                     if hasattr(self.renderer, 'measure_number_manager') and self.renderer.measure_number_manager:
                         try:
-                            self.renderer.measure_number_manager.refresh_settings()
+                            self.renderer.measure_number_manager.refresh_settings(self.renderer)
                             print("STAFFVIEW: Refreshed measure number settings on enter_edit_mode")
                         except Exception as e:
                             print(f"STAFFVIEW: Error refreshing measure number settings: {e}")
@@ -1497,6 +1505,9 @@ class StaffView(QWidget):
         # already highlights selected barlines at their exact staff heights.
         if getattr(self, 'show_selection_overlay', False):
             self._draw_selected_barline_overlay(painter)
+        
+        # Don't schedule size updates during paint events - causes flickering
+        # Size updates should only happen when content actually changes, not on every paint
     
     def _render_continuous_mode(self, painter, viewport_rect, is_in_setup):
         """True continuous mode: no pages/margins/wrap. Horizontal lane only."""
@@ -1527,10 +1538,24 @@ class StaffView(QWidget):
             print(f"CONTINUOUS: renderer.render_continuous fallback error: {e}")
 
         painter.restore()
+        
+        # Don't schedule size updates during paint events - causes flickering
+        # Size updates should only happen when content actually changes, not on every paint
     
     def _render_page_across_mode(self, painter, viewport_rect, is_in_setup):
         """Render multiple pages side by side"""
         print("PAGE_RENDER: Rendering in page across mode")
+        
+        # Safety check: ensure renderer exists
+        if not hasattr(self, 'renderer') or self.renderer is None:
+            print("PAGE_RENDER ERROR: Renderer not available")
+            return
+        
+        # Ensure page_across_mode is set on renderer
+        if hasattr(self.renderer, 'set_page_across_mode'):
+            # Ensure page_across_mode is enabled (but don't call if already set to avoid recursion)
+            if not getattr(self.renderer, 'page_across_mode', False):
+                self.renderer.set_page_across_mode(True)
         
         # Use renderer/document page size instead of hardcoded A4
         MM_TO_PIXELS = 3.78  # Standard conversion at 96 DPI
@@ -1540,15 +1565,24 @@ class StaffView(QWidget):
         
         # Calculate how many pages fit horizontally
         available_width = viewport_rect.width()
+        if available_width <= 0:
+            available_width = 800  # Fallback width
         pages_per_row = max(1, int(available_width / ((base_page_width + page_margin) * self.zoom_factor)))
         
-        # Get total number of pages needed
-        total_pages = self._calculate_total_pages()
+        # Get total number of pages needed and detect changes
+        old_total = getattr(self, 'total_pages', 1)
+        new_total = max(1, self._calculate_total_pages())
+        if old_total != new_total:
+            self.total_pages = new_total
+            # Schedule size update after paint completes (use longer delay to prevent flickering)
+            QTimer.singleShot(100, self.schedule_size_update)
+        else:
+            self.total_pages = new_total
         
         # Calculate rows needed
-        rows_needed = (total_pages + pages_per_row - 1) // pages_per_row
+        rows_needed = (self.total_pages + pages_per_row - 1) // pages_per_row
         
-        for page_index in range(total_pages):
+        for page_index in range(self.total_pages):
             row = page_index // pages_per_row
             col = page_index % pages_per_row
             
@@ -1576,16 +1610,31 @@ class StaffView(QWidget):
             self.renderer.set_margins(base_margins)
             if hasattr(self.renderer, 'current_page'):
                 self.renderer.current_page = page_index
+            # page_down_mode is already set to True by set_page_across_mode() for pagination filtering
+            # No need to call set_page_down_mode() here as it would disable page_across_mode
             mode = 'setup' if is_in_setup else 'edit'
             self.renderer.render_score(painter, page_rect, mode)
+            
+            # Footer page number
+            painter.setPen(QColor(100, 100, 100))
+            painter.setFont(QFont("Arial", 10))
+            painter.drawText(page_rect, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, f"Page {page_index + 1}/{self.total_pages}")
+            
             painter.restore()
     
     def _render_page_down_mode(self, painter, viewport_rect, is_in_setup):
         """Render pages stacked vertically so scrolling reveals additional pages"""
         print("PAGE_RENDER: Rendering in page down mode")
 
-        # Ensure total_pages is up to date
-        self.total_pages = max(1, self._calculate_total_pages())
+        # Ensure total_pages is up to date (but don't resize during paint - causes flicker)
+        old_total = getattr(self, 'total_pages', 1)
+        new_total = max(1, self._calculate_total_pages())
+        if old_total != new_total:
+            self.total_pages = new_total
+            # Schedule size update after paint completes (use longer delay to prevent flickering)
+            QTimer.singleShot(100, self.schedule_size_update)
+        else:
+            self.total_pages = new_total
         if self.current_page >= self.total_pages:
             self.current_page = self.total_pages - 1
 
@@ -1599,7 +1648,8 @@ class StaffView(QWidget):
         page_x = (viewport_rect.width() - int(base_page_width * self.zoom_factor)) // 2
         start_y = int(self.page_offset_y * self.zoom_factor)
 
-        # Render each page stacked vertically
+        # CRITICAL FIX: Render ALL pages stacked vertically for scrolling (not just current page)
+        # This allows the scroll area to show any page based on scroll position
         for page_index in range(self.total_pages):
             painter.save()
             offset_y = start_y + int(page_index * (base_page_height + page_margin) * self.zoom_factor)
@@ -1622,13 +1672,16 @@ class StaffView(QWidget):
             self.renderer.set_margins(base_margins)
             if hasattr(self.renderer, 'current_page'):
                 self.renderer.current_page = page_index
+            # Set page_down_mode for renderer filtering
+            if hasattr(self.renderer, 'set_page_down_mode'):
+                self.renderer.set_page_down_mode(True)
             mode = 'setup' if is_in_setup else 'edit'
             self.renderer.render_score(painter, page_rect, mode)
 
             # Footer page number
             painter.setPen(QColor(100, 100, 100))
             painter.setFont(QFont("Arial", 10))
-            painter.drawText(page_rect, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, f"Page {page_index + 1}")
+            painter.drawText(page_rect, Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignCenter, f"Page {page_index + 1}/{self.total_pages}")
             painter.restore()
     
     def _render_single_page(self, painter, page_rect, page_num, is_in_setup):
@@ -1680,8 +1733,17 @@ class StaffView(QWidget):
         mps = max(1, min(32, mps))
 
         # Systems per page from vertical spacing and margins
+        # CRITICAL FIX: Use wrapping_spacing (same as rendering) for pagination calculation
         try:
-            spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+            wrapping_spacing = 80  # Default
+            if hasattr(self.document, 'settings') and self.document.settings:
+                doc_wrapping_spacing = self.document.settings.get('layout/wrapping_spacing', 0) or 0
+                if doc_wrapping_spacing > 0:
+                    wrapping_spacing = int(doc_wrapping_spacing)
+            if wrapping_spacing <= 0:
+                wrapping_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_wrapping_spacing", 80))
+            wrapping_spacing = max(40, min(200, int(wrapping_spacing)))
+            spacing = wrapping_spacing  # Use wrapping_spacing for single staff systems
         except Exception:
             spacing = 80
         try:
@@ -1696,6 +1758,226 @@ class StaffView(QWidget):
         total_systems = (measure_count + mps - 1) // mps if measure_count > 0 else 1
         total_pages = max(1, (total_systems + systems_per_page - 1) // systems_per_page)
         return total_pages
+    
+    def sizeHint(self):
+        """Return the recommended size for the widget based on view mode"""
+        # Get view mode
+        view_mode = self.renderer.get_view_mode() if hasattr(self.renderer, 'get_view_mode') else "page_down"
+        
+        MM_TO_PIXELS = 3.78  # 96 DPI
+        base_page_width = getattr(self.renderer, 'page_width', int(210 * MM_TO_PIXELS))
+        base_page_height = getattr(self.renderer, 'page_height', int(297 * MM_TO_PIXELS))
+        
+        if view_mode == "page_down" or self.is_setup_mode:
+            # In page-down mode, widget should be tall enough for all pages stacked vertically
+            page_margin = 20  # gap between stacked pages
+            
+            # Use cached total_pages if available, otherwise calculate
+            if not hasattr(self, 'total_pages'):
+                self.total_pages = max(1, self._calculate_total_pages())
+            
+            # Calculate total height: all pages + margins between them + some padding
+            total_height = int(self.total_pages * (base_page_height + page_margin) * self.zoom_factor)
+            total_width = int(base_page_width * self.zoom_factor)
+            
+            # Add some padding for scrolling
+            total_height += 100
+            
+            return QSize(total_width, total_height)
+        
+        elif view_mode == "continuous":
+            # In continuous mode, calculate width based on total content width
+            # Get total measures to calculate content width
+            if not hasattr(self, 'document') or not self.document:
+                return QSize(2000, 1200)  # Default wide size
+            
+            try:
+                # Try to get actual measure positions from temporal bridge for accurate width
+                content_width = 2000  # Default minimum width
+                if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
+                    try:
+                        measures = self.temporal_bridge._get_current_measures()
+                        if measures and len(measures) > 0:
+                            # Find the rightmost measure end position
+                            max_x = 0
+                            for measure in measures:
+                                if hasattr(measure, 'end_x') and measure.end_x:
+                                    max_x = max(max_x, float(measure.end_x))
+                            if max_x > 0:
+                                content_width = max_x + 200  # Add padding
+                    except Exception as e:
+                        print(f"SIZEHINT_CONTINUOUS_BRIDGE_ERROR: {e}")
+                
+                # Fallback: calculate from measure count if bridge didn't work
+                if content_width == 2000:
+                    measures = getattr(self.document, 'measures', [])
+                    measure_count = len([m for m in measures if hasattr(m, 'is_user_created') and m.is_user_created])
+                    
+                    if measure_count > 0:
+                        # Get measures per system from settings
+                        mps = int(QSettings("ONOTE", "Preferences").value("layout/measures_per_line", 4))
+                        if mps <= 0:
+                            mps = 4
+                        
+                        # Calculate content width: measures spread across systems
+                        # Each measure is approximately 150px wide (adjust based on your actual measure width)
+                        measure_width = 150  # Approximate measure width in pixels
+                        systems_needed = (measure_count + mps - 1) // mps if measure_count > 0 else 1
+                        content_width = systems_needed * mps * measure_width + 200
+                
+                # Apply zoom and ensure minimum width
+                total_width = max(2000, int(content_width * self.zoom_factor))
+                total_height = int(base_page_height * self.zoom_factor) + 200
+                
+                return QSize(total_width, total_height)
+            except Exception as e:
+                print(f"SIZEHINT_CONTINUOUS_ERROR: {e}")
+                return QSize(2000, 1200)
+        
+        elif view_mode == "page_across":
+            # In page-across mode, calculate size based on grid layout
+            page_margin = 20  # Space between pages
+            
+            # Use cached total_pages if available, otherwise calculate
+            if not hasattr(self, 'total_pages'):
+                self.total_pages = max(1, self._calculate_total_pages())
+            
+            # Calculate how many pages fit horizontally (based on viewport, but we'll use a reasonable default)
+            # The actual pages_per_row will be calculated during paint, but for sizeHint we estimate
+            pages_per_row = 3  # Default estimate
+            
+            # Calculate rows needed
+            rows_needed = (self.total_pages + pages_per_row - 1) // pages_per_row
+            
+            # Calculate total dimensions
+            total_width = int(pages_per_row * (base_page_width + page_margin) * self.zoom_factor) + 100
+            total_height = int(rows_needed * (base_page_height + page_margin) * self.zoom_factor) + 100
+            
+            return QSize(total_width, total_height)
+        
+        else:
+            # For unknown modes, use default size
+            return super().sizeHint() if hasattr(super(), 'sizeHint') else QSize(800, 1200)
+    
+    def schedule_size_update(self):
+        """Schedule a widget size update (debounced to prevent flicker)"""
+        # Stop any pending timer and start a new one (debounce)
+        if hasattr(self, '_size_update_timer'):
+            self._size_update_timer.stop()
+            self._size_update_timer.start(100)  # 100ms debounce
+    
+    def _update_widget_size(self):
+        """Update widget size when content changes (called outside of paint events)"""
+        print(f"_UPDATE_WIDGET_SIZE: Called! document={self.document is not None}, renderer={self.renderer is not None}")
+        try:
+            old_total_pages = getattr(self, 'total_pages', 1)
+            self.total_pages = max(1, self._calculate_total_pages())
+            
+            # Always update size to ensure scroll area recognizes it
+            size_hint = self.sizeHint()
+            print(f"WIDGET_SIZE_DEBUG: sizeHint() returned {size_hint}, isValid={size_hint.isValid() if size_hint else False}")
+            
+            if not size_hint or not size_hint.isValid():
+                # Fallback: calculate size manually
+                MM_TO_PIXELS = 3.78
+                base_page_width = getattr(self.renderer, 'page_width', int(210 * MM_TO_PIXELS))
+                base_page_height = getattr(self.renderer, 'page_height', int(297 * MM_TO_PIXELS))
+                page_margin = 20
+                total_height = int(self.total_pages * (base_page_height + page_margin) * self.zoom_factor) + 100
+                total_width = int(base_page_width * self.zoom_factor)
+                size_hint = QSize(total_width, total_height)
+                print(f"WIDGET_SIZE_DEBUG: Using fallback size {size_hint.width()}x{size_hint.height()}")
+            
+            old_size = self.size()
+            self.setMinimumSize(size_hint)
+            self.resize(size_hint)
+            self.updateGeometry()
+            
+            # Debug output
+            print(f"WIDGET_SIZE: Setting widget size to {size_hint.width()}x{size_hint.height()} for {self.total_pages} pages (was {old_size.width()}x{old_size.height()})")
+            
+            # Check if scroll area parent exists and update scrollbar ranges
+            parent = self.parent()
+            if parent and hasattr(parent, 'verticalScrollBar'):
+                from PyQt6.QtWidgets import QScrollArea
+                if isinstance(parent, QScrollArea):
+                    vbar = parent.verticalScrollBar()
+                    hbar = parent.horizontalScrollBar()
+                    if vbar:
+                        viewport_height = parent.viewport().height() if parent.viewport() else 600
+                        # Set scrollbar range to match widget size (widget height - viewport height = max scroll)
+                        max_scroll = max(0, size_hint.height() - viewport_height)
+                        vbar.setMaximum(max_scroll)
+                        vbar.setPageStep(viewport_height)
+                        vbar.setSingleStep(20)  # Smooth scrolling step
+                        vbar.setEnabled(max_scroll > 0)  # Enable scrollbar only if scrolling is possible
+                        print(f"SCROLL_DEBUG: Widget height={size_hint.height()}, viewport height={viewport_height}, scrollbar max={vbar.maximum()}, pageStep={vbar.pageStep()}, current={vbar.value()}, enabled={vbar.isEnabled()}")
+                    if hbar:
+                        viewport_width = parent.viewport().width() if parent.viewport() else 800
+                        max_h_scroll = max(0, size_hint.width() - viewport_width)
+                        hbar.setMaximum(max_h_scroll)
+                        hbar.setPageStep(viewport_width)
+                        hbar.setSingleStep(20)
+                        hbar.setEnabled(max_h_scroll > 0)
+                    # Force scroll area to update
+                    parent.updateGeometry()
+            else:
+                print(f"SCROLL_DEBUG: No scroll area parent found (parent={parent}, type={type(parent) if parent else None})")
+            
+            # Trigger a repaint after resize
+            QTimer.singleShot(0, self.update)
+        except Exception as e:
+            print(f"WIDGET_SIZE_ERROR: Exception in _update_widget_size: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def updateGeometry(self):
+        """Update widget geometry when total pages changes"""
+        super().updateGeometry()
+        # Notify parent scroll area that size changed (important for scrolling)
+        parent = self.parent()
+        if parent and hasattr(parent, 'updateGeometry'):
+            parent.updateGeometry()
+    
+    def next_page(self):
+        """Navigate to the next page"""
+        self.update_total_pages()
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            # Sync renderer current_page
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'current_page'):
+                self.renderer.current_page = self.current_page
+            print(f"PAGE_NAV: Moved to next page: {self.current_page + 1}/{self.total_pages}")
+            self.update()
+            return True
+        return False
+    
+    def previous_page(self):
+        """Navigate to the previous page"""
+        self.update_total_pages()
+        if self.current_page > 0:
+            self.current_page -= 1
+            # Sync renderer current_page
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'current_page'):
+                self.renderer.current_page = self.current_page
+            print(f"PAGE_NAV: Moved to previous page: {self.current_page + 1}/{self.total_pages}")
+            self.update()
+            return True
+        return False
+    
+    def update_total_pages(self):
+        """Recalculate total pages and adjust current_page if needed"""
+        old_total = self.total_pages
+        self.total_pages = max(1, self._calculate_total_pages())
+        if self.current_page >= self.total_pages:
+            self.current_page = max(0, self.total_pages - 1)
+            # Sync renderer current_page
+            if hasattr(self, 'renderer') and hasattr(self.renderer, 'current_page'):
+                self.renderer.current_page = self.current_page
+        if old_total != self.total_pages:
+            print(f"PAGE_NAV: Total pages updated: {old_total} -> {self.total_pages}")
+            # Schedule widget size update (debounced to prevent flicker)
+            self.schedule_size_update()
     
     def draw_selected_barlines(self, painter):
         """Draw orange highlighting for selected barlines"""
@@ -1874,8 +2156,10 @@ class StaffView(QWidget):
         """Handle mouse press for gesture tracking, page dragging, and barline creation"""
         print(f"MOUSE_PRESS: Button {event.button()} at position {event.position()}")
         
-        # CRITICAL: Ensure this widget has focus to receive key events
-        self.setFocus()
+        # Only set focus on left click (for barline operations), not on other interactions
+        # This allows scroll area to handle scrolling without interference
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.setFocus()
         
         # Track gesture start
         if event.button() == Qt.MouseButton.LeftButton:
@@ -1978,16 +2262,12 @@ class StaffView(QWidget):
                     self.deselect_all_barlines()
                 # Shift-click outside: do nothing (preserve current selection)
             
-            # AFTER barline operations: Set up page dragging ONLY if no barline operation occurred
+            # AFTER barline operations: Page dragging disabled by default to allow normal scrolling
+            # This allows two-finger trackpad scrolling to work without interference
+            # Users can scroll normally with trackpad/arrow keys
             if not barline_operation_occurred:
-                self.gesture_start_pos = event.position()
-                self.gesture_start_zoom = self.zoom_factor
-                self.is_gesturing = False
-                
-                # Start page dragging
-                self.is_dragging_page = True
-                self.drag_start_pos = event.position()
-                self.drag_start_offset = QPointF(self.page_offset_x, self.page_offset_y)
+                self.gesture_start_pos = None
+                self.is_dragging_page = False
             else:
                 print("BARLINE_OPERATION: Barline operation occurred, skipping page dragging setup")
         
@@ -2053,12 +2333,31 @@ class StaffView(QWidget):
         super().mouseDoubleClickEvent(event)
     
     def keyPressEvent(self, event):
-        """Handle key press events"""
+        """Handle key press events - arrow keys scroll, Page Up/Down navigate pages"""
         print(f"KEYPRESS: Received key event: {event.key()}, focus: {self.hasFocus()}, keyboard grabbed: {getattr(self, '_keyboard_grabbed', False)}")
         
-        # Arrow-key navigation for scrolling when embedded in a scroll area
+        # Get current view mode
         try:
-            if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
+            view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') and hasattr(self.renderer, 'get_view_mode') else 'page_down'
+        except Exception:
+            view_mode = 'page_down'
+        
+        # Page navigation with Page Up/Page Down keys (word processor style)
+        if view_mode in ('page_down', 'page_across'):
+            if event.key() == Qt.Key.Key_PageUp:
+                # Previous page
+                if self.previous_page():
+                    event.accept()
+                    return
+            elif event.key() == Qt.Key.Key_PageDown:
+                # Next page
+                if self.next_page():
+                    event.accept()
+                    return
+        
+        # Arrow keys always scroll (word processor style) - never change pages
+        if event.key() in (Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Left, Qt.Key.Key_Right):
+            try:
                 from PyQt6.QtWidgets import QAbstractScrollArea
                 # Find an ancestor scroll area if present
                 parent = self.parent()
@@ -2071,29 +2370,43 @@ class StaffView(QWidget):
                 if scroll_area is not None:
                     vbar = scroll_area.verticalScrollBar()
                     hbar = scroll_area.horizontalScrollBar()
-                    step = int(40 * self.zoom_factor)
+                    # Smooth scrolling step (word processor style)
+                    step = int(20 * self.zoom_factor)  # Smaller step for smoother scrolling
                     if event.key() == Qt.Key.Key_Up and vbar is not None:
-                        vbar.setValue(vbar.value() - step)
+                        old_val = vbar.value()
+                        new_val = max(0, old_val - step)
+                        vbar.setValue(new_val)
+                        print(f"ARROW_UP: Scrollbar value {old_val} -> {new_val} (max={vbar.maximum()})")
                         event.accept()
                         return
                     if event.key() == Qt.Key.Key_Down and vbar is not None:
-                        vbar.setValue(vbar.value() + step)
+                        old_val = vbar.value()
+                        new_val = min(vbar.maximum(), old_val + step)
+                        vbar.setValue(new_val)
+                        print(f"ARROW_DOWN: Scrollbar value {old_val} -> {new_val} (max={vbar.maximum()})")
                         event.accept()
                         return
                     if event.key() == Qt.Key.Key_Left and hbar is not None:
-                        hbar.setValue(hbar.value() - step)
+                        old_val = hbar.value()
+                        new_val = max(0, old_val - step)
+                        hbar.setValue(new_val)
                         event.accept()
                         return
                     if event.key() == Qt.Key.Key_Right and hbar is not None:
-                        hbar.setValue(hbar.value() + step)
+                        old_val = hbar.value()
+                        new_val = min(hbar.maximum(), old_val + step)
+                        hbar.setValue(new_val)
                         event.accept()
                         return
+                    # If we get here, arrow key wasn't handled (scrollbar might be None)
+                    print(f"ARROW_KEY: Scroll area found but arrow key not handled (key={event.key()}, vbar={vbar}, hbar={hbar})")
                 else:
                     # No scroll area found - ensure widget can receive focus for arrow keys
+                    print(f"ARROW_KEY: No scroll area found")
                     if not self.hasFocus():
                         self.setFocus()
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         # Test score creation shortcut (Ctrl+Shift+T)
         if (event.key() == Qt.Key.Key_T and 
@@ -2158,6 +2471,7 @@ class StaffView(QWidget):
                         pass
                     # If this is an overlay type (final/double/repeat variants), only demote to 'single'
                     barline_type = getattr(barline, 'barline_type', None)
+                    overlay_type = getattr(barline, 'overlay_type', None)
                     measure_number = getattr(barline, 'measure_number', None)
                     overlay_types = {'final', 'double', 'repeat_start', 'repeat_end', 'repeat_both', 'dashed'}
                     # Treat the rightmost measure as a visual final overlay even if stored as 'single'
@@ -2168,10 +2482,15 @@ class StaffView(QWidget):
                             is_rightmost = (int(measure_number) == int(rightmost_num))
                     except Exception:
                         is_rightmost = False
-                    if (barline_type in overlay_types or is_rightmost) and measure_number is not None:
+                    # CRITICAL FIX: Check both barline_type and overlay_type for overlay detection
+                    is_overlay = (barline_type in overlay_types) or (overlay_type in overlay_types) or is_rightmost
+                    if is_overlay and measure_number is not None:
                         try:
+                            # CRITICAL FIX: Remove overlay_type to reveal the single barline underneath
                             if hasattr(barline, 'barline_type'):
                                 barline.barline_type = 'single'
+                            if hasattr(barline, 'overlay_type'):
+                                barline.overlay_type = None  # Remove overlay to reveal single barline
                             if hasattr(barline, 'selected'):
                                 barline.selected = False
                             if self.temporal_bridge:
@@ -2189,7 +2508,8 @@ class StaffView(QWidget):
                         except Exception:
                             pass
                         self.update()
-                        print(f"BARLINE_DEMOTE: Demoted {barline_type or ('rightmost' if is_rightmost else 'unknown')} at measure {measure_number} to single (measure intact)")
+                        overlay_info = overlay_type if overlay_type else (barline_type if barline_type in overlay_types else ('rightmost' if is_rightmost else 'unknown'))
+                        print(f"BARLINE_DEMOTE: Demoted {overlay_info} at measure {measure_number} to single (measure intact, overlay removed)")
                         continue
                     # Check if barline can be removed
                     can_remove = True
@@ -2214,6 +2534,19 @@ class StaffView(QWidget):
                     else:
                         print(f"BARLINE_DELETE: Failed to delete barline at measure {getattr(barline, 'measure_number', 'unknown')}")
                 
+                # CRITICAL FIX: Re-justify measures after deletion
+                if successfully_deleted > 0:
+                    try:
+                        if hasattr(self, 'temporal_bridge') and self.temporal_bridge:
+                            if hasattr(self.temporal_bridge, '_ensure_all_measures_justified'):
+                                self.temporal_bridge._ensure_all_measures_justified()
+                                print(f"BARLINE_DELETE: Re-justified measures after deleting {successfully_deleted} barline(s)")
+                            elif hasattr(self.temporal_bridge, '_recalculate_uniform_spacing'):
+                                self.temporal_bridge._recalculate_uniform_spacing()
+                                print(f"BARLINE_DELETE: Recalculated spacing after deleting {successfully_deleted} barline(s)")
+                    except Exception as e:
+                        print(f"BARLINE_DELETE: Error re-justifying after deletion: {e}")
+                
                 # Release keyboard grab since barlines are now deleted
                 if hasattr(self, '_keyboard_grabbed') and self._keyboard_grabbed:
                     try:
@@ -2223,6 +2556,10 @@ class StaffView(QWidget):
                     except Exception as e:
                         print(f"KEYPRESS_DELETE: Failed to release keyboard: {e}")
                         self._keyboard_grabbed = False
+                
+                # Force update to show changes
+                if successfully_deleted > 0:
+                    self.update()
                 
                 # Update display and force renderer to rebuild selection cache
                 try:
@@ -2618,6 +2955,10 @@ class StaffView(QWidget):
                 system_top = base_top + (system_idx * system_spacing)
                 system_bottom = system_top + system_height
                 
+                # CRITICAL FIX: Mark wrapped systems (system_idx > 0) as continuations
+                # System 0 is the first system, systems > 0 are wrapped continuations
+                is_wrapped = system_idx > 0
+                
                 systems.append({
                     'index': system_idx,
                     'top': system_top - 25,  # Add tolerance
@@ -2625,7 +2966,9 @@ class StaffView(QWidget):
                     'left': left_bound,
                     'right': right_bound,
                     'measures_start': system_idx * measures_per_system + 1,
-                    'measures_end': min((system_idx + 1) * measures_per_system, measure_count)
+                    'measures_end': min((system_idx + 1) * measures_per_system, measure_count),
+                    'is_wrapped': is_wrapped,
+                    'is_continuation': is_wrapped  # Alias for clarity
                 })
             
             print(f"SYSTEM_BOUNDARIES: Calculated {len(systems)} systems for {measure_count} measures")
@@ -2676,6 +3019,12 @@ class StaffView(QWidget):
             
             if target_system:
                 print(f"BARLINE_SELECTION: Click is in system {target_system['index']} (measures {target_system['measures_start']}-{target_system['measures_end']})")
+                # CRITICAL FIX: Exclude wrapped systems (continuations) from selection
+                # Wrapped systems are continuations of the same logical system, so we only allow
+                # selection in the first system of each logical group
+                if target_system.get('is_wrapped', False) or target_system.get('is_continuation', False):
+                    print(f"BARLINE_SELECTION: Click is in wrapped/continuation system - excluding from selection")
+                    return None
         
         # Check regular measures collection - look for barlines the user clicked ON
         measures = self.document.measures
@@ -3554,6 +3903,14 @@ class StaffView(QWidget):
         print(f"SNAP_TO_GRID: Available grid positions: {grid_positions}")
         return closest_position
 
+    def showEvent(self, event):
+        """Handle widget show events - ensure size is set for scrolling"""
+        super().showEvent(event)
+        # Set widget size when first shown to ensure scroll area recognizes it
+        if self.document:
+            # Use QTimer to ensure this happens after the widget is fully shown
+            QTimer.singleShot(50, self._update_widget_size)
+    
     def resizeEvent(self, event):
         """Handle widget resize events to ensure dynamic layout responsiveness"""
         try:
@@ -3595,8 +3952,8 @@ class StaffView(QWidget):
 
     def wheelEvent(self, event):
         """Handle mouse wheel for zooming and scrolling"""
-        # Check if Ctrl is held for zooming
-        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+        # Check if Ctrl/Cmd is held for zooming (macOS trackpad gesture)
+        if event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier):
             # Zoom in/out
             delta = event.angleDelta().y()
             zoom_factor = 1.1 if delta > 0 else 0.9
@@ -3609,9 +3966,9 @@ class StaffView(QWidget):
             
             event.accept()
         else:
-            # Scrolling (when not zooming)
-            delta = event.angleDelta().y()
-            view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') else 'page'
+            # For normal scrolling, let the scroll area handle it natively (trackpad gestures work automatically)
+            # Only handle continuous mode manually, otherwise pass to parent
+            view_mode = self.renderer.get_view_mode() if hasattr(self, 'renderer') else 'page_down'
             if view_mode == 'continuous':
                 # Horizontal scrolling in continuous mode
                 try:
@@ -3619,52 +3976,73 @@ class StaffView(QWidget):
                         self.continuous_offset_x = 0.0
                     # Prefer horizontal delta when available, otherwise use vertical
                     dx = event.angleDelta().x()
+                    delta = event.angleDelta().y()
                     step = 60  # logical px per notch
                     move = -dx if dx != 0 else -delta
                     self.continuous_offset_x = max(0.0, float(self.continuous_offset_x + (move / 120.0) * step))
                     self.update()
+                    event.accept()
+                    return
                 except Exception:
                     pass
+            
+            # For page modes, handle scrolling via scroll area's scrollbar
+            # This enables native macOS trackpad two-finger scrolling
+            parent = self.parent()
+            scroll_area = None
+            while parent is not None:
+                from PyQt6.QtWidgets import QScrollArea
+                if isinstance(parent, QScrollArea):
+                    scroll_area = parent
+                    break
+                parent = parent.parent()
+            
+            if scroll_area:
+                # Use scrollbar to handle scrolling - this works with macOS trackpad gestures
+                vbar = scroll_area.verticalScrollBar()
+                hbar = scroll_area.horizontalScrollBar()
+                
+                # Get scroll delta from event (macOS trackpad provides pixelDelta)
+                pixel_delta = event.pixelDelta()
+                angle_delta = event.angleDelta()
+                
+                print(f"WHEEL_EVENT: pixelDelta=({pixel_delta.x()}, {pixel_delta.y()}), angleDelta=({angle_delta.x()}, {angle_delta.y()}), vbar.max={vbar.maximum() if vbar else None}")
+                
+                if pixel_delta.y() != 0:
+                    # Pixel-based scrolling (macOS trackpad)
+                    if vbar:
+                        old_val = vbar.value()
+                        new_val = max(0, min(vbar.maximum(), vbar.value() - pixel_delta.y()))
+                        vbar.setValue(new_val)
+                        print(f"WHEEL_SCROLL: Pixel scroll {old_val} -> {new_val} (delta={pixel_delta.y()})")
+                elif angle_delta.y() != 0:
+                    # Angle-based scrolling (mouse wheel fallback)
+                    step = int(angle_delta.y() / 8)  # Standard scroll step
+                    if vbar:
+                        old_val = vbar.value()
+                        new_val = max(0, min(vbar.maximum(), vbar.value() - step))
+                        vbar.setValue(new_val)
+                        print(f"WHEEL_SCROLL: Angle scroll {old_val} -> {new_val} (step={step})")
+                
+                if pixel_delta.x() != 0:
+                    # Horizontal pixel scrolling
+                    if hbar:
+                        old_val = hbar.value()
+                        new_val = max(0, min(hbar.maximum(), hbar.value() - pixel_delta.x()))
+                        hbar.setValue(new_val)
+                elif angle_delta.x() != 0:
+                    # Horizontal angle scrolling
+                    step = int(angle_delta.x() / 8)
+                    if hbar:
+                        old_val = hbar.value()
+                        new_val = max(0, min(hbar.maximum(), hbar.value() - step))
+                        hbar.setValue(new_val)
+                
+                event.accept()
             else:
-                # Page mode: Enable smooth vertical scrolling via scroll area
-                try:
-                    # Find scroll area ancestor
-                    parent = self.parent()
-                    scroll_area = None
-                    while parent is not None and scroll_area is None:
-                        if hasattr(parent, 'verticalScrollBar') and hasattr(parent, 'horizontalScrollBar'):
-                            scroll_area = parent
-                            break
-                        parent = parent.parent()
-                    
-                    if scroll_area is not None:
-                        # Smooth scrolling using scroll area
-                        vbar = scroll_area.verticalScrollBar()
-                        if vbar is not None:
-                            step = int(40 * self.zoom_factor)
-                            if delta > 0:
-                                vbar.setValue(vbar.value() - step)
-                            else:
-                                vbar.setValue(vbar.value() + step)
-                            event.accept()
-                            return
-                    
-                    # Fallback: Page navigation if no scroll area found
-                    if delta > 0:
-                        if hasattr(self, 'previous_page'):
-                            try:
-                                self.previous_page()
-                            except Exception:
-                                pass
-                    else:
-                        if hasattr(self, 'next_page'):
-                            try:
-                                self.next_page()
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
-            event.accept()
+                # Fallback: let event propagate naturally
+                event.ignore()
+                super().wheelEvent(event)
     
     def _zoom_at_point(self, zoom_factor, zoom_center):
         """Zoom in or out at a specific point on the screen"""

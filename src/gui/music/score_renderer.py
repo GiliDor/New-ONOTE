@@ -174,18 +174,40 @@ class UniversalSystemManager:
     
     def get_systems_to_render(self, system_info):
         """Determine which systems to render based on pagination mode."""
-        if getattr(self.renderer, 'page_down_mode', True):
-            # Page-down mode: only render current page systems
+        # Both page_down_mode and page_across_mode need page filtering
+        # Only continuous mode renders all systems
+        try:
+            page_down_mode = getattr(self.renderer, 'page_down_mode', True)
+            page_across_mode = getattr(self.renderer, 'page_across_mode', False)
+            continuous_mode = getattr(self.renderer, 'continuous_mode', False)
+        except Exception:
+            # Fallback to safe defaults if attributes don't exist
+            page_down_mode = True
+            page_across_mode = False
+            continuous_mode = False
+        
+        if page_down_mode or page_across_mode:
+            # Page-down or page-across mode: only render current page systems
             try:
                 current_page_int = int(getattr(self.renderer, 'current_page', 0))
             except Exception:
                 current_page_int = 0
-            page_start_idx = current_page_int * system_info['systems_per_page']
-            page_end_idx = min(system_info['total_systems'], page_start_idx + system_info['systems_per_page'])
+            
+            # Safety check for system_info
+            systems_per_page = system_info.get('systems_per_page', 1)
+            if systems_per_page <= 0:
+                systems_per_page = 1
+            total_systems = system_info.get('total_systems', 0)
+            if total_systems <= 0:
+                return range(0, 0)  # No systems to render
+            
+            page_start_idx = current_page_int * systems_per_page
+            page_end_idx = min(total_systems, page_start_idx + systems_per_page)
             return range(page_start_idx, page_end_idx)
         else:
             # Continuous mode: render all systems
-            return range(0, system_info['total_systems'])
+            total_systems = system_info.get('total_systems', 0)
+            return range(0, max(0, total_systems))
     
     def calculate_system_vertical_shift(self, system_idx, system_info):
         """
@@ -197,16 +219,30 @@ class UniversalSystemManager:
         - Full score height (group_span) per system
         - Inter-system spacing
         """
-        if getattr(self.renderer, 'page_down_mode', True):
-            # In page-down mode, use page-local positioning
+        # Both page_down_mode and page_across_mode use page-local positioning
+        try:
+            page_down_mode = getattr(self.renderer, 'page_down_mode', True)
+            page_across_mode = getattr(self.renderer, 'page_across_mode', False)
+        except Exception:
+            # Fallback to safe defaults
+            page_down_mode = True
+            page_across_mode = False
+        
+        if page_down_mode or page_across_mode:
+            # In page-down or page-across mode, use page-local positioning
             # Since each page is rendered separately with its own translation,
             # systems should be positioned relative to the current page (starting at 0)
-            systems_per_page = system_info['systems_per_page']
+            systems_per_page = system_info.get('systems_per_page', 1)
+            if systems_per_page <= 0:
+                systems_per_page = 1
             page_idx = system_idx // systems_per_page
             local_idx = system_idx % systems_per_page
             
             # Get current page to determine if this system belongs to it
-            current_page_int = int(getattr(self.renderer, 'current_page', 0))
+            try:
+                current_page_int = int(getattr(self.renderer, 'current_page', 0))
+            except Exception:
+                current_page_int = 0
             
             # If this system is on the current page, position it relative to the page (starting at 0)
             # Otherwise, return 0 (system won't be rendered anyway due to get_systems_to_render filtering)
@@ -489,9 +525,14 @@ class ScoreRenderer:
     def set_page_across_mode(self, enabled: bool):
         """Set page across view mode"""
         self.page_across_mode = enabled
-        self.page_down_mode = not enabled and not self.continuous_mode
+        # Page across mode still needs page_down_mode=True for pagination filtering
+        # Only disable page_down_mode if we're switching to continuous mode
+        if enabled:
+            self.page_down_mode = True  # Page across still uses page filtering
+        else:
+            self.page_down_mode = not self.continuous_mode
         self.view_mode = "page_across" if enabled else ("continuous" if self.continuous_mode else "page_down")
-        print(f"RENDERER: Set page across mode to {enabled}, view mode: {self.view_mode}")
+        print(f"RENDERER: Set page across mode to {enabled}, view mode: {self.view_mode}, page_down_mode: {self.page_down_mode}")
         
     def set_page_down_mode(self, enabled: bool):
         """Set page down view mode"""
@@ -1024,8 +1065,18 @@ class ScoreRenderer:
                     total_systems = (total + mps - 1) // mps
                     # Page gating (page-down mode only)
                     if getattr(self, 'page_down_mode', True):
+                        # CRITICAL FIX: Use wrapping_spacing (same as rendering) for pagination calculation
                         try:
-                            spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
+                            wrapping_spacing = 80  # Default
+                            if hasattr(self.document, 'settings') and self.document.settings:
+                                doc_wrapping_spacing = self.document.settings.get('layout/wrapping_spacing', 0) or 0
+                                if doc_wrapping_spacing > 0:
+                                    wrapping_spacing = int(doc_wrapping_spacing)
+                            if wrapping_spacing <= 0:
+                                from PyQt6.QtCore import QSettings
+                                wrapping_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_wrapping_spacing", 80))
+                            wrapping_spacing = max(40, min(200, int(wrapping_spacing)))
+                            spacing_pref = wrapping_spacing  # Use wrapping_spacing for single staff systems
                         except Exception:
                             spacing_pref = 80
                         try:
@@ -1038,6 +1089,7 @@ class ScoreRenderer:
                         current_page_int = int(getattr(self, 'current_page', 0))
                         page_start_idx = current_page_int * systems_per_page
                         page_end_idx = min(total_systems, page_start_idx + systems_per_page)
+                        print(f"MEASURE_NUMBERS_PAGINATION: systems_per_page={systems_per_page}, current_page={current_page_int}, page_range=[{page_start_idx}, {page_end_idx})")
                     else:
                         try:
                             spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
@@ -1172,7 +1224,13 @@ class ScoreRenderer:
                                     available_height = int(self.page_height * 0.85)
                                 
                                 systems_per_page = max(1, available_height // max(1, system_advance))
-                                local_idx = int(sys_idx) % int(systems_per_page)
+                                # CRITICAL FIX: Use page-relative indexing, not modulo (which wraps systems incorrectly)
+                                if getattr(self, 'page_down_mode', True):
+                                    current_page_int = int(getattr(self, 'current_page', 0))
+                                    page_start_idx = current_page_int * systems_per_page
+                                    local_idx = sys_idx - page_start_idx  # Page-relative index
+                                else:
+                                    local_idx = int(sys_idx) % int(systems_per_page)  # Continuous mode: use modulo
                                 vertical_shift = int(local_idx) * int(system_advance)
                                 
                                 # Calculate system_y to match staff line rendering exactly
@@ -1765,12 +1823,21 @@ class ScoreRenderer:
 
         # For now, only wrap for non-grand single staff; grand staff will be handled as a unit later
         if not isinstance(staff, GrandStaff) and measure_count > 0:
-            # Compute systems per page using spacing and margins
+            # CRITICAL FIX: Use wrapping_spacing (same as rendering) for pagination calculation
             try:
+                wrapping_spacing = 80  # Default
+                if hasattr(self.document, 'settings') and self.document.settings:
+                    doc_wrapping_spacing = self.document.settings.get('layout/wrapping_spacing', 0) or 0
+                    if doc_wrapping_spacing > 0:
+                        wrapping_spacing = int(doc_wrapping_spacing)
+                if wrapping_spacing <= 0:
+                    from PyQt6.QtCore import QSettings
+                    wrapping_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_wrapping_spacing", 80))
+                wrapping_spacing = max(40, min(200, int(wrapping_spacing)))
+                spacing_pref = wrapping_spacing  # Use wrapping_spacing for single staff systems
+            except Exception:
                 from PyQt6.QtCore import QSettings
                 spacing_pref = int(QSettings("ONOTE", "Preferences").value("layout/default_system_spacing", 80))
-            except Exception:
-                spacing_pref = 80
             try:
                 top_margin_px = float(self.margins.get('top', 0))
             except Exception:
@@ -2376,6 +2443,21 @@ class ScoreRenderer:
             available_height = int(self.page_height - top_margin_px - bottom_margin_px)
         except Exception:
             available_height = int(max(0, self.page_height - 220))
+        # CRITICAL FIX: Use wrapping_spacing (same as rendering) for pagination calculation
+        try:
+            wrapping_spacing = spacing_pref  # Default to system spacing
+            if hasattr(self.document, 'settings') and self.document.settings:
+                doc_wrapping_spacing = self.document.settings.get('layout/wrapping_spacing', 0) or 0
+                if doc_wrapping_spacing > 0:
+                    wrapping_spacing = int(doc_wrapping_spacing)
+            if wrapping_spacing == spacing_pref:
+                from PyQt6.QtCore import QSettings
+                wrapping_spacing = int(QSettings("ONOTE", "Preferences").value("layout/default_wrapping_spacing", 80))
+            wrapping_spacing = max(40, min(200, int(wrapping_spacing)))
+            spacing_pref = wrapping_spacing  # Use wrapping_spacing for single staff systems
+        except Exception:
+            pass  # Keep original spacing_pref
+        
         systems_per_page = max(1, available_height // max(1, spacing_pref))
         page_idx = system_idx // systems_per_page
         # Align page gating behavior with measures renderer: auto-advance to newest page
@@ -2390,7 +2472,10 @@ class ScoreRenderer:
                     print(f"PAGE_GATE: advancing current_page to {self.current_page} for system_idx={system_idx} (page_idx={page_idx})")
                 except Exception:
                     pass
-            # Do not return here; render all systems stacked vertically in page-down view
+            # CRITICAL FIX: In page-down mode, skip systems not on current page
+            if getattr(self, 'page_down_mode', True):
+                if page_idx != current_page_int:
+                    return  # Skip systems not on current page
         else:
             self.current_page = int(page_idx)
             try:
